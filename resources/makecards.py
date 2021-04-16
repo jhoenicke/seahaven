@@ -1,8 +1,33 @@
+#!/usr/bin/env python3
+#
+# Python program that generates card SVG files.
+# The SVG's are based on Nicu's playing cards (https://nicubuno.ro/)
+#
+# Copyright 2011 Jochen Hoenicke
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+
+
 from typing import List, Optional, Tuple, Dict
 
 WIDTH=130
 HEIGHT=190
-SCALE1=1.8
+OFFSETX=20
+OFFSETY=20
+SCALE1=2.1
 SCALE2=2.2
 SCALE3=7
 SCALE4=12
@@ -50,8 +75,50 @@ colors = [
     }
     ]
 
+# Glyphs from NimbusSans-Bold
+glyphs=[
+    None,
+    { "d": "M501 147h-273l-49 -147h-153l259 729h166l252 -729h-154zM460 272l-95 285l-95 -285h190z",
+      "t": "A",
+      "w": 722 },
+    { "d": "M512 125v-125h-482c6 132 43 194 163 276c158 112 182 141 182 220c0 71 -38 114 -100 114c-64 0 -101 -46 -101 -125v-23h-135v25c0 150 86 237 233 237c148 0 243 -88 243 -225c0 -97 -36 -150 -159 -240c-104 -75 -126 -96 -145 -134h301z",
+      "t": "2",
+      "w": 556 },
+    { "d": "M217 317v94h12c83 0 124 35 124 107c0 59 -32 93 -88 93c-41 0 -73 -19 -86 -50c-7 -18 -10 -37 -11 -75h-130c0 59 4 82 17 116c31 77 110 122 213 122c137 0 225 -75 225 -193c0 -65 -28 -110 -93 -151c80 -39 116 -93 116 -176c0 -138 -97 -227 -248 -227 c-146 0 -238 89 -239 231h136c4 -73 40 -111 106 -111c61 0 105 44 105 107c0 52 -30 93 -77 106c-25 7 -28 7 -82 7z",
+      "t": "3",
+      "w": 556 },
+    { "d": "M522 273v-116h-74v-157h-140v157h-284v118l259 434h165v-436h74zM308 273v303l-185 -303h185z",
+      "t": "4",
+      "w": 556 },
+    { "d": "M489 709v-125h-293l-23 -148c41 31 76 43 123 43c131 0 221 -99 221 -245c0 -153 -104 -257 -256 -257c-138 0 -232 84 -234 208h138c3 -57 37 -88 98 -88c71 0 114 51 114 134c0 86 -43 137 -114 137c-43 0 -75 -19 -90 -54h-126l63 395h379z",
+      "t": "5",
+      "w": 556 },
+    { "d": "M507 548h-130c-18 45 -42 63 -87 63c-49 0 -83 -26 -102 -78c-10 -27 -13 -48 -15 -114l-1 -15c44 46 83 63 141 63c122 0 206 -94 206 -230c0 -155 -96 -260 -237 -260c-84 0 -158 39 -199 105c-36 57 -51 133 -51 255c0 129 17 208 59 277c43 71 115 110 203 110 c77 0 142 -30 179 -81c18 -26 27 -49 34 -95zM278 356c-64 0 -108 -54 -108 -131c0 -76 44 -128 108 -128c62 0 108 55 108 130c0 79 -42 129 -108 129z",
+      "t": "6",
+      "w": 556 },
+    { "d": "M528 709v-110c-168 -203 -241 -375 -254 -599h-141c19 151 44 244 93 347c28 62 113 191 156 237h-353v125h499z",
+      "t": "7",
+      "w": 556 },
+    { "d": "M409 386c82 -45 116 -98 116 -182c0 -134 -103 -227 -251 -227c-149 0 -252 93 -252 227c0 84 34 137 116 182c-64 34 -92 77 -92 145c0 112 96 193 228 193c131 0 227 -81 227 -192c0 -46 -17 -89 -46 -116c-11 -10 -22 -17 -46 -30zM275 611c-63 0 -106 -38 -106 -92 c0 -56 43 -94 106 -94c61 0 105 39 105 93c0 55 -43 93 -105 93zM273 330c-68 0 -111 -46 -111 -118c0 -70 43 -115 111 -115s112 45 112 113c0 74 -43 120 -112 120z",
+      "t": "8",
+      "w": 556 },
+    { "d": "M38 165h135c3 -42 36 -69 86 -69c79 0 117 65 117 202c-23 -26 -31 -35 -44 -44c-22 -16 -56 -26 -92 -26c-126 0 -212 100 -212 246c0 148 97 250 239 250c85 0 155 -40 200 -116c33 -54 49 -134 49 -238c0 -114 -22 -221 -59 -284c-42 -72 -111 -110 -202 -110 c-122 0 -214 80 -217 189zM263 610c-63 0 -102 -52 -102 -134s40 -132 104 -132c65 0 108 52 108 130c0 84 -42 136 -110 136z",
+      "t": "9",
+      "w": 556 },
+    { "d": "M238 489h-170v93c122 0 195 43 217 127h93v-709h-140v489z M773 724c83 0 152 -37 194 -105c34 -55 50 -143 50 -273c0 -133 -20 -224 -60 -279c-44 -59 -107 -90 -184 -90c-83 0 -152 37 -194 105c-34 54 -50 142 -50 268c0 138 19 228 60 283c43 59 108 91 184 91zM773 611c-40 0 -71 -24 -86 -67c-11 -29 -18 -109 -18 -193 c0 -95 8 -169 22 -199c17 -36 45 -55 82 -55c40 0 70 23 86 65c11 29 18 107 18 187c0 98 -8 175 -22 205c-17 37 -46 57 -82 57z",
+      "t": "10",
+      "w": 1056 },
+    { "d": "M336 729h150v-539c0 -136 -85 -213 -234 -213c-69 0 -125 20 -167 58c-43 40 -61 87 -61 163v72h150v-70c0 -67 24 -95 81 -95c52 0 81 30 81 85v539z",
+      "t": "J",
+      "w": 556 },
+    { "d": "M665 103l80 -76l-76 -81l-86 81c-58 -35 -113 -50 -189 -50c-104 0 -186 33 -249 101c-64 69 -102 172 -102 281s37 212 102 281c63 68 145 101 249 101s186 -33 249 -101c64 -69 102 -172 102 -279c0 -98 -31 -198 -80 -258zM480 278l82 -78c22 44 33 98 33 158 c0 155 -79 255 -201 255s-201 -100 -201 -254c0 -153 80 -254 200 -254c32 0 64 7 88 19l-77 73z",
+      "t": "Q",
+      "w": 778 },
+    { "d": "M224 244v-244h-150v729h150v-320l285 320h177l-291 -314l322 -415h-179l-239 322z",
+      "t": "K",
+      "w": 722 },
+]      
 
-texts = [ '?', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K' ]
 suits = ["diamond", "heart", "club", "spade"]
 suit_paths = [
     "m 0,-4.50839 c -1.091628,2.18162 -1.887601,3.30678 -3.529422,4.50839 1.553736,1.18718 2.649193,2.41418 3.561339,4.3974904 0.814718,-1.88416 1.8114457,-3.2887604 3.5427227,-4.4564104 -1.741482,-0.88606 -2.7497167,-2.28961 -3.5746397,-4.44947 z", # diamond
@@ -316,61 +383,47 @@ def king(suit: int) -> str:
          style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:2;stroke-miterlimit:4;stroke-dashoffset:0;stroke-opacity:1"
          transform="matrix(0.357143,0.000000,0.000000,0.674419,195.9286,76.04816)" />
     </g>
-    <g
-       transform="matrix(0.144857,0.000000,0.000000,9.790296e-2,-36.81380,339.7718)"
-       id="g2102">
+    <g transform="matrix(0.144857,0.000000,0.000000,9.790296e-2,-36.81380,339.7718)">
       <path
-         id="path2104"
          d="M 353.00000,245.86218 C 353.00000,257.73018 343.59200,267.36218 332.00000,267.36218 C 320.40800,267.36218 311.00000,257.73018 311.00000,245.86218 C 311.00000,233.99418 320.40800,224.36218 332.00000,224.36218 C 343.59200,224.36218 353.00000,233.99418 353.00000,245.86218 z "
          style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2;stroke-miterlimit:4;stroke-dashoffset:0;stroke-opacity:1"
          transform="translate(-4.000000,-6.000000)" />
       <path
-         id="path2106"
          d="M 353.00000,245.86218 C 353.00000,257.73018 343.59200,267.36218 332.00000,267.36218 C 320.40800,267.36218 311.00000,257.73018 311.00000,245.86218 C 311.00000,233.99418 320.40800,224.36218 332.00000,224.36218 C 343.59200,224.36218 353.00000,233.99418 353.00000,245.86218 z "
          style="fill:{colorscheme['eye']};fill-opacity:1;stroke:none;stroke-width:2;stroke-miterlimit:4;stroke-dashoffset:0;stroke-opacity:1"
          transform="matrix(0.571429,0.000000,0.000000,0.837210,129.2857,34.52408)" />
       <path
-         id="path2108"
          d="M 353.00000,245.86218 C 353.00000,257.73018 343.59200,267.36218 332.00000,267.36218 C 320.40800,267.36218 311.00000,257.73018 311.00000,245.86218 C 311.00000,233.99418 320.40800,224.36218 332.00000,224.36218 C 343.59200,224.36218 353.00000,233.99418 353.00000,245.86218 z "
          style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:2;stroke-miterlimit:4;stroke-dashoffset:0;stroke-opacity:1"
          transform="matrix(0.357143,0.000000,0.000000,0.674419,195.9286,76.04816)" />
     </g>
     <path
-       id="path2110"
        d="M 12.818066,376.77903 C 15.738342,376.91795 20.120288,377.11459 24.545890,376.77903 C 19.891892,375.06118 16.625053,374.53294 12.818066,376.77903 z "
        style="fill:url(#mouthking);fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
     <path
-       id="path2112"
        d="M 32.440844,399.09034 L 33.704434,399.21360 L 35.075790,413.72636 L 31.610604,413.97676 L 32.440844,399.09034 z "
        style="fill:{colorscheme['coatshadow']};fill-opacity:1;stroke:none;stroke-width:2;stroke-miterlimit:4;stroke-dashoffset:0;stroke-opacity:1" />
     <path
        style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="M 14.479613,364.98889 C 13.687713,366.27572 12.534716,368.39131 12.698976,369.36375 C 12.863246,370.33619 14.351353,370.12622 15.141313,370.68683 L 15.472163,370.20894 C 14.777473,369.71593 13.689241,370.20092 13.554181,369.40137 C 13.419131,368.60181 14.235253,366.48651 14.975883,365.28297 L 14.479613,364.98889 z "
-       id="path2114" />
+       d="M 14.479613,364.98889 C 13.687713,366.27572 12.534716,368.39131 12.698976,369.36375 C 12.863246,370.33619 14.351353,370.12622 15.141313,370.68683 L 15.472163,370.20894 C 14.777473,369.71593 13.689241,370.20092 13.554181,369.40137 C 13.419131,368.60181 14.235253,366.48651 14.975883,365.28297 L 14.479613,364.98889 z " />
     <path
        style="fill:{colorscheme['hair']};fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="M 16.215497,377.57251 C 17.319494,379.90915 15.547377,379.93087 14.757348,380.30333 C 14.143053,379.84236 12.827770,378.47423 12.419648,377.51845 C 12.291242,382.82517 14.144168,385.72184 15.487671,387.18748 C 16.831174,388.65312 24.770055,389.75235 29.044836,387.18748 C 33.319618,384.62261 42.283717,375.85124 37.407109,368.66970 C 36.739444,369.13441 35.523072,369.03294 34.663121,368.86698 C 34.785258,370.45476 32.644463,375.05713 28.736091,376.76704 C 24.827719,378.47696 22.012900,378.89036 20.983819,380.42297 C 18.972651,380.48245 17.850266,379.67449 18.762204,377.59067 C 18.271161,377.75163 16.756031,377.57001 16.215497,377.57251 z "
-       id="path2116" />
+       d="M 16.215497,377.57251 C 17.319494,379.90915 15.547377,379.93087 14.757348,380.30333 C 14.143053,379.84236 12.827770,378.47423 12.419648,377.51845 C 12.291242,382.82517 14.144168,385.72184 15.487671,387.18748 C 16.831174,388.65312 24.770055,389.75235 29.044836,387.18748 C 33.319618,384.62261 42.283717,375.85124 37.407109,368.66970 C 36.739444,369.13441 35.523072,369.03294 34.663121,368.86698 C 34.785258,370.45476 32.644463,375.05713 28.736091,376.76704 C 24.827719,378.47696 22.012900,378.89036 20.983819,380.42297 C 18.972651,380.48245 17.850266,379.67449 18.762204,377.59067 C 18.271161,377.75163 16.756031,377.57001 16.215497,377.57251 z " />
     <path
        style="fill:{colorscheme['hair']};fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="M 17.134459,372.20899 C 17.134459,372.20899 10.049403,374.03286 9.6285080,375.29555 C 9.2076140,376.55823 10.680745,378.03136 10.680745,378.03136 C 10.680745,378.03136 15.310583,374.17316 17.274757,374.24331 C 17.134459,373.75227 17.344907,373.12093 17.134459,372.20899 z "
-       id="path2118" />
+       d="M 17.134459,372.20899 C 17.134459,372.20899 10.049403,374.03286 9.6285080,375.29555 C 9.2076140,376.55823 10.680745,378.03136 10.680745,378.03136 C 10.680745,378.03136 15.310583,374.17316 17.274757,374.24331 C 17.134459,373.75227 17.344907,373.12093 17.134459,372.20899 z " />
     <path
        style="fill:{colorscheme['hair']};fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="M 17.672983,372.22956 C 17.672983,372.22956 25.081447,372.34502 25.860830,373.42395 C 26.640211,374.50288 25.675280,376.34926 25.675280,376.34926 C 25.675280,376.34926 19.933259,373.47113 18.080035,374.12570 C 18.066998,373.61518 17.745005,373.16269 17.672983,372.22956 z "
-       id="path2120" />
+       d="M 17.672983,372.22956 C 17.672983,372.22956 25.081447,372.34502 25.860830,373.42395 C 26.640211,374.50288 25.675280,376.34926 25.675280,376.34926 C 25.675280,376.34926 19.933259,373.47113 18.080035,374.12570 C 18.066998,373.61518 17.745005,373.16269 17.672983,372.22956 z " />
     <path
        style="fill:url(#crownking);fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="M 6.4465630,336.67768 L 9.0349520,330.07413 L 14.123340,337.04380 L 17.696563,328.30636 L 22.153670,336.85446 C 22.153670,336.85446 25.284952,328.01390 25.284952,328.69046 C 25.284952,329.36702 28.580447,337.91512 28.580447,337.91512 L 32.330447,329.72058 L 34.820562,337.82673 L 39.123340,330.79380 L 40.373340,337.04380 L 40.373340,342.04380 C 40.373340,342.04380 12.873340,343.29380 10.373340,342.04380 C 7.8733400,340.79380 6.3595140,336.82219 6.4465630,336.67768 z "
-       id="path2122" />
+       d="M 6.4465630,336.67768 L 9.0349520,330.07413 L 14.123340,337.04380 L 17.696563,328.30636 L 22.153670,336.85446 C 22.153670,336.85446 25.284952,328.01390 25.284952,328.69046 C 25.284952,329.36702 28.580447,337.91512 28.580447,337.91512 L 32.330447,329.72058 L 34.820562,337.82673 L 39.123340,330.79380 L 40.373340,337.04380 L 40.373340,342.04380 C 40.373340,342.04380 12.873340,343.29380 10.373340,342.04380 C 7.8733400,340.79380 6.3595140,336.82219 6.4465630,336.67768 z " />
     <path
        style="fill:url(#crownking2);fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="M 7.1550100,348.22429 C 17.231281,350.61077 29.782426,350.69916 40.300639,348.22429 C 40.300639,348.22429 42.687126,331.69567 42.687126,331.69567 L 38.090931,338.23640 L 35.262504,330.81178 L 31.726970,338.05963 L 28.103048,329.75112 L 24.832679,337.97124 L 21.120369,329.92790 L 17.849999,338.67835 L 12.988640,331.07695 L 9.3647180,338.94351 L 3.7962520,332.04922 C 3.7962520,332.04922 6.8898440,347.87073 7.1550100,348.22429 z "
-       id="path2124" />
+       d="M 7.1550100,348.22429 C 17.231281,350.61077 29.782426,350.69916 40.300639,348.22429 C 40.300639,348.22429 42.687126,331.69567 42.687126,331.69567 L 38.090931,338.23640 L 35.262504,330.81178 L 31.726970,338.05963 L 28.103048,329.75112 L 24.832679,337.97124 L 21.120369,329.92790 L 17.849999,338.67835 L 12.988640,331.07695 L 9.3647180,338.94351 L 3.7962520,332.04922 C 3.7962520,332.04922 6.8898440,347.87073 7.1550100,348.22429 z " />
     <path
        style="fill:url(#shoulder2);fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="M 37.648989,382.78413 C 36.976893,383.29380 34.732174,385.17062 34.732174,385.17062 L 44.123340,392.04380 L 46.623340,389.54380 L 37.648989,382.78413 z "
-       id="path2126" />
+       d="M 37.648989,382.78413 C 36.976893,383.29380 34.732174,385.17062 34.732174,385.17062 L 44.123340,392.04380 L 46.623340,389.54380 L 37.648989,382.78413 z " />
     <path
        style="fill:#ff8900;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        d="M 23.532686,399.85249 L 16.590973,391.90473 L 33.995558,391.90473 L 23.532686,399.85249 z "
@@ -381,8 +434,7 @@ def king(suit: int) -> str:
        id="path2130" />
     <path
        style="fill:url(#overallk);fill-opacity:1;stroke:none;stroke-width:2;stroke-miterlimit:4;stroke-dashoffset:0;stroke-opacity:1"
-       d="M 17.385613,328.91791 L 14.854363,335.10541 L 12.698113,331.69916 L 11.448113,334.41791 L 8.7293632,330.69916 L 6.5106132,336.38666 L 3.5106132,332.66791 C 3.5106132,332.66791 6.5891932,348.50186 6.8543632,348.85541 C 6.8640032,348.85769 6.8759632,348.85313 6.8856132,348.85541 C 4.9401332,351.95085 4.5418632,354.73041 4.5418632,354.73041 C 5.4091932,355.03476 7.0478732,355.28721 8.7293632,355.51166 C 7.7632432,358.11508 7.1981132,360.96725 7.1981132,364.01166 C 7.1981132,368.22907 8.2380832,372.14659 10.010613,375.41791 C 9.7707532,375.59130 9.3765132,375.75771 9.3231132,375.91791 C 8.9022232,377.18059 10.385613,378.66791 10.385613,378.66791 C 10.385613,378.66791 11.173403,378.10535 11.573113,377.79291 C 11.771713,378.06303 11.925793,378.37970 12.135613,378.63666 C 12.139483,381.28770 12.653113,383.24071 13.323113,384.76166 C 13.244243,384.79306 13.151193,384.79124 13.073113,384.82416 L 12.323113,383.19916 L 5.5418632,388.73041 L 7.3856132,390.04291 C 6.2008732,391.97713 5.3231132,394.13073 5.3231132,396.57417 L 5.3231132,411.48042 C 11.335473,414.46043 21.683473,415.40669 31.323113,414.57417 L 31.323113,414.60542 L 34.760613,414.35542 L 34.760613,414.32417 C 38.895133,413.74540 42.812673,412.86369 45.948113,411.48042 L 45.948113,396.57417 C 45.948113,394.79627 45.569943,393.10830 44.916863,391.57416 L 46.323113,390.16791 L 37.354363,383.41791 C 37.117303,383.59768 36.783973,383.88406 36.323113,384.26166 C 35.384293,384.02654 34.395643,383.87020 33.385613,383.85541 C 35.823653,381.32087 38.095373,378.10620 38.448113,374.73041 C 39.370433,372.87945 40.067913,370.87219 40.479363,368.69916 C 41.733653,368.42699 42.606663,367.61488 45.135613,366.79291 C 45.135613,366.79291 45.094983,356.52301 40.010613,348.76166 C 40.036843,348.58002 42.385613,332.32416 42.385613,332.32416 L 39.760613,336.07416 L 38.823113,331.41791 L 36.448113,335.32416 L 34.948113,331.44916 L 33.354363,334.69916 L 32.041863,330.35541 L 29.854363,335.13666 L 27.791863,330.38666 L 26.510613,333.60541 C 25.749723,331.54159 24.979363,329.63819 24.979363,329.32416 C 24.979363,328.85980 23.748423,332.35116 22.823113,334.91791 L 20.823113,330.54291 L 19.729363,333.41791 L 17.385613,328.91791 z "
-       id="path2132" />
+       d="M 17.385613,328.91791 L 14.854363,335.10541 L 12.698113,331.69916 L 11.448113,334.41791 L 8.7293632,330.69916 L 6.5106132,336.38666 L 3.5106132,332.66791 C 3.5106132,332.66791 6.5891932,348.50186 6.8543632,348.85541 C 6.8640032,348.85769 6.8759632,348.85313 6.8856132,348.85541 C 4.9401332,351.95085 4.5418632,354.73041 4.5418632,354.73041 C 5.4091932,355.03476 7.0478732,355.28721 8.7293632,355.51166 C 7.7632432,358.11508 7.1981132,360.96725 7.1981132,364.01166 C 7.1981132,368.22907 8.2380832,372.14659 10.010613,375.41791 C 9.7707532,375.59130 9.3765132,375.75771 9.3231132,375.91791 C 8.9022232,377.18059 10.385613,378.66791 10.385613,378.66791 C 10.385613,378.66791 11.173403,378.10535 11.573113,377.79291 C 11.771713,378.06303 11.925793,378.37970 12.135613,378.63666 C 12.139483,381.28770 12.653113,383.24071 13.323113,384.76166 C 13.244243,384.79306 13.151193,384.79124 13.073113,384.82416 L 12.323113,383.19916 L 5.5418632,388.73041 L 7.3856132,390.04291 C 6.2008732,391.97713 5.3231132,394.13073 5.3231132,396.57417 L 5.3231132,411.48042 C 11.335473,414.46043 21.683473,415.40669 31.323113,414.57417 L 31.323113,414.60542 L 34.760613,414.35542 L 34.760613,414.32417 C 38.895133,413.74540 42.812673,412.86369 45.948113,411.48042 L 45.948113,396.57417 C 45.948113,394.79627 45.569943,393.10830 44.916863,391.57416 L 46.323113,390.16791 L 37.354363,383.41791 C 37.117303,383.59768 36.783973,383.88406 36.323113,384.26166 C 35.384293,384.02654 34.395643,383.87020 33.385613,383.85541 C 35.823653,381.32087 38.095373,378.10620 38.448113,374.73041 C 39.370433,372.87945 40.067913,370.87219 40.479363,368.69916 C 41.733653,368.42699 42.606663,367.61488 45.135613,366.79291 C 45.135613,366.79291 45.094983,356.52301 40.010613,348.76166 C 40.036843,348.58002 42.385613,332.32416 42.385613,332.32416 L 39.760613,336.07416 L 38.823113,331.41791 L 36.448113,335.32416 L 34.948113,331.44916 L 33.354363,334.69916 L 32.041863,330.35541 L 29.854363,335.13666 L 27.791863,330.38666 L 26.510613,333.60541 C 25.749723,331.54159 24.979363,329.63819 24.979363,329.32416 C 24.979363,328.85980 23.748423,332.35116 22.823113,334.91791 L 20.823113,330.54291 L 19.729363,333.41791 L 17.385613,328.91791 z" />
   </g>
 '''
 
@@ -629,43 +681,60 @@ def get_gradient_bases(suit) -> List[Dict[str, str]]:
         },
     ]
 
-positions : List[Optional[List[Tuple[float,float,bool]]]] = [
-    None,
-    [ (WIDTH/2, HEIGHT/2, False) ], # A
-    [ (WIDTH/2, HEIGHT/4, False), (WIDTH/2,3*HEIGHT/4, True) ], # 2
-    [ (WIDTH/2, HEIGHT/4, False), (WIDTH/2, HEIGHT/2, False), (WIDTH/2,3*HEIGHT/4, True) ], # 3
-    [ (WIDTH/3, HEIGHT/4, False), (2*WIDTH/3, HEIGHT/4, False),
-      (WIDTH/3, 3*HEIGHT/4, True),  (2*WIDTH/3, 3*HEIGHT/4, True) ], # 4
-    [ (WIDTH/3, HEIGHT/4, False), (2*WIDTH/3, HEIGHT/4, False), (WIDTH/2, HEIGHT/2, False),
-      (WIDTH/3, 3*HEIGHT/4, True),  (2*WIDTH/3, 3*HEIGHT/4, True) ], # 5
-    [ (WIDTH/3, HEIGHT/4, False), (2*WIDTH/3, HEIGHT/4, False),
-      (WIDTH/3, HEIGHT/2, False), (2*WIDTH/3, HEIGHT/2, False),
-      (WIDTH/3, 3*HEIGHT/4, True),  (2*WIDTH/3, 3*HEIGHT/4, True) ], # 6
-    [ (WIDTH/3, HEIGHT/4, False), (2*WIDTH/3, HEIGHT/4, False),
-      (WIDTH/2, HEIGHT*3/8, False),
-      (WIDTH/3, HEIGHT/2, False), (2*WIDTH/3, HEIGHT/2, False),
-      (WIDTH/3, 3*HEIGHT/4, True),  (2*WIDTH/3, 3*HEIGHT/4, True) ], # 7
-    [ (WIDTH/3, HEIGHT/4, False), (2*WIDTH/3, HEIGHT/4, False),
-      (WIDTH/2, HEIGHT*3/8, False),
-      (WIDTH/3, HEIGHT/2, False), (2*WIDTH/3, HEIGHT/2, False),
-      (WIDTH/2, HEIGHT*5/8, True),
-      (WIDTH/3, 3*HEIGHT/4, True),  (2*WIDTH/3, 3*HEIGHT/4, True) ], # 8
-    [ (WIDTH/3, HEIGHT/4, False), (2*WIDTH/3, HEIGHT/4, False),
-      (WIDTH/3, HEIGHT*5/12, False), (2*WIDTH/3, HEIGHT*5/12, False),
-      (WIDTH/2, HEIGHT/2, False),
-      (WIDTH/3, HEIGHT*7/12, True), (2*WIDTH/3, HEIGHT*7/12, True),
-      (WIDTH/3, 3*HEIGHT/4, True),  (2*WIDTH/3, 3*HEIGHT/4, True) ], # 9
-    [ (WIDTH/3, HEIGHT/4, False), (2*WIDTH/3, HEIGHT/4, False),
-      (WIDTH/2, HEIGHT*1/3, False),
-      (WIDTH/3, HEIGHT*5/12, False), (2*WIDTH/3, HEIGHT*5/12, False),
-      (WIDTH/3, HEIGHT*7/12, True), (2*WIDTH/3, HEIGHT*7/12, True),
-      (WIDTH/2, HEIGHT*2/3, True),
-      (WIDTH/3, 3*HEIGHT/4, True),  (2*WIDTH/3, 3*HEIGHT/4, True) ], # 9
-    None, None, None
-]
+def make_positions() -> List[Optional[List[Tuple[float,float,bool]]]]:
+    top  = 35
+    left = 40
+    innerh = HEIGHT - 2*top
+    innerw = WIDTH - 2*left
+    x1 = left
+    x2 = left + innerw/2
+    x3 = left + innerw
+    y1 = top
+    y2 = top + innerh/6
+    y25 = top + innerh/4
+    y3 = top + 2*innerh/6
+    y4 = top + 3*innerh/6
+    y5 = top + 4*innerh/6
+    y55 = top + 3*innerh/4
+    y6 = top + 5*innerh/6
+    y7 = top + innerh
+
+    return [
+        None,
+        [ (x2, y4, False) ], # A
+        [ (x2, y1, False), (x2, y7, True) ], # 2
+        [ (x2, y1, False), (x2, y4, False), (x2,y7, True) ], # 3
+        [ (x1, y1, False), (x3, y1, False),
+          (x1, y7, True),  (x3, y7, True) ], # 4
+        [ (x1, y1, False), (x3, y1, False), (x2, y4, False),
+          (x1, y7, True),  (x3, y7, True) ], # 5
+        [ (x1, y1, False), (x3, y1, False),
+          (x1, y4, False), (x3, y4, False),
+          (x1, y7, True),  (x3, y7, True) ], # 6
+        [ (x1, y1, False), (x3, y1, False),
+          (x2, y25, False),
+          (x1, y4, False), (x3, y4, False),
+          (x1, y7, True),  (x3, y7, True) ], # 7
+        [ (x1, y1, False), (x3, y1, False),
+          (x2, y25, False),
+          (x1, y4, False), (x3, y4, False),
+          (x2, y55, True),
+          (x1, y7, True),  (x3, y7, True) ], # 8
+        [ (x1, y1, False), (x3, y1, False),
+          (x1, y3, False), (x3, y3, False),
+          (x2, y4, False),
+          (x1, y5, True), (x3, y5, True),
+          (x1, y7, True),  (x3, y7, True) ], # 9
+        [ (x1, y1, False), (x3, y1, False),
+          (x2, y2, False),
+          (x1, y3, False), (x3, y3, False),
+          (x1, y5, True), (x3, y5, True),
+          (x2, y6, True),
+          (x1, y7, True),  (x3, y7, True) ], # 9
+        None, None, None
+    ]
 
 def make_card(filename: str, suit: int, value: int) -> None:
-    text: str = texts[value]
     colorscheme: Dict[str,str] = colors[suit]
     with open(filename, 'w') as f:
         gradient_defs: List[str] = []
@@ -690,7 +759,6 @@ def make_card(filename: str, suit: int, value: int) -> None:
 
         f.write(f'''\
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created by Jochen Hoenicke, based on nicu\'s playing cards (https://nicubuno.ro/) -->
 <svg xmlns="http://www.w3.org/2000/svg"
   xmlns:xlink="http://www.w3.org/1999/xlink"
   width="{WIDTH}" height="{HEIGHT}" y="0" x="0" version="1.0">
@@ -701,12 +769,12 @@ def make_card(filename: str, suit: int, value: int) -> None:
        d="{suit_paths[suit]}" />
   </defs>
   <rect style="fill:#fff;fill-opacity:1;stroke:#000;stroke-width:1.0;stroke-opacity:1" x="1" y="1" width="{WIDTH-2}" height="{HEIGHT-2}" rx="18" />
-  <text style="fill:{colorscheme['main']};font-size:25;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:Bitstream Vera Sans;text-anchor:start" x="10" y="28">{text}</text>
-  <use transform="translate({WIDTH-20} 20) scale({SCALE2})" xlink:href="#{suits[suit]}" />
-  <text transform="rotate(180 {WIDTH/2} {HEIGHT/2})" style="fill:{colorscheme['main']};font-size:25;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:Bitstream Vera Sans;text-anchor:start" x="10" y="28">{text}</text>
-  <use transform="rotate(180 {WIDTH/2} {HEIGHT/2}) translate({WIDTH-20} 20) scale({SCALE2})" xlink:href="#{suits[suit]}" />
+  <path style="fill:{colorscheme['main']};" transform="translate({OFFSETX - (glyphs[value]['w']*0.025/2)} {OFFSETY+8}) scale(0.025 -0.025)" d="{glyphs[value]['d']}" />
+  <use transform="translate({WIDTH-OFFSETX} {OFFSETY}) scale({SCALE2})" xlink:href="#{suits[suit]}" />
+  <path style="fill:{colorscheme['main']};" transform="rotate(180 {WIDTH/2} {HEIGHT/2}) translate({20 - glyphs[value]['w']*0.025/2} 28) scale(0.025 -0.025)" d="{glyphs[value]['d']}" />
+  <use transform="rotate(180 {WIDTH/2} {HEIGHT/2}) translate({WIDTH-OFFSETX} {OFFSETY}) scale({SCALE2})" xlink:href="#{suits[suit]}" />
 ''')
-        suitpositions = positions[value]
+        suitpositions = make_positions()[value]
         if suitpositions is not None:
             for (x, y, rotated) in suitpositions:
                 rotate = "rotate(180)" if rotated else ""
@@ -722,12 +790,28 @@ def make_card(filename: str, suit: int, value: int) -> None:
                 f.write(king(suit))
         f.write('</svg>\n')
 
-def __main__() -> None:
-    for value in range(1,14):
-        for suit in range(4):
-            suitname = suits[suit][0]
-            valuename = texts[value]
-            make_card(f'card_{valuename}{suitname}.svg', suit, value)
+def make_empty(filename: str, suit: int) -> None:
+    with open(filename, 'w') as f:
+        f.write(f'''\
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  width="{WIDTH}" height="{HEIGHT}" y="0" x="0" version="1.0">
+  <rect style="fill:none;stroke:#fff;stroke-width:2.0;stroke-opacity:.5" x="1" y="1" width="{WIDTH-2}" height="{HEIGHT-2}" rx="18" />
+''')
+        if suit >= 0:
+            f.write(f'<path transform="translate({WIDTH/2} {HEIGHT/2}) scale({SCALE4})" style="fill:none;stroke:#fff;stroke-width:.3;stroke-opacity:.4" d="{suit_paths[suit]}" />\n')
+        f.write(f'</svg>\n');
 
+
+
+def __main__() -> None:
+    make_empty(f'empty.svg', -1)
+    for suit in range(4):
+        suitname = suits[suit][0]
+        make_empty(f'empty_{suitname}.svg', suit)
+        for value in range(1,14):
+            valuename = glyphs[value]['t']
+            make_card(f'card_{valuename}{suitname}.svg', suit, value)
 
 __main__()
