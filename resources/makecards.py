@@ -806,12 +806,10 @@ def make_empty(filename: str, suit: int) -> None:
 
 
 def __main__() -> None:
-    make_empty(f'empty.svg', -1)
+    make_empty(f'e.svg', -1)
     for suit in range(4):
-        suitname = suits[suit][0]
-        make_empty(f'empty_{suitname}.svg', suit)
+        make_empty(f'e{suit}.svg', suit)
         for value in range(1,14):
-            valuename = glyphs[value]['t']
-            make_card(f'card_{valuename}{suitname}.svg', suit, value)
+            make_card(f'c{value + suit * 13}.svg', suit, value)
 
 __main__()
