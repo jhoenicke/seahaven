@@ -27,7 +27,7 @@ WIDTH=130
 HEIGHT=190
 OFFSETX=20
 OFFSETY=20
-SCALE1=2.1
+SCALE1=2.7
 SCALE2=2.2
 SCALE3=7
 SCALE4=12
@@ -682,8 +682,8 @@ def get_gradient_bases(suit) -> List[Dict[str, str]]:
     ]
 
 def make_positions() -> List[Optional[List[Tuple[float,float,bool]]]]:
-    top  = 35
-    left = 40
+    top  = 40
+    left = 45
     innerh = HEIGHT - 2*top
     innerw = WIDTH - 2*left
     x1 = left
