@@ -1,7 +1,12 @@
 body {
+    height: 100vh;
     background-color: green;
+    margin: 0;
+    padding: 0;
 }
 
 #board {
-    max-width: 1200;
+    margin: 0;
+    padding: 0;
 } 
+

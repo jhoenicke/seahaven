@@ -4,7 +4,6 @@ const xoffset = 10;
 const xgrid = 150;
 const yoffset = 220;
 const ygrid = 40;
-const yflute = 25;
 
 var shuffled_cards = Array(52);
 var stacks = Array(10);
@@ -45,6 +44,9 @@ function card2html(card, x, y) {
     return html;
 }
 
+function computeFluteDist(col) {
+    return Math.min(ygrid, (435 - (stacks[col] - 1) * ygrid) / flutes[col]);
+}
 
 function updateBoard() {
     var cardContainer = document.getElementById("cards");
@@ -66,6 +68,7 @@ function updateBoard() {
 	    var card = shuffled_cards[10 * d + col];
 	    html += card2html(card, xoffset + col * xgrid, yoffset + d * ygrid);
 	    if (d == stacks[col] - 1) {
+                var yflute = computeFluteDist(col);
 		for (var f = 0; f < flutes[col]; f++) {
 		    card--;
 		    html += card2html(card, xoffset + col * xgrid, yoffset + d * ygrid + (1 + f) * yflute);
@@ -352,33 +355,47 @@ function clickboard(evt) {
     var cursorpt =  pt.matrixTransform(svg.getScreenCTM().inverse());
 
     var col = Math.floor((cursorpt.x-xoffset/2)/xgrid);
-    redoLog = [];
-    if (cursorpt.y > 220 && col >= 0 && col < 10) {
+    if (cursorpt.y > 220 && cursorpt.y < 845 && col >= 0 && col < 10) {
+        redoLog = [];
 	moveColumn(col);
     }
-    if (cursorpt.y < 200 && col >= 3 && col < 7) {
+    if (cursorpt.y > 10 && cursorpt.y < 200 && col >= 3 && col < 7) {
+        redoLog = [];
 	moveSpot(col - 3);
+    }
+}
+
+function undo() {
+    if (undoLog.length > 0) {
+	restoreSnapshot(undoLog.pop());
+	updateBoard();
+    }
+}
+
+function redo() {
+    if (redoLog.length > 0) {
+        move = redoLog.pop();
+	if (move < 0) {
+  	    moveSpot(-move - 1);
+	} else {
+	    moveColumn(move);
+	}
     }
 }
 
 function checkUndo(e) {
     if (e.which == 'r'.charCodeAt(0)) {
-	// redo
-	if (redoLog.length > 0) {
-	    move = redoLog.pop();
-	    if (move < 0) {
-		moveSpot(-move - 1);
-	    } else {
-		moveColumn(move);
-	    }
-	}
+        redo();
     }
     if (e.which == 'u'.charCodeAt(0)) {
-	// undo
-	if (undoLog.length > 0) {
-	    restoreSnapshot(undoLog.pop());
-	    updateBoard();
-	}
+        undo();
+    }
+    if (e.which == 'n'.charCodeAt(0)) {
+	// new game
+	start();
+    }
+    if (e.which == 'f'.charCodeAt(0)) {
+	toggleFullscreen();
     }
     if (e.which == 32) {
 	// space
@@ -386,9 +403,19 @@ function checkUndo(e) {
 	    start();
 	}
     }
-    if (e.which == 'n'.charCodeAt(0)) {
-	// new game
-	start();
+}
+
+function toggleFullscreen() {
+    var doc = window.document;
+    var docEl = doc.documentElement;
+
+    var requestFullScreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
+    var cancelFullScreen = doc.exitFullscreen || doc.mozCancelFullScreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
+
+    if(!doc.fullscreenElement && !doc.mozFullScreenElement && !doc.webkitFullscreenElement && !doc.msFullscreenElement) {
+        requestFullScreen.call(docEl);
+    } else {
+        cancelFullScreen.call(doc);
     }
 }
 
@@ -419,6 +446,7 @@ function highlightCard(evt) {
 	    updateBoard();
 	}				
     } else {
+        var yflute = computeFluteDist(col);
 	var row = (cursorpt.y-yoffset);
 	if (row > (stacks[col] - 1) * ygrid + flutes[col] * yflute + 190) {
 	    return true;
@@ -457,6 +485,10 @@ function init() {
     svg.onclick = clickboard;
     svg.oncontextmenu = highlightCard;
     svg.onmouseup = clearHighlight;
+    document.getElementById("undo").onclick = undo;
+    document.getElementById("redo").onclick = redo;
+    document.getElementById("newgame").onclick = start;
+    document.getElementById("fullscreen").onclick = toggleFullscreen;
     window.onkeypress = checkUndo;
     start();
 }
