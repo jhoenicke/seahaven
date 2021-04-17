@@ -790,6 +790,17 @@ def make_card(filename: str, suit: int, value: int) -> None:
                 f.write(king(suit))
         f.write('</svg>\n')
 
+def make_highlight(filename: str, suit: int) -> None:
+    with open(filename, 'w') as f:
+        f.write(f'''\
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  width="{WIDTH}" height="{HEIGHT}" y="0" x="0" version="1.0">
+  <rect style="fill:#00f;fill-opacity:.5" x="1" y="1" width="{WIDTH-2}" height="{HEIGHT-2}" rx="18" />
+''')
+        f.write(f'</svg>\n');
+
 def make_empty(filename: str, suit: int) -> None:
     with open(filename, 'w') as f:
         f.write(f'''\
@@ -807,6 +818,7 @@ def make_empty(filename: str, suit: int) -> None:
 
 def __main__() -> None:
     make_empty(f'e.svg', -1)
+    make_highlight(f'hl.svg', -1)
     for suit in range(4):
         make_empty(f'e{suit}.svg', suit)
         for value in range(1,14):
