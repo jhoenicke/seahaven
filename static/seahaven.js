@@ -5,7 +5,7 @@ const xgrid = 150;
 const yoffset = 220;
 const ygrid = 40;
 
-var shuffled_cards = Array(52);
+var shuffled_cards;
 var stacks = Array(10);
 var spots = Array(4).fill(0);
 var flutes = Array(10).fill(0);
@@ -15,7 +15,7 @@ var svg;
 
 var highlightedCard = 0;
 var undoLog = [];
-var redoLog = [];
+var moves = [];
 
 function shuffle(array) {
     var current, temp, random;
@@ -42,6 +42,11 @@ function card2html(card, x, y) {
 	    ')" href="hl.svg" />';
     }
     return html;
+}
+
+function storeMoves() {
+    window.localStorage.setItem("seahavenMoves", JSON.stringify(moves));
+    window.localStorage.setItem("seahavenNumMoves", JSON.stringify(numMoves));
 }
 
 function computeFluteDist(col) {
@@ -132,7 +137,6 @@ function restoreSnapshot(snap) {
     spots = snap.spots;
     aces = snap.aces;
     kings = snap.kings;
-    redoLog.push(snap.srccol);
 }
 
 function findFreeColumn() {
@@ -179,24 +183,24 @@ function moveFromTo(srccol, srccard, srcflute, destcol) {
     }
 
     automove();
-    updateBoard();
 }
 
 function moveSpot(srcspot) {
     var card = spots[srcspot];
     if (card == 0 || (card % 13) != 0) {
 	// we can only move a king
-	return;
+	return false;
     }
     var freecol = findFreeColumn();
     if (freecol < 0) {
-	return;
+	return false;
     }
     var suit = Math.floor((card - 1) / 13);
     destcol = 10 + suit;
     kings[suit] = freecol;
 
     moveFromTo(-srcspot-1, card, 1, destcol);
+    return true;
 }
 
 function moveColumn(srccol) {
@@ -216,11 +220,11 @@ function moveColumn(srccol) {
 	}
     }
     if (srccard == 0) {
-	return;
+	return false;
     }
 
     if (srcflute > extra + 1) {
-	return;
+	return false;
     }
 
     var suit = Math.floor((srccard - 1) / 13);
@@ -249,10 +253,19 @@ function moveColumn(srccol) {
 	}
     }
     if (destcol == -1 && srcflute > extra) {
-	return;
+	return false;
     }
 
     moveFromTo(srccol, srccard, srcflute, destcol);
+    return true;
+}
+
+function move(m) {
+    if (m < 0) {
+  	 return moveSpot(-m - 1);
+    } else {
+         return moveColumn(m);
+    }
 }
 
 function automove() {
@@ -327,14 +340,25 @@ function automove() {
     }
 }
 
-function start() {
+function shuffleCards() {
+    shuffled_cards = Array(52);
     for (var i = 0; i < 52; i++) {
 	shuffled_cards[i] = i+1;
     }
     shuffle(shuffled_cards);
+    window.localStorage.setItem("seahavenShuffle", JSON.stringify(shuffled_cards));
+}
 
+function newGame() {
+    shuffleCards();
+    moves = [];
+    numMoves = 0;
+    storeMoves();
+    reset();
+}
+
+function reset() {
     undoLog = [];
-    redoLog = [];
     flutes.fill(0);
     stacks.fill(5);
     kings.fill(0);
@@ -344,7 +368,22 @@ function start() {
     spots[2] = shuffled_cards[51];
 
     automove();
+    for (var i = 0; i < numMoves; i++) {
+        move(moves[i]);
+    }
     updateBoard();
+}
+
+function makeMove(m) {
+    if (move(m)) {
+        while (moves.length > numMoves) {
+            moves.pop();
+        }
+        moves.push(m);
+        numMoves++;
+        storeMoves();
+        updateBoard();
+    }
 }
 
 function clickboard(evt) {
@@ -357,34 +396,31 @@ function clickboard(evt) {
 
     var col = Math.floor((cursorpt.x-xoffset/2)/xgrid);
     if (cursorpt.y > 220 && cursorpt.y < 845 && col >= 0 && col < 10) {
-        redoLog = [];
-	moveColumn(col);
+        makeMove(col);
     }
     if (cursorpt.y > 10 && cursorpt.y < 200 && col >= 3 && col < 7) {
-        redoLog = [];
-	moveSpot(col - 3);
+        makeMove(- (col - 3) - 1);
     }
 }
 
 function undo() {
     if (undoLog.length > 0) {
 	restoreSnapshot(undoLog.pop());
+        numMoves--;
+        storeMoves();
 	updateBoard();
     }
 }
 
 function redo() {
-    if (redoLog.length > 0) {
-        move = redoLog.pop();
-	if (move < 0) {
-  	    moveSpot(-move - 1);
-	} else {
-	    moveColumn(move);
-	}
+    if (numMoves < moves.length) {
+        move(moves[numMoves++]);
+        storeMoves();
+        updateBoard();
     }
 }
 
-function checkUndo(e) {
+function keypress(e) {
     if (e.which == 'r'.charCodeAt(0)) {
         redo();
     }
@@ -393,7 +429,7 @@ function checkUndo(e) {
     }
     if (e.which == 'n'.charCodeAt(0)) {
 	// new game
-	start();
+	newGame();
     }
     if (e.which == 'f'.charCodeAt(0)) {
 	toggleFullscreen();
@@ -401,7 +437,7 @@ function checkUndo(e) {
     if (e.which == 32) {
 	// space
 	if (gameOver()) {
-	    start();
+	    newGame();
 	}
     }
 }
@@ -488,10 +524,22 @@ function init() {
     svg.onmouseup = clearHighlight;
     document.getElementById("undo").onclick = undo;
     document.getElementById("redo").onclick = redo;
-    document.getElementById("newgame").onclick = start;
+    document.getElementById("newgame").onclick = newGame;
     document.getElementById("fullscreen").onclick = toggleFullscreen;
-    window.onkeypress = checkUndo;
-    start();
+    window.onkeypress = keypress;
+
+    shuffled_cards = JSON.parse(window.localStorage.getItem("seahavenShuffle"));
+    if (!shuffled_cards) {
+        shuffleCards();
+    }
+    moves = JSON.parse(window.localStorage.getItem("seahavenMoves"));
+    numMoves = JSON.parse(window.localStorage.getItem("seahavenNumMoves"));
+    if (!moves) {
+        moves = [];
+        numMoves = 0;
+	storeMoves();
+    }   
+    reset();
 }
 
 init();
