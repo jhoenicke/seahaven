@@ -4,6 +4,7 @@ const xoffset = 10;
 const xgrid = 150;
 const yoffset = 220;
 const ygrid = 40;
+const yflute = 25;
 
 var shuffled_cards = Array(52);
 var stacks = Array(10);
@@ -67,7 +68,7 @@ function updateBoard() {
 	    if (d == stacks[col] - 1) {
 		for (var f = 0; f < flutes[col]; f++) {
 		    card--;
-		    html += card2html(card, xoffset + col * xgrid, yoffset + (d + 1 + f) * ygrid);
+		    html += card2html(card, xoffset + col * xgrid, yoffset + d * ygrid + (1 + f) * yflute);
 		}
 	    }
 	}
@@ -418,15 +419,17 @@ function highlightCard(evt) {
 	    updateBoard();
 	}				
     } else {
-	var row = Math.floor((cursorpt.y-yoffset)/ygrid);
-	if (row > stacks[col] + flutes[col] + 4) {
+	var row = (cursorpt.y-yoffset);
+	if (row > (stacks[col] - 1) * ygrid + flutes[col] * yflute + 190) {
 	    return true;
 	}
 	if (stacks[col] > 0) {
-	    if (row < stacks[col]) {
+	    if (row < (stacks[col] - 1) * ygrid) {
+                row = Math.floor(row / ygrid);
 		card = shuffled_cards[row * 10 + col];
 	    } else {
-		row -= stacks[col];
+		row -= (stacks[col] - 1) * ygrid;
+                row = Math.floor(row / yflute);
 		card = shuffled_cards[(stacks[col] - 1) * 10 + col];
 		if (row > flutes[col]) {
 		    row = flutes[col];
