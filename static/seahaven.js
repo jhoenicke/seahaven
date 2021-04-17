@@ -339,6 +339,7 @@ function start() {
     stacks.fill(5);
     kings.fill(0);
     aces.fill(0);
+    spots.fill(0);
     spots[1] = shuffled_cards[50];
     spots[2] = shuffled_cards[51];
 
