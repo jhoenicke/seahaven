@@ -5,17 +5,20 @@ const xgrid = 150;
 const yoffset = 220;
 const ygrid = 40;
 
-var shuffled_cards;
-var stacks = Array(10);
-var spots = Array(4).fill(0);
-var flutes = Array(10).fill(0);
-var aces = Array(4);
-var kings = Array(4);
+var card2pos = new Uint8Array(52);
+var stacks = new Uint8Array(10);
+var spots = new Uint8Array(4);
+var flutes = new Uint8Array(10);
+var aces = new Uint8Array(4);
+var kings = new Uint8Array(4);
 var svg;
 
 var highlightedCard = 0;
 var undoLog = [];
 var moves = [];
+
+var solver = null;
+var isChecking = false;
 
 function shuffle(array) {
     var current, temp, random;
@@ -70,7 +73,7 @@ function updateBoard() {
     }
     for (var col = 0; col < 10; col++) {
 	for (var d = 0; d < stacks[col]; d++) {
-	    var card = shuffled_cards[10 * d + col];
+	    var card = card2pos[10 * d + col];
 	    html += card2html(card, xoffset + col * xgrid, yoffset + d * ygrid);
 	    if (d == stacks[col] - 1) {
                 var yflute = computeFluteDist(col);
@@ -144,7 +147,7 @@ function findFreeColumn() {
 	if (stacks[i] == 0) {
 	    var foundKing = false;
 	    for (var j = 0; j < 4; j++) {
-		if (kings[j] >= 10 && kings[j] % 10 == i) {
+		if (kings[j] > 0 && kings[j] % 10 == i) {
 		    foundKing = true;
 		    break;
 		}
@@ -179,7 +182,12 @@ function moveFromTo(srccol, srccard, srcflute, destcol) {
     } else if (destcol < 10) {
 	flutes[destcol] += srcflute;
     } else {
-	kings[destcol - 10] += 10 * srcflute;
+	// move to kings column
+	suit = destcol - 10;
+	if (kings[suit] == 0) {
+	    kings[suit] = findFreeColumn();
+	}
+	kings[suit] += 10 * srcflute;
     }
 
     automove();
@@ -197,7 +205,6 @@ function moveSpot(srcspot) {
     }
     var suit = Math.floor((card - 1) / 13);
     destcol = 10 + suit;
-    kings[suit] = freecol;
 
     moveFromTo(-srcspot-1, card, 1, destcol);
     return true;
@@ -208,7 +215,7 @@ function moveColumn(srccol) {
     var srccard = 0, srcflute;
     if (stacks[srccol] > 0) {
 	var d = stacks[srccol] - 1;
-	srccard = shuffled_cards[10*d + srccol];
+	srccard = card2pos[10*d + srccol];
 	srcflute = flutes[srccol] + 1;
     } else {
 	for (var i = 0; i < 4; i++) {
@@ -236,7 +243,6 @@ function moveColumn(srccol) {
 	}
 	if (freecol >= 0) {
 	    destcol = 10 + suit;
-	    kings[suit] = freecol;
 	}
     } else if (srccard - 13* suit + Math.floor(kings[suit] / 10) == 13) {
 	destcol = 10 + suit;
@@ -244,7 +250,7 @@ function moveColumn(srccol) {
 	for (var col = 0; col < 10; col++) {
 	    if (stacks[col] > 0) {
 		var d = stacks[col] - 1;
-		destcard = shuffled_cards[10*d + col] - flutes[col];
+		destcard = card2pos[10*d + col] - flutes[col];
 		if (srccard + 1 == destcard) {
 		    destcol = col;
 		    break;
@@ -293,8 +299,8 @@ function automove() {
 	    if (stacks[col] > 0) {
 		while (stacks[col] > 1) {
 		    var d = stacks[col] - 2;
-		    var precard = shuffled_cards[10*d + col];
-		    var card = shuffled_cards[10*(d+1) + col];
+		    var precard = card2pos[10*d + col];
+		    var card = card2pos[10*(d+1) + col];
 		    if (card + 1 == precard && card % 13 != 0) {
 			stacks[col]--;
 			flutes[col]++;
@@ -303,7 +309,7 @@ function automove() {
 		    }
 		}
 		var d = stacks[col] - 1;
-		var card = shuffled_cards[10 * d + col] - flutes[col];
+		var card = card2pos[10 * d + col] - flutes[col];
 		var suit = Math.floor((card - 1) / 13);
 		if (d == 0 && (card % 13) == 0) {
 		    // move king to kings
@@ -341,12 +347,11 @@ function automove() {
 }
 
 function shuffleCards() {
-    shuffled_cards = Array(52);
     for (var i = 0; i < 52; i++) {
-	shuffled_cards[i] = i+1;
+	card2pos[i] = i+1;
     }
-    shuffle(shuffled_cards);
-    window.localStorage.setItem("seahavenShuffle", JSON.stringify(shuffled_cards));
+    shuffle(card2pos);
+    window.localStorage.setItem("seahavenShuffle", JSON.stringify(Array.from(card2pos)));
 }
 
 function newGame() {
@@ -358,19 +363,23 @@ function newGame() {
 }
 
 function reset() {
+    if (solver) {
+	solver.postMessage({funcName:"initcard", data: card2pos})
+    }
     undoLog = [];
     flutes.fill(0);
     stacks.fill(5);
     kings.fill(0);
     aces.fill(0);
     spots.fill(0);
-    spots[1] = shuffled_cards[50];
-    spots[2] = shuffled_cards[51];
+    spots[1] = card2pos[50];
+    spots[2] = card2pos[51];
 
     automove();
     for (var i = 0; i < numMoves; i++) {
         move(moves[i]);
     }
+    checkSolvable();
     updateBoard();
 }
 
@@ -382,6 +391,7 @@ function makeMove(m) {
         moves.push(m);
         numMoves++;
         storeMoves();
+	checkSolvable();
         updateBoard();
     }
 }
@@ -408,6 +418,7 @@ function undo() {
 	restoreSnapshot(undoLog.pop());
         numMoves--;
         storeMoves();
+	checkSolvable();
 	updateBoard();
     }
 }
@@ -416,8 +427,14 @@ function redo() {
     if (numMoves < moves.length) {
         move(moves[numMoves++]);
         storeMoves();
+	checkSolvable();
         updateBoard();
     }
+}
+
+function toggleChecking() {
+    isChecking = !isChecking;
+    checkSolvable();
 }
 
 function keypress(e) {
@@ -426,6 +443,9 @@ function keypress(e) {
     }
     if (e.which == 'u'.charCodeAt(0)) {
         undo();
+    }
+    if (e.which == 'c'.charCodeAt(0)) {
+	toggleChecking();
     }
     if (e.which == 'n'.charCodeAt(0)) {
 	// new game
@@ -491,11 +511,11 @@ function highlightCard(evt) {
 	if (stacks[col] > 0) {
 	    if (row < (stacks[col] - 1) * ygrid) {
                 row = Math.floor(row / ygrid);
-		card = shuffled_cards[row * 10 + col];
+		card = card2pos[row * 10 + col];
 	    } else {
 		row -= (stacks[col] - 1) * ygrid;
                 row = Math.floor(row / yflute);
-		card = shuffled_cards[(stacks[col] - 1) * 10 + col];
+		card = card2pos[(stacks[col] - 1) * 10 + col];
 		if (row > flutes[col]) {
 		    row = flutes[col];
 		}
@@ -517,6 +537,50 @@ function clearHighlight(evt) {
     }
 }
 
+function isCurrentState(data) {
+    for (var i = 0; i < 10; i++) {
+	if (data[i] != stacks[i]) {
+	    return false;
+	}
+    }
+    for (var i = 0; i < 4; i++) {
+	if ((kings[i] > 0) != ((data[10] & (1 << i)) != 0)) {
+	    return false;
+	}
+    }
+    return true;
+}
+
+function handleSolverMessage(msg) {
+    if (msg.data.finalResponse && msg.data.data.length == 12) {
+	if (!isChecking || !isCurrentState(msg.data.data)) {
+	    return
+	}
+	if (msg.data.data[11] == 0) {
+	    document.getElementById("tick").style.visibility = "visible";
+	} else if (msg.data.data[11] == 2) {
+	    document.getElementById("cross").style.visibility = "visible";
+	}
+    }
+}
+
+function checkSolvable() {
+    document.getElementById("cross").style.visibility = "hidden";
+    document.getElementById("tick").style.visibility = "hidden";
+
+    if (isChecking) {
+	var data = [...stacks];
+	var kingmask = 0;
+	for (var suit = 0; suit < 4; suit++) {
+	    if (kings[suit] > 0) {
+		kingmask |= (1 << suit);
+	    }
+	}
+	data.push(kingmask);
+	solver.postMessage({"funcName":"solve", "data": data});
+    }
+}
+
 function init() {
     svg = document.getElementById("board");
     svg.onclick = clickboard;
@@ -526,10 +590,19 @@ function init() {
     document.getElementById("redo").onclick = redo;
     document.getElementById("newgame").onclick = newGame;
     document.getElementById("fullscreen").onclick = toggleFullscreen;
+    document.getElementById("check").onclick = toggleChecking;
     window.onkeypress = keypress;
 
-    shuffled_cards = JSON.parse(window.localStorage.getItem("seahavenShuffle"));
-    if (!shuffled_cards) {
+    if (window.Worker) {
+	solver = new Worker('solver.js');
+	solver.onmessage = handleSolverMessage;
+	solver.onerror = (err => console.log(err));
+    }
+
+    shuffledCards = JSON.parse(window.localStorage.getItem("seahavenShuffle"));
+    if (shuffledCards) {
+	card2pos.set(shuffledCards)
+    } else {
         shuffleCards();
     }
     moves = JSON.parse(window.localStorage.getItem("seahavenMoves"));
