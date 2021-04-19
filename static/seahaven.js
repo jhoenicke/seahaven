@@ -5,7 +5,7 @@ const xgrid = 150;
 const yoffset = 220;
 const ygrid = 40;
 
-var card2pos = new Uint8Array(52);
+var pos2card = new Uint8Array(52);
 var stacks = new Uint8Array(10);
 var spots = new Uint8Array(4);
 var flutes = new Uint8Array(10);
@@ -73,7 +73,7 @@ function updateBoard() {
     }
     for (var col = 0; col < 10; col++) {
 	for (var d = 0; d < stacks[col]; d++) {
-	    var card = card2pos[10 * d + col];
+	    var card = pos2card[10 * d + col];
 	    html += card2html(card, xoffset + col * xgrid, yoffset + d * ygrid);
 	    if (d == stacks[col] - 1) {
                 var yflute = computeFluteDist(col);
@@ -215,7 +215,7 @@ function moveColumn(srccol) {
     var srccard = 0, srcflute;
     if (stacks[srccol] > 0) {
 	var d = stacks[srccol] - 1;
-	srccard = card2pos[10*d + srccol];
+	srccard = pos2card[10*d + srccol];
 	srcflute = flutes[srccol] + 1;
     } else {
 	for (var i = 0; i < 4; i++) {
@@ -250,7 +250,7 @@ function moveColumn(srccol) {
 	for (var col = 0; col < 10; col++) {
 	    if (stacks[col] > 0) {
 		var d = stacks[col] - 1;
-		destcard = card2pos[10*d + col] - flutes[col];
+		destcard = pos2card[10*d + col] - flutes[col];
 		if (srccard + 1 == destcard) {
 		    destcol = col;
 		    break;
@@ -299,8 +299,8 @@ function automove() {
 	    if (stacks[col] > 0) {
 		while (stacks[col] > 1) {
 		    var d = stacks[col] - 2;
-		    var precard = card2pos[10*d + col];
-		    var card = card2pos[10*(d+1) + col];
+		    var precard = pos2card[10*d + col];
+		    var card = pos2card[10*(d+1) + col];
 		    if (card + 1 == precard && card % 13 != 0) {
 			stacks[col]--;
 			flutes[col]++;
@@ -309,7 +309,7 @@ function automove() {
 		    }
 		}
 		var d = stacks[col] - 1;
-		var card = card2pos[10 * d + col] - flutes[col];
+		var card = pos2card[10 * d + col] - flutes[col];
 		var suit = Math.floor((card - 1) / 13);
 		if (d == 0 && (card % 13) == 0) {
 		    // move king to kings
@@ -348,10 +348,10 @@ function automove() {
 
 function shuffleCards() {
     for (var i = 0; i < 52; i++) {
-	card2pos[i] = i+1;
+	pos2card[i] = i+1;
     }
-    shuffle(card2pos);
-    window.localStorage.setItem("seahavenShuffle", JSON.stringify(Array.from(card2pos)));
+    shuffle(pos2card);
+    window.localStorage.setItem("seahavenShuffle", JSON.stringify(Array.from(pos2card)));
 }
 
 function newGame() {
@@ -364,7 +364,7 @@ function newGame() {
 
 function reset() {
     if (solver) {
-	solver.postMessage({funcName:"initcard", data: card2pos})
+	solver.postMessage({funcName:"initcard", data: pos2card})
     }
     undoLog = [];
     flutes.fill(0);
@@ -372,8 +372,8 @@ function reset() {
     kings.fill(0);
     aces.fill(0);
     spots.fill(0);
-    spots[1] = card2pos[50];
-    spots[2] = card2pos[51];
+    spots[1] = pos2card[50];
+    spots[2] = pos2card[51];
 
     automove();
     for (var i = 0; i < numMoves; i++) {
@@ -511,11 +511,11 @@ function highlightCard(evt) {
 	if (stacks[col] > 0) {
 	    if (row < (stacks[col] - 1) * ygrid) {
                 row = Math.floor(row / ygrid);
-		card = card2pos[row * 10 + col];
+		card = pos2card[row * 10 + col];
 	    } else {
 		row -= (stacks[col] - 1) * ygrid;
                 row = Math.floor(row / yflute);
-		card = card2pos[(stacks[col] - 1) * 10 + col];
+		card = pos2card[(stacks[col] - 1) * 10 + col];
 		if (row > flutes[col]) {
 		    row = flutes[col];
 		}
@@ -605,7 +605,7 @@ function init() {
 
     shuffledCards = JSON.parse(window.localStorage.getItem("seahavenShuffle"));
     if (shuffledCards) {
-	card2pos.set(shuffledCards)
+	pos2card.set(shuffledCards)
     } else {
         shuffleCards();
     }
