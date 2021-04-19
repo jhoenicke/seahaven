@@ -556,6 +556,7 @@ function handleSolverMessage(msg) {
 	if (!isChecking || !isCurrentState(msg.data.data)) {
 	    return
 	}
+	document.getElementById("cogwheels").style.visibility = "hidden";
 	if (msg.data.data[11] == 0) {
 	    document.getElementById("tick").style.visibility = "visible";
 	} else if (msg.data.data[11] == 2) {
@@ -578,6 +579,9 @@ function checkSolvable() {
 	}
 	data.push(kingmask);
 	solver.postMessage({"funcName":"solve", "data": data});
+	document.getElementById("cogwheels").style.visibility = "visible";
+    } else {
+	document.getElementById("cogwheels").style.visibility = "hidden";
     }
 }
 
