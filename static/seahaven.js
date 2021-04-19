@@ -38,11 +38,11 @@ function shuffle(array) {
 }
 
 function card2html(card, x, y) {
-    var html = '<image transform="translate(' + x + ' ' +y +
-	    ')" href="c' + card + '.svg" />';
+    var html = '<use transform="translate(' + x + ' ' +y +
+	    ')" xlink:href="#c' + card + '" />';
     if (card == highlightedCard) {
-	html += '<image transform="translate(' + x + ' ' +y +
-	    ')" href="hl.svg" />';
+	html += '<use transform="translate(' + x + ' ' +y +
+	    ')" xlink:href="#hl" />';
     }
     return html;
 }
