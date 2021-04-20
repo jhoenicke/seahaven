@@ -551,12 +551,24 @@ function isCurrentState(data) {
     return true;
 }
 
+function showCog() {
+    document.getElementById("cogwheels").style.visibility = "visible";
+    document.getElementById("smallcog").classList.add("small");
+    document.getElementById("mediumcog").classList.add("medium");
+}
+
+function hideCog() {
+    document.getElementById("cogwheels").style.visibility = "hidden";
+    document.getElementById("smallcog").classList.remove("small");
+    document.getElementById("mediumcog").classList.remove("medium");
+}
+
 function handleSolverMessage(msg) {
     if (msg.data.finalResponse && msg.data.data.length == 12) {
 	if (!isChecking || !isCurrentState(msg.data.data)) {
 	    return
 	}
-	document.getElementById("cogwheels").style.visibility = "hidden";
+	hideCog();
 	if (msg.data.data[11] == 0) {
 	    document.getElementById("tick").style.visibility = "visible";
 	} else if (msg.data.data[11] == 2) {
@@ -579,9 +591,9 @@ function checkSolvable() {
 	}
 	data.push(kingmask);
 	solver.postMessage({"funcName":"solve", "data": data});
-	document.getElementById("cogwheels").style.visibility = "visible";
+	showCog();
     } else {
-	document.getElementById("cogwheels").style.visibility = "hidden";
+	hideCog();
     }
 }
 
