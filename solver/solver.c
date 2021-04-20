@@ -46,17 +46,7 @@ static const uint32_t pileHashes[10] = {
     16, 96, 576, 3456, 20736, 124416, 746496, 4478976, 26873856, 161243136
 };
 
-/**
- * Some primes used as number of hash tables.
- */
-static const char smallPrimes[] = {
-    1, 2, 3, 5, 11, 23
-};
-
-static int    nextPrime;
-static int    numHashes;
-static uint32_t nextGrow;
-static uint16_t *unsolvable[MAX_HASHES];
+static uint16_t unsolvable[MAX_HASHES][BIG_HASH_SIZE];
 
 typedef struct {
     uint32_t   hash;          /* (pileDepth[i]+1)+pileHashes[i] + piled kings */
@@ -76,30 +66,14 @@ typedef struct {
 
 void SolverInit(void)
 {
-    int i;
-    for (i = 0; i < numHashes; i++) {
-        free(unsolvable[i]);
-    }
-    for (i = 0; i < MAX_HASHES; i++) {
-        unsolvable[i] = 0;
-    }
-
-    nextPrime = 0;
-    numHashes = 0;
-    nextGrow  = 0;
+    memset(unsolvable, 0xff, sizeof(unsolvable));
 }
 
 #define MAX_LOADSTRING 100
 
-static void SolverNoMoves(void) {
-    emscripten_worker_respond_provisionally("nomoves", 7);
-}
-
 static void SolverOutOfMemory(void) {
     emscripten_worker_respond_provisionally("oom", 3);
 }
-
-
 
 static bool growHash(void);
 
@@ -111,17 +85,11 @@ static uint16_t *getSlot(uint32_t key) {
  rehash:
     hash = key % BIG_HASH_SIZE;
     entry = (uint16_t) (key >> 14);
-    hashTable = unsolvable[entry % numHashes];
+    hashTable = &unsolvable[entry % MAX_HASHES][0];
 
     if (hashTable[hash] == entry)
         return SLOT_VISITED;
 
-    if (hashTable[hash] == FREESLOT && !--nextGrow)
-    {
-        if (!growHash())
-            return NULL;
-        goto rehash;
-    }
     hashTable[hash] = entry;
     return &hashTable[hash];
 }
@@ -133,58 +101,11 @@ static void freeSlot(uint32_t key) {
 
     hash = key % BIG_HASH_SIZE;
     entry = (uint16_t) (key >> 14);
-    hashTable = unsolvable[entry % numHashes];
+    hashTable = &unsolvable[entry % MAX_HASHES][0];
 
     if (hashTable[hash] == entry) {
         hashTable[hash] = FREESLOT;
-        nextGrow++;
     }
-}
-
-static bool growHash(void) {
-    int i, j, oldHashes;
-    uint16_t *oldUnsolvable[MAX_HASHES];
-    
-    if (nextPrime == sizeof(smallPrimes)/ sizeof(smallPrimes[0])) {
-        SolverOutOfMemory();
-        return false;
-    }
-
-    oldHashes = numHashes;
-    for (i = 0; i < oldHashes; i++)
-        oldUnsolvable[i] = unsolvable[i];
-
-    numHashes = smallPrimes[nextPrime++];
-    for (i = 0; i < numHashes; i++) {
-        unsolvable[i] = (uint16_t*) malloc(BIG_HASH_SIZE * sizeof(uint16_t));
-        if (!unsolvable[i]) {
-            for (j = 0; j < i; j++) {
-                free(unsolvable[j]);
-                unsolvable[j] = oldUnsolvable[j];
-            }
-            numHashes = oldHashes;
-            SolverOutOfMemory();
-            return false;
-        }
-        memset(unsolvable[i], 0xff, BIG_HASH_SIZE * sizeof(uint16_t));
-    }
-
-    nextGrow  = numHashes * (BIG_HASH_SIZE * LOADFACTOR);
-    for (i = 0; i < oldHashes; i++) 
-    {
-        for (j = 0; j < BIG_HASH_SIZE; j++)
-        {
-            uint16_t entry = oldUnsolvable[i][j];
-            if (entry != FREESLOT) {
-                uint16_t *hashTable = unsolvable[entry % numHashes];
-                if (hashTable[j] == FREESLOT)
-                    nextGrow--;
-                hashTable[j] = entry;
-            }
-        }
-        free(oldUnsolvable[i]);
-    }
-    return true;
 }
 
 static void SolverRemovedFlute(int pile, SolverPosType *game)
@@ -360,7 +281,6 @@ static int SolverGenMoves(SolverPosType * game,
         numMoves = 0;
     }
     
-
     /* Last check for king to space moves.
      * Do this last, since it may results in loops.
      * But moves are done backwards, so put unlikely moves first.
@@ -500,7 +420,6 @@ typedef struct {
 
 static int SolverIsSolvable(SolverPosType *game) {
     uint16_t *slot;
-    GameStack *stack = (GameStack*) malloc(MAX_MOVES * sizeof(GameStack));
     GameStack *stackPtr = stack;
 
 
@@ -511,7 +430,6 @@ static int SolverIsSolvable(SolverPosType *game) {
      */
 
  checkSolvable:
-    emscripten_worker_respond_provisionally(game->pileDepth, sizeof(game->pileDepth));
     if (game->hash == 0)
         goto solved;
         
@@ -541,14 +459,12 @@ static int SolverIsSolvable(SolverPosType *game) {
         *game = stackPtr->pos;
         goto nextMove;
     }
-    free(stack);
     return NOMOVE;
 
  solved:
     /* The game is solvable */
     while (stackPtr-- > stack)
         freeSlot(stackPtr->pos.hash);
-    free(stack);
     return SUCCESS;
 
  oom:
@@ -558,7 +474,6 @@ static int SolverIsSolvable(SolverPosType *game) {
     /* We have to abort, remove all cached positions from stack. */
     while (stackPtr-- > stack)
         freeSlot(stackPtr->pos.hash);
-    free(stack);
     return ABORTED; 
 }
 
@@ -628,9 +543,6 @@ void initcard(uint8_t *cardshuffle, int size) {
 	    pos2card[i%10][i/10] = card;
 	}
     }
-    emscripten_worker_respond_provisionally(card2pile, sizeof(card2pile));
-    emscripten_worker_respond_provisionally(card2depth, sizeof(card2depth));
-    emscripten_worker_respond(pos2card, sizeof(pos2card));
 }
 
 void solve(uint8_t* stacks, int size) {
@@ -639,13 +551,9 @@ void solve(uint8_t* stacks, int size) {
     memcpy(result, stacks, 11);
 
     SolverConvertFromPilesKings(stacks, &game);
-    emscripten_worker_respond_provisionally(&game, sizeof(game));
     if (game.hash == 0) {
         /* game is already solved */
 	result[11] = SUCCESS;
-    } else if (!numHashes && !growHash()) {
-	/* error allocating memory */
-        result[11] = ABORTED;
     } else {
 	result[11] = SolverIsSolvable(&game);
     }
