@@ -644,14 +644,14 @@
       <use transform="translate(910 10)" xlink:href="#e" />
       <use transform="translate(1210 10)" xlink:href="#e2" />
       <use transform="translate(1360 10)" xlink:href="#e3" />
-      <g style="fill:#fff;font-family:sans-serif;font-weight:normal;font-size:30;" cursor="pointer">
+      <g style="fill:#fff;font-family:Arial,Helvetica,sans-serif;font-weight:normal;font-size:30px;" cursor="pointer">
        <text x="30" y="900"><tspan font-weight="bold">U</tspan>ndo</text>
        <text x="170" y="900"><tspan font-weight="bold">R</tspan>edo</text>
        <text x="310" y="900"><tspan font-weight="bold">N</tspan>ew game</text>
        <text x="515" y="900"><tspan font-weight="bold">F</tspan>ullscreen</text>
        <text x="715" y="900"><tspan font-weight="bold">C</tspan>heck Solvable</text>
        <a xlink:href="https://jochen-hoenicke.de/seahaven">
-	 <g style="fill:#fff;font-size:20">
+	 <g style="fill:#fff;font-size:20px">
 	   <text x="1150" y="880">© 2021 by Jochen Hoenicke</text>
 	   <text x="1150" y="910">Click here for rules and source code</text>
 	 </g>
