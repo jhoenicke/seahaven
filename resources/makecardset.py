@@ -265,7 +265,7 @@ def jack(suit: int) -> str:
     return f"""\
   <g transform="translate({WIDTH/2-70:.4g} {HEIGHT/2 - 95:.4g})">
     <use xlink:href="#jackback" />
-    <use style="fill:url(#jacket{suit});" xlink:href="#jacksuit" />
+    <use style="fill:url(#jacketj{suit});" xlink:href="#jacksuit" />
     <use style="fill:{colorscheme['eye']};" xlink:href="#jackeyes" />
     <use style="fill:url(#fly{suit});" xlink:href="#jackfly" />
     <use style="fill:{colorscheme['hair']};" xlink:href="#jackhair" />
@@ -389,7 +389,7 @@ def queen(suit: int) -> str:
      id="g4494"
      transform="translate({WIDTH/2 - 81.25:.4g} {HEIGHT/2 - 370.6968:.4g})">
     <use xlink:href="#queenback" />
-    <use style="fill:url(#jacket{suit});" xlink:href="#queensuit" />
+    <use style="fill:url(#jacketq{suit});" xlink:href="#queensuit" />
     <use style="fill:{colorscheme['hair']};" xlink:href="#queenhair" />
     <use style="fill:{colorscheme['eye']};" xlink:href="#queeneyes" />
     <use style="fill:{colorscheme['coatshadow']};" xlink:href="#queenshadow" />
@@ -509,7 +509,7 @@ def king(suit: int) -> str:
     return f"""\
   <g transform="matrix(1.000122,0.000000,0.000000,1.000000,{WIDTH/2 - 23:.4g},{HEIGHT/2 - 371.25})">
     <use xlink:href="#kingback" />
-    <use style="fill:url(#jacketking{suit});" xlink:href="#kingjacket" />
+    <use style="fill:url(#jacketk{suit});" xlink:href="#kingjacket" />
     <use style="fill:{colorscheme['hair']};" xlink:href="#kinghair" />
     <use style="fill:{colorscheme['eye']};" xlink:href="#kingeyes" />
     <use style="fill:{colorscheme['coatshadow']};" xlink:href="#kingshadow" />
@@ -694,16 +694,25 @@ gradient_coords = [
         "y2": "346.66711",
     },
     {
+        "id": "jacketj",
+        "basecolorscheme": "coat",
         "x1": "51.852074",
         "y1": "154.54619",
         "x2": "74.325531",
         "y2": "129.50204",
         "gradientTransform": "scale(1.140394,0.876890)",
-        "id": "jacket",
-        "basecolorscheme": "coat",
     },
     {
-        "id": "jacketking",
+        "id": "jacketq",
+        "basecolorscheme": "coat",
+        "x1": "299",
+        "y1": "540",
+        "x2": "449",
+        "y2": "415",
+        "gradientTransform": "matrix(0.145,0,0,0.145,31.5,326)",
+    },
+    {
+        "id": "jacketk",
         "basecolorscheme": "coat",
         "gradientTransform": "matrix(0.144857,0.000000,0.000000,0.144857,-26.92459,326.6897)",
         "x1": "298.98572",
