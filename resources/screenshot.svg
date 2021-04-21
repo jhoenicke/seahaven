@@ -1,0 +1,648 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg id="board" width="1500" height="940" viewBox="0 0 1500 940"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  version="1.0">
+  <defs>
+    <path id="diamond"
+       style="fill:#f00;stroke:none"
+       d="m 0,-4.50839 c -1.091628,2.18162 -1.887601,3.30678 -3.529422,4.50839 1.553736,1.18718 2.649193,2.41418 3.561339,4.3974904 0.814718,-1.88416 1.8114457,-3.2887604 3.5427227,-4.4564104 -1.741482,-0.88606 -2.7497167,-2.28961 -3.5746397,-4.44947 z" />
+    <path id="heart"
+       style="fill:#f00;stroke:none"
+       d="m -1.893288,-4.421347 c -0.217499,0.001421 -0.456482,0.053538 -0.721054,0.170052 -2.884065,2.169654 1.003992,5.668356 2.645650,8.672643 l 0.047392,0.015360 c 1.804123,-3.283776 5.238505,-6.897317 2.614341,-8.688003 -2.078931,-0.915535 -2.634291,2.132027 -2.653692,2.241908 -0.016931,-0.095898 -0.441095,-2.421669 -1.932638,-2.411959 z" />
+    <path id="club"
+       style="fill:#000;stroke:none"
+       d="m 0,-4.45 c -1.302893,2.070276 -5.300838,5.595707 -2.768151,6.684151 1.537369,0.501052 2.268983,-0.524627 2.57885,-1.203685 h 0.06207 l -1.020989,3.425409 2.364722,-0.01008 c 0,0 -1.018672,-3.292704 -1.020989,-3.418687 h 0.02483 c 0.250282,0.55488 1.1999992,1.703563 2.2447202,1.266103 3.054841,-1.226312 -1.4434872,-4.7159 -2.4650552,-6.743206 z" />
+    <path id="spade"
+       style="fill:#000;stroke:none"
+       d="m 0,-4.5 c -0.70548,0 -1.277902,0.863474 -1.277902,1.927666 0,0.906614 1.162075,2.431961 1.116945,3.156366 -0.373129,0.207016 -1.52592,-1.70326 -2.121708,-1.70326 -0.70548,0 -1.277902,0.863473 -1.277902,1.927664 0,1.064194 0.572422,1.927667 1.277902,1.927667 0.611857,0 1.660436,-1.908701 2.121708,-1.73637 l -0.774942,3.406142 1.858324,-0.01104 c 0,0 -0.814109,-3.302314 -0.81512,-3.380393 h 0.01463 v 0.0037 c 0.451724,-0.169257 1.536134,1.754762 2.143656,1.754764 0.705482,0 1.277903,-0.863473 1.277902,-1.927667 0,-1.064191 -0.57242,-1.927664 -1.277902,-1.927664 -0.593361,0 -1.668914,1.878682 -2.141217,1.684867 0.0066,-0.74227 1.153526,-2.269142 1.153526,-3.17476 0,-1.064192 -0.57242,-1.927666 -1.277902,-1.927666 z" />
+<path id="gA" transform="translate(10.97 28) scale(0.025 -0.025)" d="M501 147h-273l-49 -147h-153l259 729h166l252 -729h-154zM460 272l-95 285l-95 -285h190z" /><path id="g2" transform="translate(13.05 28) scale(0.025 -0.025)" d="M512 125v-125h-482c6 132 43 194 163 276c158 112 182 141 182 220c0 71 -38 114 -100 114c-64 0 -101 -46 -101 -125v-23h-135v25c0 150 86 237 233 237c148 0 243 -88 243 -225c0 -97 -36 -150 -159 -240c-104 -75 -126 -96 -145 -134h301z" /><path id="g3" transform="translate(13.05 28) scale(0.025 -0.025)" d="M217 317v94h12c83 0 124 35 124 107c0 59 -32 93 -88 93c-41 0 -73 -19 -86 -50c-7 -18 -10 -37 -11 -75h-130c0 59 4 82 17 116c31 77 110 122 213 122c137 0 225 -75 225 -193c0 -65 -28 -110 -93 -151c80 -39 116 -93 116 -176c0 -138 -97 -227 -248 -227 c-146 0 -238 89 -239 231h136c4 -73 40 -111 106 -111c61 0 105 44 105 107c0 52 -30 93 -77 106c-25 7 -28 7 -82 7z" /><path id="g4" transform="translate(13.05 28) scale(0.025 -0.025)" d="M522 273v-116h-74v-157h-140v157h-284v118l259 434h165v-436h74zM308 273v303l-185 -303h185z" /><path id="g5" transform="translate(13.05 28) scale(0.025 -0.025)" d="M489 709v-125h-293l-23 -148c41 31 76 43 123 43c131 0 221 -99 221 -245c0 -153 -104 -257 -256 -257c-138 0 -232 84 -234 208h138c3 -57 37 -88 98 -88c71 0 114 51 114 134c0 86 -43 137 -114 137c-43 0 -75 -19 -90 -54h-126l63 395h379z" /><path id="g6" transform="translate(13.05 28) scale(0.025 -0.025)" d="M507 548h-130c-18 45 -42 63 -87 63c-49 0 -83 -26 -102 -78c-10 -27 -13 -48 -15 -114l-1 -15c44 46 83 63 141 63c122 0 206 -94 206 -230c0 -155 -96 -260 -237 -260c-84 0 -158 39 -199 105c-36 57 -51 133 -51 255c0 129 17 208 59 277c43 71 115 110 203 110 c77 0 142 -30 179 -81c18 -26 27 -49 34 -95zM278 356c-64 0 -108 -54 -108 -131c0 -76 44 -128 108 -128c62 0 108 55 108 130c0 79 -42 129 -108 129z" /><path id="g7" transform="translate(13.05 28) scale(0.025 -0.025)" d="M528 709v-110c-168 -203 -241 -375 -254 -599h-141c19 151 44 244 93 347c28 62 113 191 156 237h-353v125h499z" /><path id="g8" transform="translate(13.05 28) scale(0.025 -0.025)" d="M409 386c82 -45 116 -98 116 -182c0 -134 -103 -227 -251 -227c-149 0 -252 93 -252 227c0 84 34 137 116 182c-64 34 -92 77 -92 145c0 112 96 193 228 193c131 0 227 -81 227 -192c0 -46 -17 -89 -46 -116c-11 -10 -22 -17 -46 -30zM275 611c-63 0 -106 -38 -106 -92 c0 -56 43 -94 106 -94c61 0 105 39 105 93c0 55 -43 93 -105 93zM273 330c-68 0 -111 -46 -111 -118c0 -70 43 -115 111 -115s112 45 112 113c0 74 -43 120 -112 120z" /><path id="g9" transform="translate(13.05 28) scale(0.025 -0.025)" d="M38 165h135c3 -42 36 -69 86 -69c79 0 117 65 117 202c-23 -26 -31 -35 -44 -44c-22 -16 -56 -26 -92 -26c-126 0 -212 100 -212 246c0 148 97 250 239 250c85 0 155 -40 200 -116c33 -54 49 -134 49 -238c0 -114 -22 -221 -59 -284c-42 -72 -111 -110 -202 -110 c-122 0 -214 80 -217 189zM263 610c-63 0 -102 -52 -102 -134s40 -132 104 -132c65 0 108 52 108 130c0 84 -42 136 -110 136z" /><path id="g10" transform="translate(6.8 28) scale(0.025 -0.025)" d="M238 489h-170v93c122 0 195 43 217 127h93v-709h-140v489z M773 724c83 0 152 -37 194 -105c34 -55 50 -143 50 -273c0 -133 -20 -224 -60 -279c-44 -59 -107 -90 -184 -90c-83 0 -152 37 -194 105c-34 54 -50 142 -50 268c0 138 19 228 60 283c43 59 108 91 184 91zM773 611c-40 0 -71 -24 -86 -67c-11 -29 -18 -109 -18 -193 c0 -95 8 -169 22 -199c17 -36 45 -55 82 -55c40 0 70 23 86 65c11 29 18 107 18 187c0 98 -8 175 -22 205c-17 37 -46 57 -82 57z" /><path id="gJ" transform="translate(13.05 28) scale(0.025 -0.025)" d="M336 729h150v-539c0 -136 -85 -213 -234 -213c-69 0 -125 20 -167 58c-43 40 -61 87 -61 163v72h150v-70c0 -67 24 -95 81 -95c52 0 81 30 81 85v539z" /><path id="gQ" transform="translate(10.27 28) scale(0.025 -0.025)" d="M665 103l80 -76l-76 -81l-86 81c-58 -35 -113 -50 -189 -50c-104 0 -186 33 -249 101c-64 69 -102 172 -102 281s37 212 102 281c63 68 145 101 249 101s186 -33 249 -101c64 -69 102 -172 102 -279c0 -98 -31 -198 -80 -258zM480 278l82 -78c22 44 33 98 33 158 c0 155 -79 255 -201 255s-201 -100 -201 -254c0 -153 80 -254 200 -254c32 0 64 7 88 19l-77 73z" /><path id="gK" transform="translate(10.97 28) scale(0.025 -0.025)" d="M224 244v-244h-150v729h150v-320l285 320h177l-291 -314l322 -415h-179l-239 322z" /><rect id="empty" style="fill:none;stroke:#fff;stroke-width:2.0;stroke-opacity:.5" x="1" y="1" width="128" height="188" rx="18" /><rect id="cardbody" style="fill:#fff;fill-opacity:1;stroke:#000;stroke-width:1;stroke-opacity:1" x="1" y="1" width="128" height="188" rx="18" />
+   <g id="e">
+    <use style="fill:none;stroke:#fff;stroke-width:2.0;stroke-opacity:.5" xlink:href="#empty"/>
+   </g>
+   <g id="e0">
+    <use style="fill:none;stroke:#fff;stroke-width:2.0;stroke-opacity:.5" xlink:href="#empty"/>
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#fff;stroke-width:.3;stroke-opacity:.4" d="m 0,-4.50839 c -1.091628,2.18162 -1.887601,3.30678 -3.529422,4.50839 1.553736,1.18718 2.649193,2.41418 3.561339,4.3974904 0.814718,-1.88416 1.8114457,-3.2887604 3.5427227,-4.4564104 -1.741482,-0.88606 -2.7497167,-2.28961 -3.5746397,-4.44947 z" />
+  </g>
+   <g id="c1">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#gA"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#gA"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="translate(65 95) scale(7)" xlink:href="#diamond" />
+  </g>
+   <g id="c2">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g2"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g2"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="translate(65 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(65 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+  </g>
+   <g id="c3">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g3"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g3"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="translate(65 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(65 95) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(65 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+  </g>
+   <g id="c4">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g4"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g4"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+  </g>
+   <g id="c5">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g5"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g5"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(65 95) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+  </g>
+   <g id="c6">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g6"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g6"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(45 95) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(85 95) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+  </g>
+   <g id="c7">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g7"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g7"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(65 67.5) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(45 95) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(85 95) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+  </g>
+   <g id="c8">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g8"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g8"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(65 67.5) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(45 95) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(85 95) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(65 122.5) scale(2.7) rotate(180)" xlink:href="#diamond" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+  </g>
+   <g id="c9">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g9"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g9"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(45 76.67) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(85 76.67) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(65 95) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(45 113.3) scale(2.7) rotate(180)" xlink:href="#diamond" />
+    <use transform="translate(85 113.3) scale(2.7) rotate(180)" xlink:href="#diamond" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+  </g>
+   <g id="c10">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g10"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g10"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(65 58.33) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(45 76.67) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(85 76.67) scale(2.7)" xlink:href="#diamond" />
+    <use transform="translate(45 113.3) scale(2.7) rotate(180)" xlink:href="#diamond" />
+    <use transform="translate(85 113.3) scale(2.7) rotate(180)" xlink:href="#diamond" />
+    <use transform="translate(65 131.7) scale(2.7) rotate(180)" xlink:href="#diamond" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#diamond" />
+  </g>
+   <g id="c11">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#gJ"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#gJ"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#f00;stroke-width:.3;stroke-opacity:.3" d="m 0,-4.50839 c -1.091628,2.18162 -1.887601,3.30678 -3.529422,4.50839 1.553736,1.18718 2.649193,2.41418 3.561339,4.3974904 0.814718,-1.88416 1.8114457,-3.2887604 3.5427227,-4.4564104 -1.741482,-0.88606 -2.7497167,-2.28961 -3.5746397,-4.44947 z" />
+  </g>
+   <g id="c12">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#gQ"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#gQ"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#f00;stroke-width:.3;stroke-opacity:.3" d="m 0,-4.50839 c -1.091628,2.18162 -1.887601,3.30678 -3.529422,4.50839 1.553736,1.18718 2.649193,2.41418 3.561339,4.3974904 0.814718,-1.88416 1.8114457,-3.2887604 3.5427227,-4.4564104 -1.741482,-0.88606 -2.7497167,-2.28961 -3.5746397,-4.44947 z" />
+  </g>
+   <g id="c13">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#gK"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#gK"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#diamond" />
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#f00;stroke-width:.3;stroke-opacity:.3" d="m 0,-4.50839 c -1.091628,2.18162 -1.887601,3.30678 -3.529422,4.50839 1.553736,1.18718 2.649193,2.41418 3.561339,4.3974904 0.814718,-1.88416 1.8114457,-3.2887604 3.5427227,-4.4564104 -1.741482,-0.88606 -2.7497167,-2.28961 -3.5746397,-4.44947 z" />
+  </g>
+   <g id="e1">
+    <use style="fill:none;stroke:#fff;stroke-width:2.0;stroke-opacity:.5" xlink:href="#empty"/>
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#fff;stroke-width:.3;stroke-opacity:.4" d="m -1.893288,-4.421347 c -0.217499,0.001421 -0.456482,0.053538 -0.721054,0.170052 -2.884065,2.169654 1.003992,5.668356 2.645650,8.672643 l 0.047392,0.015360 c 1.804123,-3.283776 5.238505,-6.897317 2.614341,-8.688003 -2.078931,-0.915535 -2.634291,2.132027 -2.653692,2.241908 -0.016931,-0.095898 -0.441095,-2.421669 -1.932638,-2.411959 z" />
+  </g>
+   <g id="c14">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#gA"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#gA"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="translate(65 95) scale(7)" xlink:href="#heart" />
+  </g>
+   <g id="c15">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g2"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g2"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="translate(65 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(65 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+  </g>
+   <g id="c16">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g3"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g3"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="translate(65 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(65 95) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(65 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+  </g>
+   <g id="c17">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g4"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g4"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+  </g>
+   <g id="c18">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g5"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g5"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(65 95) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+  </g>
+   <g id="c19">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g6"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g6"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(45 95) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(85 95) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+  </g>
+   <g id="c20">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g7"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g7"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(65 67.5) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(45 95) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(85 95) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+  </g>
+   <g id="c21">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g8"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g8"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(65 67.5) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(45 95) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(85 95) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(65 122.5) scale(2.7) rotate(180)" xlink:href="#heart" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+  </g>
+   <g id="c22">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g9"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g9"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(45 76.67) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(85 76.67) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(65 95) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(45 113.3) scale(2.7) rotate(180)" xlink:href="#heart" />
+    <use transform="translate(85 113.3) scale(2.7) rotate(180)" xlink:href="#heart" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+  </g>
+   <g id="c23">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#g10"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#g10"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(65 58.33) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(45 76.67) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(85 76.67) scale(2.7)" xlink:href="#heart" />
+    <use transform="translate(45 113.3) scale(2.7) rotate(180)" xlink:href="#heart" />
+    <use transform="translate(85 113.3) scale(2.7) rotate(180)" xlink:href="#heart" />
+    <use transform="translate(65 131.7) scale(2.7) rotate(180)" xlink:href="#heart" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#heart" />
+  </g>
+   <g id="c24">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#gJ"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#gJ"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#f00;stroke-width:.3;stroke-opacity:.3" d="m -1.893288,-4.421347 c -0.217499,0.001421 -0.456482,0.053538 -0.721054,0.170052 -2.884065,2.169654 1.003992,5.668356 2.645650,8.672643 l 0.047392,0.015360 c 1.804123,-3.283776 5.238505,-6.897317 2.614341,-8.688003 -2.078931,-0.915535 -2.634291,2.132027 -2.653692,2.241908 -0.016931,-0.095898 -0.441095,-2.421669 -1.932638,-2.411959 z" />
+  </g>
+   <g id="c25">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#gQ"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#gQ"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#f00;stroke-width:.3;stroke-opacity:.3" d="m -1.893288,-4.421347 c -0.217499,0.001421 -0.456482,0.053538 -0.721054,0.170052 -2.884065,2.169654 1.003992,5.668356 2.645650,8.672643 l 0.047392,0.015360 c 1.804123,-3.283776 5.238505,-6.897317 2.614341,-8.688003 -2.078931,-0.915535 -2.634291,2.132027 -2.653692,2.241908 -0.016931,-0.095898 -0.441095,-2.421669 -1.932638,-2.411959 z" />
+  </g>
+   <g id="c26">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#f00" xlink:href="#gK"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <use transform="rotate(180 65 95)" style="fill:#f00" xlink:href="#gK"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#heart" />
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#f00;stroke-width:.3;stroke-opacity:.3" d="m -1.893288,-4.421347 c -0.217499,0.001421 -0.456482,0.053538 -0.721054,0.170052 -2.884065,2.169654 1.003992,5.668356 2.645650,8.672643 l 0.047392,0.015360 c 1.804123,-3.283776 5.238505,-6.897317 2.614341,-8.688003 -2.078931,-0.915535 -2.634291,2.132027 -2.653692,2.241908 -0.016931,-0.095898 -0.441095,-2.421669 -1.932638,-2.411959 z" />
+  </g>
+   <g id="e2">
+    <use style="fill:none;stroke:#fff;stroke-width:2.0;stroke-opacity:.5" xlink:href="#empty"/>
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#fff;stroke-width:.3;stroke-opacity:.4" d="m 0,-4.45 c -1.302893,2.070276 -5.300838,5.595707 -2.768151,6.684151 1.537369,0.501052 2.268983,-0.524627 2.57885,-1.203685 h 0.06207 l -1.020989,3.425409 2.364722,-0.01008 c 0,0 -1.018672,-3.292704 -1.020989,-3.418687 h 0.02483 c 0.250282,0.55488 1.1999992,1.703563 2.2447202,1.266103 3.054841,-1.226312 -1.4434872,-4.7159 -2.4650552,-6.743206 z" />
+  </g>
+   <g id="c27">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#gA"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#gA"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="translate(65 95) scale(7)" xlink:href="#club" />
+  </g>
+   <g id="c28">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g2"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g2"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="translate(65 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(65 150) scale(2.7) rotate(180)" xlink:href="#club" />
+  </g>
+   <g id="c29">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g3"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g3"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="translate(65 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(65 95) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(65 150) scale(2.7) rotate(180)" xlink:href="#club" />
+  </g>
+   <g id="c30">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g4"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g4"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#club" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#club" />
+  </g>
+   <g id="c31">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g5"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g5"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(65 95) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#club" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#club" />
+  </g>
+   <g id="c32">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g6"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g6"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(45 95) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(85 95) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#club" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#club" />
+  </g>
+   <g id="c33">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g7"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g7"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(65 67.5) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(45 95) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(85 95) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#club" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#club" />
+  </g>
+   <g id="c34">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g8"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g8"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(65 67.5) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(45 95) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(85 95) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(65 122.5) scale(2.7) rotate(180)" xlink:href="#club" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#club" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#club" />
+  </g>
+   <g id="c35">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g9"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g9"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(45 76.67) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(85 76.67) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(65 95) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(45 113.3) scale(2.7) rotate(180)" xlink:href="#club" />
+    <use transform="translate(85 113.3) scale(2.7) rotate(180)" xlink:href="#club" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#club" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#club" />
+  </g>
+   <g id="c36">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g10"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g10"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(65 58.33) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(45 76.67) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(85 76.67) scale(2.7)" xlink:href="#club" />
+    <use transform="translate(45 113.3) scale(2.7) rotate(180)" xlink:href="#club" />
+    <use transform="translate(85 113.3) scale(2.7) rotate(180)" xlink:href="#club" />
+    <use transform="translate(65 131.7) scale(2.7) rotate(180)" xlink:href="#club" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#club" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#club" />
+  </g>
+   <g id="c37">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#gJ"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#gJ"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#club" />
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#000;stroke-width:.3;stroke-opacity:.3" d="m 0,-4.45 c -1.302893,2.070276 -5.300838,5.595707 -2.768151,6.684151 1.537369,0.501052 2.268983,-0.524627 2.57885,-1.203685 h 0.06207 l -1.020989,3.425409 2.364722,-0.01008 c 0,0 -1.018672,-3.292704 -1.020989,-3.418687 h 0.02483 c 0.250282,0.55488 1.1999992,1.703563 2.2447202,1.266103 3.054841,-1.226312 -1.4434872,-4.7159 -2.4650552,-6.743206 z" />
+  </g>
+   <g id="c38">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#gQ"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#gQ"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#club" />
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#000;stroke-width:.3;stroke-opacity:.3" d="m 0,-4.45 c -1.302893,2.070276 -5.300838,5.595707 -2.768151,6.684151 1.537369,0.501052 2.268983,-0.524627 2.57885,-1.203685 h 0.06207 l -1.020989,3.425409 2.364722,-0.01008 c 0,0 -1.018672,-3.292704 -1.020989,-3.418687 h 0.02483 c 0.250282,0.55488 1.1999992,1.703563 2.2447202,1.266103 3.054841,-1.226312 -1.4434872,-4.7159 -2.4650552,-6.743206 z" />
+  </g>
+   <g id="c39">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#gK"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#club" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#gK"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#club" />
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#000;stroke-width:.3;stroke-opacity:.3" d="m 0,-4.45 c -1.302893,2.070276 -5.300838,5.595707 -2.768151,6.684151 1.537369,0.501052 2.268983,-0.524627 2.57885,-1.203685 h 0.06207 l -1.020989,3.425409 2.364722,-0.01008 c 0,0 -1.018672,-3.292704 -1.020989,-3.418687 h 0.02483 c 0.250282,0.55488 1.1999992,1.703563 2.2447202,1.266103 3.054841,-1.226312 -1.4434872,-4.7159 -2.4650552,-6.743206 z" />
+  </g>
+   <g id="e3">
+    <use style="fill:none;stroke:#fff;stroke-width:2.0;stroke-opacity:.5" xlink:href="#empty"/>
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#fff;stroke-width:.3;stroke-opacity:.4" d="m 0,-4.5 c -0.70548,0 -1.277902,0.863474 -1.277902,1.927666 0,0.906614 1.162075,2.431961 1.116945,3.156366 -0.373129,0.207016 -1.52592,-1.70326 -2.121708,-1.70326 -0.70548,0 -1.277902,0.863473 -1.277902,1.927664 0,1.064194 0.572422,1.927667 1.277902,1.927667 0.611857,0 1.660436,-1.908701 2.121708,-1.73637 l -0.774942,3.406142 1.858324,-0.01104 c 0,0 -0.814109,-3.302314 -0.81512,-3.380393 h 0.01463 v 0.0037 c 0.451724,-0.169257 1.536134,1.754762 2.143656,1.754764 0.705482,0 1.277903,-0.863473 1.277902,-1.927667 0,-1.064191 -0.57242,-1.927664 -1.277902,-1.927664 -0.593361,0 -1.668914,1.878682 -2.141217,1.684867 0.0066,-0.74227 1.153526,-2.269142 1.153526,-3.17476 0,-1.064192 -0.57242,-1.927666 -1.277902,-1.927666 z" />
+  </g>
+   <g id="c40">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#gA"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#gA"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="translate(65 95) scale(7)" xlink:href="#spade" />
+  </g>
+   <g id="c41">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g2"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g2"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="translate(65 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(65 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+  </g>
+   <g id="c42">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g3"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g3"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="translate(65 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(65 95) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(65 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+  </g>
+   <g id="c43">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g4"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g4"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+  </g>
+   <g id="c44">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g5"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g5"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(65 95) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+  </g>
+   <g id="c45">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g6"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g6"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(45 95) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(85 95) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+  </g>
+   <g id="c46">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g7"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g7"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(65 67.5) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(45 95) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(85 95) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+  </g>
+   <g id="c47">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g8"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g8"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(65 67.5) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(45 95) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(85 95) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(65 122.5) scale(2.7) rotate(180)" xlink:href="#spade" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+  </g>
+   <g id="c48">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g9"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g9"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(45 76.67) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(85 76.67) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(65 95) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(45 113.3) scale(2.7) rotate(180)" xlink:href="#spade" />
+    <use transform="translate(85 113.3) scale(2.7) rotate(180)" xlink:href="#spade" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+  </g>
+   <g id="c49">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#g10"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#g10"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="translate(45 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(85 40) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(65 58.33) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(45 76.67) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(85 76.67) scale(2.7)" xlink:href="#spade" />
+    <use transform="translate(45 113.3) scale(2.7) rotate(180)" xlink:href="#spade" />
+    <use transform="translate(85 113.3) scale(2.7) rotate(180)" xlink:href="#spade" />
+    <use transform="translate(65 131.7) scale(2.7) rotate(180)" xlink:href="#spade" />
+    <use transform="translate(45 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+    <use transform="translate(85 150) scale(2.7) rotate(180)" xlink:href="#spade" />
+  </g>
+   <g id="c50">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#gJ"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#gJ"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#000;stroke-width:.3;stroke-opacity:.3" d="m 0,-4.5 c -0.70548,0 -1.277902,0.863474 -1.277902,1.927666 0,0.906614 1.162075,2.431961 1.116945,3.156366 -0.373129,0.207016 -1.52592,-1.70326 -2.121708,-1.70326 -0.70548,0 -1.277902,0.863473 -1.277902,1.927664 0,1.064194 0.572422,1.927667 1.277902,1.927667 0.611857,0 1.660436,-1.908701 2.121708,-1.73637 l -0.774942,3.406142 1.858324,-0.01104 c 0,0 -0.814109,-3.302314 -0.81512,-3.380393 h 0.01463 v 0.0037 c 0.451724,-0.169257 1.536134,1.754762 2.143656,1.754764 0.705482,0 1.277903,-0.863473 1.277902,-1.927667 0,-1.064191 -0.57242,-1.927664 -1.277902,-1.927664 -0.593361,0 -1.668914,1.878682 -2.141217,1.684867 0.0066,-0.74227 1.153526,-2.269142 1.153526,-3.17476 0,-1.064192 -0.57242,-1.927666 -1.277902,-1.927666 z" />
+  </g>
+   <g id="c51">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#gQ"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#gQ"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#000;stroke-width:.3;stroke-opacity:.3" d="m 0,-4.5 c -0.70548,0 -1.277902,0.863474 -1.277902,1.927666 0,0.906614 1.162075,2.431961 1.116945,3.156366 -0.373129,0.207016 -1.52592,-1.70326 -2.121708,-1.70326 -0.70548,0 -1.277902,0.863473 -1.277902,1.927664 0,1.064194 0.572422,1.927667 1.277902,1.927667 0.611857,0 1.660436,-1.908701 2.121708,-1.73637 l -0.774942,3.406142 1.858324,-0.01104 c 0,0 -0.814109,-3.302314 -0.81512,-3.380393 h 0.01463 v 0.0037 c 0.451724,-0.169257 1.536134,1.754762 2.143656,1.754764 0.705482,0 1.277903,-0.863473 1.277902,-1.927667 0,-1.064191 -0.57242,-1.927664 -1.277902,-1.927664 -0.593361,0 -1.668914,1.878682 -2.141217,1.684867 0.0066,-0.74227 1.153526,-2.269142 1.153526,-3.17476 0,-1.064192 -0.57242,-1.927666 -1.277902,-1.927666 z" />
+  </g>
+   <g id="c52">
+    <use xlink:href="#cardbody"/>
+    <use style="fill:#000" xlink:href="#gK"/>
+    <use transform="translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <use transform="rotate(180 65 95)" style="fill:#000" xlink:href="#gK"/>
+    <use transform="rotate(180 65 95) translate(110 20) scale(2.2)" xlink:href="#spade" />
+    <path transform="translate(65 95) scale(12)" style="fill:none;stroke:#000;stroke-width:.3;stroke-opacity:.3" d="m 0,-4.5 c -0.70548,0 -1.277902,0.863474 -1.277902,1.927666 0,0.906614 1.162075,2.431961 1.116945,3.156366 -0.373129,0.207016 -1.52592,-1.70326 -2.121708,-1.70326 -0.70548,0 -1.277902,0.863473 -1.277902,1.927664 0,1.064194 0.572422,1.927667 1.277902,1.927667 0.611857,0 1.660436,-1.908701 2.121708,-1.73637 l -0.774942,3.406142 1.858324,-0.01104 c 0,0 -0.814109,-3.302314 -0.81512,-3.380393 h 0.01463 v 0.0037 c 0.451724,-0.169257 1.536134,1.754762 2.143656,1.754764 0.705482,0 1.277903,-0.863473 1.277902,-1.927667 0,-1.064191 -0.57242,-1.927664 -1.277902,-1.927664 -0.593361,0 -1.668914,1.878682 -2.141217,1.684867 0.0066,-0.74227 1.153526,-2.269142 1.153526,-3.17476 0,-1.064192 -0.57242,-1.927666 -1.277902,-1.927666 z" />
+  </g>
+  </defs>
+
+      <rect x="0" y="0" width="1500" height="940" style="fill:green" />
+      <rect x="0" y="0" width="1500" height="940" style="fill:green" />
+      <use transform="translate(10 10)" xlink:href="#e0" />
+      <use transform="translate(160 10)" xlink:href="#e1" />
+      <use transform="translate(460 10)" xlink:href="#e" />
+      <use transform="translate(610 10)" xlink:href="#e" />
+      <use transform="translate(760 10)" xlink:href="#e" />
+      <use transform="translate(910 10)" xlink:href="#e" />
+      <use transform="translate(1210 10)" xlink:href="#e2" />
+      <use transform="translate(1360 10)" xlink:href="#e3" />
+<g id="cards"><use transform="translate(10 10)" xlink:href="#c2"/><use transform="translate(1210 10)" xlink:href="#c27"/><use transform="translate(460 10)" xlink:href="#c8"/><use transform="translate(610 10)" xlink:href="#c19"/><use transform="translate(760 10)" xlink:href="#c7"/><use transform="translate(10 220)" xlink:href="#c45"/><use transform="translate(10 260)" xlink:href="#c4"/><use transform="translate(10 300)" xlink:href="#c9"/><use transform="translate(10 340)" xlink:href="#c51"/><use transform="translate(10 380)" xlink:href="#c50"/><use transform="translate(10 420)" xlink:href="#c49"/><use transform="translate(10 460)" xlink:href="#c48"/><use transform="translate(10 500)" xlink:href="#c47"/><use transform="translate(10 540)" xlink:href="#c46"/><use transform="translate(160 220)" xlink:href="#c35"/><use transform="translate(160 260)" xlink:href="#c29"/><use transform="translate(160 300)" xlink:href="#c3"/><use transform="translate(160 340)" xlink:href="#c44"/><use transform="translate(160 380)" xlink:href="#c15"/><use transform="translate(310 220)" xlink:href="#c14"/><use transform="translate(310 260)" xlink:href="#c41"/><use transform="translate(310 300)" xlink:href="#c24"/><use transform="translate(310 340)" xlink:href="#c34"/><use transform="translate(310 380)" xlink:href="#c33"/><use transform="translate(310 420)" xlink:href="#c32"/><use transform="translate(310 460)" xlink:href="#c31"/><use transform="translate(460 220)" xlink:href="#c17"/><use transform="translate(460 260)" xlink:href="#c28"/><use transform="translate(460 300)" xlink:href="#c39"/><use transform="translate(460 340)" xlink:href="#c38"/><use transform="translate(460 380)" xlink:href="#c37"/><use transform="translate(460 420)" xlink:href="#c36"/><use transform="translate(610 220)" xlink:href="#c52"/><use transform="translate(610 260)" xlink:href="#c6"/><use transform="translate(610 300)" xlink:href="#c18"/><use transform="translate(760 220)" xlink:href="#c25"/><use transform="translate(760 260)" xlink:href="#c42"/><use transform="translate(760 300)" xlink:href="#c12"/><use transform="translate(760 340)" xlink:href="#c26"/><use transform="translate(760 380)" xlink:href="#c5"/><use transform="translate(910 220)" xlink:href="#c10"/><use transform="translate(910 260)" xlink:href="#c40"/><use transform="translate(910 300)" xlink:href="#c13"/><use transform="translate(910 340)" xlink:href="#c30"/><use transform="translate(1060 220)" xlink:href="#c11"/><use transform="translate(1060 260)" xlink:href="#c23"/><use transform="translate(1360 220)" xlink:href="#c20"/><use transform="translate(1360 260)" xlink:href="#c22"/><use transform="translate(1360 300)" xlink:href="#c21"/><use transform="translate(1360 340)" xlink:href="#c43"/><use transform="translate(1360 380)" xlink:href="#c16"/></g>
+</svg>

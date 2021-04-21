@@ -2,13 +2,13 @@
 
 Copyright 2021, Jochen Hoenicke.
 
-## Try online
+## Try Online
 
 https://jochen-hoenicke.de/seahaven/online.html
 
 ## Screenshot
 
-TODO.
+<img src="https://github.com/jhoenicke/seahaven/blob/master/resources/screenshot.svg?raw=true" width="750" height="470" />
 
 ## Rules
 
@@ -38,6 +38,13 @@ can undo your moves to a position where the tick appears; the tick or
 cross will update for every move.  If you're stuck on the initial
 position that game had no solution.  Click the check button again to
 hide the tick/cross.
+
+## Compile and Install
+
+First get the emscripten compiler.  Then run make in the solver
+sub-directory. Finally copy the contents of the static sub-directory
+to your web space.  Note that the solver uses WebWorker and does
+not run on a local installation with file url.
 
 ## Credits
 
