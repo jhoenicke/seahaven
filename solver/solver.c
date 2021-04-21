@@ -418,6 +418,8 @@ typedef struct {
     SolverMoveType moves[MAX_BRANCH];
 } GameStack;
 
+GameStack stack[MAX_MOVES];
+
 static int SolverIsSolvable(SolverPosType *game) {
     uint16_t *slot;
     GameStack *stackPtr = stack;
