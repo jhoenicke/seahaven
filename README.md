@@ -4,7 +4,7 @@ Copyright 2021, Jochen Hoenicke.
 
 ## Try Online
 
-https://jochen-hoenicke.de/seahaven/online.html
+https://jhoenicke.github.io/seahaven/
 
 ## Screenshot
 
