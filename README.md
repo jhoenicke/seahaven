@@ -8,7 +8,7 @@ https://jochen-hoenicke.de/seahaven/online.html
 
 ## Screenshot
 
-<img src="https://github.com/jhoenicke/seahaven/blob/master/resources/screenshot.svg?raw=true" width="750" height="470" />
+<img src="https://github.com/jhoenicke/seahaven/blob/master/resources/screenshot.svg?raw=true" />
 
 ## Rules
 
