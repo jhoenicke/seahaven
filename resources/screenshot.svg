@@ -644,5 +644,26 @@
       <use transform="translate(910 10)" xlink:href="#e" />
       <use transform="translate(1210 10)" xlink:href="#e2" />
       <use transform="translate(1360 10)" xlink:href="#e3" />
+      <g style="fill:#fff;font-family:sans-serif;font-weight:normal;font-size:30;" cursor="pointer">
+       <text x="30" y="900"><tspan font-weight="bold">U</tspan>ndo</text>
+       <text x="170" y="900"><tspan font-weight="bold">R</tspan>edo</text>
+       <text x="310" y="900"><tspan font-weight="bold">N</tspan>ew game</text>
+       <text x="515" y="900"><tspan font-weight="bold">F</tspan>ullscreen</text>
+       <text x="715" y="900"><tspan font-weight="bold">C</tspan>heck Solvable</text>
+       <a xlink:href="https://jochen-hoenicke.de/seahaven">
+	 <g style="fill:#fff;font-size:20">
+	   <text x="1150" y="880">© 2021 by Jochen Hoenicke</text>
+	   <text x="1150" y="910">Click here for rules and source code</text>
+	 </g>
+       </a>
+      </g>
+      <g style="fill:#000;fill-opacity:0.1;stroke:white;stroke-opacity:0.5;stroke-width:2;"
+         cursor="pointer">
+        <rect id="undo" x="10" y="860" width="115" height="60" />
+        <rect id="redo" x="150" y="860" width="115" height="60" />
+        <rect id="newgame" x="290" y="860" width="180" height="60" />
+        <rect id="fullscreen" x="495" y="860" width="175" height="60" />
+        <rect id="check" x="695" y="860" width="250" height="60" />
+      </g>
 <g id="cards"><use transform="translate(10 10)" xlink:href="#c2"/><use transform="translate(1210 10)" xlink:href="#c27"/><use transform="translate(460 10)" xlink:href="#c8"/><use transform="translate(610 10)" xlink:href="#c19"/><use transform="translate(760 10)" xlink:href="#c7"/><use transform="translate(10 220)" xlink:href="#c45"/><use transform="translate(10 260)" xlink:href="#c4"/><use transform="translate(10 300)" xlink:href="#c9"/><use transform="translate(10 340)" xlink:href="#c51"/><use transform="translate(10 380)" xlink:href="#c50"/><use transform="translate(10 420)" xlink:href="#c49"/><use transform="translate(10 460)" xlink:href="#c48"/><use transform="translate(10 500)" xlink:href="#c47"/><use transform="translate(10 540)" xlink:href="#c46"/><use transform="translate(160 220)" xlink:href="#c35"/><use transform="translate(160 260)" xlink:href="#c29"/><use transform="translate(160 300)" xlink:href="#c3"/><use transform="translate(160 340)" xlink:href="#c44"/><use transform="translate(160 380)" xlink:href="#c15"/><use transform="translate(310 220)" xlink:href="#c14"/><use transform="translate(310 260)" xlink:href="#c41"/><use transform="translate(310 300)" xlink:href="#c24"/><use transform="translate(310 340)" xlink:href="#c34"/><use transform="translate(310 380)" xlink:href="#c33"/><use transform="translate(310 420)" xlink:href="#c32"/><use transform="translate(310 460)" xlink:href="#c31"/><use transform="translate(460 220)" xlink:href="#c17"/><use transform="translate(460 260)" xlink:href="#c28"/><use transform="translate(460 300)" xlink:href="#c39"/><use transform="translate(460 340)" xlink:href="#c38"/><use transform="translate(460 380)" xlink:href="#c37"/><use transform="translate(460 420)" xlink:href="#c36"/><use transform="translate(610 220)" xlink:href="#c52"/><use transform="translate(610 260)" xlink:href="#c6"/><use transform="translate(610 300)" xlink:href="#c18"/><use transform="translate(760 220)" xlink:href="#c25"/><use transform="translate(760 260)" xlink:href="#c42"/><use transform="translate(760 300)" xlink:href="#c12"/><use transform="translate(760 340)" xlink:href="#c26"/><use transform="translate(760 380)" xlink:href="#c5"/><use transform="translate(910 220)" xlink:href="#c10"/><use transform="translate(910 260)" xlink:href="#c40"/><use transform="translate(910 300)" xlink:href="#c13"/><use transform="translate(910 340)" xlink:href="#c30"/><use transform="translate(1060 220)" xlink:href="#c11"/><use transform="translate(1060 260)" xlink:href="#c23"/><use transform="translate(1360 220)" xlink:href="#c20"/><use transform="translate(1360 260)" xlink:href="#c22"/><use transform="translate(1360 300)" xlink:href="#c21"/><use transform="translate(1360 340)" xlink:href="#c43"/><use transform="translate(1360 380)" xlink:href="#c16"/></g>
 </svg>
