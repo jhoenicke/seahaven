@@ -254,7 +254,7 @@ static int SolverGenMoves(SolverPosType * game,
                 card = CARD(suit,KING);
                 fromPile = card2pile[card];
                 cardDepth = card2depth[card] + 1 - game->pileDepth[fromPile];
-                if (cardDepth > 0 && game->aces[suit] != card) {
+                if (cardDepth >= 0 && game->aces[suit] != card) {
                     if (cardDepth > 0) {
                         moves[numMoves].from = EXTRAPILE + suit;
                         moves[numMoves].to   = KINGPILE + suit;
