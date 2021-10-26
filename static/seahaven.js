@@ -287,8 +287,7 @@ function automove() {
 			aces[suit]++;
 			spots[i] = 0;
 			stable = false;
-		    }
-		    if (card % 13 != 0 &&
+		    } else if (card % 13 != 0 &&
 			card - 13*suit + Math.floor(kings[suit] / 10) == 13) {
 			kings[suit] += 10;
 			spots[i] = 0;
