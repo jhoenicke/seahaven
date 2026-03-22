@@ -1,0 +1,14 @@
+name = "seahaven"
+version = "0.1.0"
+defaultTargets = ["seahaven"]
+
+[[lean_lib]]
+name = "Seahaven"
+
+[[lean_exe]]
+name = "seahaven"
+root = "Main"
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
