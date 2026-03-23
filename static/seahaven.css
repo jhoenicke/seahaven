@@ -1,5 +1,6 @@
 html {
-  touch-action: manipulation;
+    user-select: none;
+    touch-action: manipulation;
 }
 
 body {

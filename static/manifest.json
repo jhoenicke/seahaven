@@ -1,7 +1,7 @@
 {
   "name": "Seahaven Towers",
   "short_name": "Seahaven",
-  "start_url": "./",
+  "start_url": "./online.html",
   "display": "standalone",
   "background_color": "green",
   "theme_color": "green",

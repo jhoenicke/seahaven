@@ -1,7 +1,7 @@
 const CACHE_NAME = 'seahaven-v1';
 const FILES_TO_CACHE = [
   './',
-  './index.html',
+  './online.html',
   './manifest.json',
   './seahaven.js',
   './seahaven.css',

@@ -48,11 +48,9 @@ not run on a local installation with file url.
 
 ## Credits
 
-The cards use graphics from [Nicu's playing
-cards](https://nicubunu.ro/cards/).  They also include glyphs from the
-[Nimbus Sans](https://en.wikipedia.org/wiki/Nimbus_Sans) font.  The
-final card layout is by me.  The animated gears are from [Garey
-Simpson's CodePen](https://codepen.io/gareys/pen/meRgLG).  The tick and
+The game uses [Adrian Kennard's playing cards](https://www.me.uk/cards/). 
+The animated gears are from 
+[Garey Simpson's CodePen](https://codepen.io/gareys/pen/meRgLG).  The tick and
 checkbox icon are from the Open Clipart library: the
 [cross](https://openclipart.org/detail/169757/check-and-cross-marks)
 is by gcross, the
