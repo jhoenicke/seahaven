@@ -117,16 +117,19 @@ def State.toView (s : State) : StateView :=
       ]
   }
 
-def updateColumn (s : State) (c : Fin 10) (col : Column) : State :=
-  { s with tableau := fun i => if i = c then col else s.tableau i }
+def update [DecidableEq T1] (f: T1 → T2) (i: T1) (v: T2) : T1 → T2 :=
+  fun j => if i = j then v else f j
+
+def updateColumn (s : State) (pile : Fin 10) (col : Column) : State :=
+  { s with tableau := update s.tableau pile col }
 def updateCell (s : State) (c : Fin 4) (card : Option Card) : State :=
-  { s with cells := fun i => if i = c then card else s.cells i }
+  { s with cells := update s.cells c card }
 def updateFoundation (s : State) (card : Card) : State :=
-  { s with foundations := fun i => if i = card.suit then card.rank else s.foundations i }
+  { s with foundations := update s.foundations card.suit card.rank }
 
 inductive Position
-  | column (col : Fin 10)
-  | cell   (cel : Fin 4)
+  | pile (pile : Fin 10)
+  | cell (cel : Fin 4)
   | foundation
   deriving Repr, DecidableEq, BEq, Hashable
 
@@ -135,20 +138,10 @@ structure Move where
   dest : Position
   deriving Repr
 
-def top? (c: Column) : Option Card :=
-  match c with
-  | [] => none
-  | x :: _ => some x
-
-def pop? (c : Column) : Option (Card × Column) :=
-  match c with
-  | [] => none
-  | x :: xs => some (x, xs)
-
 def takeFromCol (s : State) (src : Fin 10) : Option (Card × State) :=
   match s.tableau src with
   | [] => none
-  | card :: restColumn => (card, updateColumn s src restColumn)
+  | card :: rest => (card, updateColumn s src rest)
 
 def takeFromCell (s : State) (src : Fin 4) : Option (Card × State) :=
   match s.cells src with
@@ -157,14 +150,14 @@ def takeFromCell (s : State) (src : Fin 4) : Option (Card × State) :=
 
 def takeFromPosition (s : State) (pos : Position) : Option (Card × State) :=
   match pos with
-  | Position.column c => takeFromCol s c
+  | Position.pile c => takeFromCol s c
   | Position.cell c => takeFromCell s c
   | Position.foundation => none
 
 def dropCol (s : State) (dst : Fin 10) (card : Card) : Option State :=
   let col := (s.tableau dst)
   -- kings can be dropped on empty columns, other cards only on next in suit.
-  if (top? col = nextCard card) then
+  if (col.head? = nextCard card) then
     updateColumn s dst (card :: col)
   else none
 
@@ -180,7 +173,7 @@ def dropFoundation (s : State) (c : Card) : Option State :=
 
 def dropPosition (s : State) (pos : Position) (card : Card) : Option State :=
   match pos with
-  | Position.column c => dropCol s c card
+  | Position.pile c => dropCol s c card
   | Position.cell c => dropCell s c card
   | Position.foundation => dropFoundation s card
 

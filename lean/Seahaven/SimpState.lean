@@ -34,9 +34,6 @@ theorem rankOfNextCard {c: Card} {nc: Card}
     simp [h.symm]
     exact hr
 
-def update [DecidableEq T1] (f: T1 → T2) (i: T1) (v: T2) : T1 → T2 :=
-  fun j => if i = j then v else f j
-
 def pileDepth2card (s: SimpState) (pile : Fin 10) (depth : Fin 5) :=
   s.pos2card ⟨depth * 10 + pile, by omega⟩
 
@@ -186,14 +183,18 @@ def applyNormMove (s : SimpState) (m: NormMove) :=
     match cardpos with
     | CardPosition.Bottom pile 0 =>
       let flute := s.flutes pile
-      let s1 := removeFlute s pile
-      { s1 with
+      { removeFlute s pile with
         foundations := update s.foundations card.suit (s.foundations card.suit + flute)
       }
     | CardPosition.Extra =>
       { s with
         foundations := update s.foundations card.suit (s.foundations card.suit + 1)
         space := s.space - 1
+      }
+    | CardPosition.King =>
+      { s with
+        foundations := update s.foundations card.suit (s.foundations card.suit + s.kingFlutes card.suit)
+        kingFlutes := update s.kingFlutes card.suit 0
       }
     | _ => s
   | NormMove.ToPile _ pile =>

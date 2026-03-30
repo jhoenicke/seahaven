@@ -1,5 +1,22 @@
 import Seahaven.Rules
 
+@[simp]
+theorem update_same [DecidableEq T1] (f : T1 → T2) (i : T1) (v : T2) :
+  update f i v i = v := by
+  simp[update]
+
+@[simp]
+theorem update_diff [DecidableEq T1] (f : T1 → T2) (i j : T1) (v : T2) (h : i ≠ j) :
+  update f i v j = f j := by
+  simp[update,h]
+
+@[simp]
+theorem update2 [DecidableEq T1] (f : T1 → T2) (i : T1) (v w : T2) :
+  update (update f i v) i w = update f i w := by
+  funext
+  simp[update]
+  split <;> simp
+
 def rankLeq (r1: Rank) (r2 : Rank) : Bool :=
   rankToNat r1 < rankToNat r2
 
@@ -30,16 +47,17 @@ theorem countColumnPush (col : Column) (head: Card) (card: Card) :
   omega
 
 theorem updateSum {k : Nat} (f : Fin k -> Nat) (c : Fin k) (v : Nat) :
-  (List.ofFn fun i : Fin k => if i = c then v else f i).sum + (f c)=
+  (List.ofFn (update f c v)).sum + (f c)=
   (List.ofFn f).sum + v := by
   induction k with
   | zero => exact c.elim0
   | succ k' hk' =>
     refine Fin.cases ?_ ?_ c
     · -- c = 0: head changes from f 0 to v
-      simp only [List.ofFn_succ, List.sum_cons, ↓reduceIte]
+      have h : k' + 1 ≠ 0 := by omega
+      simp [List.ofFn_succ, List.sum_cons]
       have htail : (List.ofFn fun i : Fin k' =>
-                     if (Fin.succ i : Fin (k'+1)) = 0 then v else f (Fin.succ i)) =
+                     update f 0 v (Fin.succ i : Fin _)) =
                    List.ofFn (fun i => f (Fin.succ i)) := by
         congr 1;
       rw [htail]; omega
@@ -47,28 +65,29 @@ theorem updateSum {k : Nat} (f : Fin k -> Nat) (c : Fin k) (v : Nat) :
       intro c'
       have ih := hk' (fun i => f (Fin.succ i)) c'
       simp only [List.ofFn_succ, List.sum_cons]
-      have h1 : (if (0 : Fin (k'+1)) = Fin.succ c' then v else f 0) = f 0 :=
-        if_neg (Ne.symm (Fin.succ_ne_zero c'))
+      have h1 : update f (Fin.succ c') v 0 = f 0 := by
+        exact update_diff f (Fin.succ c') 0 v (Fin.succ_ne_zero c')
       have h2 : (List.ofFn fun i : Fin k' =>
-                   if (Fin.succ i : Fin (k'+1)) = Fin.succ c' then v else f (Fin.succ i)) =
-                List.ofFn fun i : Fin k' => if i = c' then v else f (Fin.succ i) := by
-        congr 1; ext i; simp [Fin.succ_inj]
-      rw [h1, h2]; omega
+                   update f (Fin.succ c') v (Fin.succ i : Fin _)) =
+                List.ofFn (update (fun i : Fin k' => f (Fin.succ i)) c' v) := by
+        congr 1; ext i
+        simp [update, Fin.succ_inj]
+      rw [h1, h2]
+      omega
 
 theorem countUpdateColumn (s : State) (c : Fin 10) (col: Column) (card: Card) :
   countState (updateColumn s c col) card + countColumn (s.tableau c) card =
     countState s card + countColumn col card := by
   simp[countState, updateColumn]
-  suffices countTableau (fun i : Fin 10 => if i = c then col else s.tableau i) card + (countColumn (s.tableau c) card) =
+  suffices countTableau (update s.tableau c col) card + (countColumn (s.tableau c) card) =
      (countTableau s.tableau card) + (countColumn col card)
      by omega
   unfold countTableau
-  have heq : ∀ i : Fin 10, countColumn (if i = c then col else s.tableau i) card =
-             if i = c then countColumn col card else countColumn (s.tableau i) card := by
+  have heq : ∀ i : Fin 10, countColumn (update s.tableau c col i) card =
+            if c = i then countColumn col card else countColumn (s.tableau i) card := by
     intro i
-    by_cases h : i = c
-    · simp only [if_pos h]
-    · simp only [if_neg h]
+    unfold update
+    split <;> simp
   simp only [heq]
   exact updateSum (fun i => countColumn (s.tableau i) card) c (countColumn col card)
 
@@ -76,16 +95,15 @@ theorem countUpdateCell (s : State) (c : Fin 4) (newCard : Option Card) (card: C
   countState (updateCell s c newCard) card + countCard (s.cells c) card =
     countState s card + countCard newCard card := by
   simp[countState, updateCell]
-  suffices countCells (fun i : Fin 4 => if i = c then newCard else s.cells i) card + (countCard (s.cells c) card) =
+  suffices countCells (update s.cells c newCard) card + (countCard (s.cells c) card) =
      (countCells s.cells card) + (countCard newCard card)
      by omega
   unfold countCells
-  have heq : ∀ i : Fin 4, countCard (if i = c then newCard else s.cells i) card =
-             if i = c then countCard newCard card else countCard (s.cells i) card := by
+  have heq : ∀ i : Fin 4, countCard (update s.cells c newCard i) card =
+             if c = i then countCard newCard card else countCard (s.cells i) card := by
     intro i
-    by_cases h : i = c
-    · simp only [if_pos h]
-    · simp only [if_neg h]
+    unfold update
+    split <;> simp
   simp only [heq]
   exact updateSum (fun i => countCard (s.cells i) card) c (countCard newCard card)
 
@@ -94,23 +112,20 @@ theorem countUpdateFoundation (s : State) (card : Card)
   countState s c + countCard card c = countState (updateFoundation s card) c := by
   simp[countState, updateFoundation]
   suffices (countFoundation s.foundations c) + (countCard card c) =
-    countFoundation (fun i : Suit => if i = card.suit then card.rank else s.foundations i) c
+    countFoundation (update s.foundations card.suit card.rank) c
     by omega
   unfold countFoundation
-  by_cases hsuit: c.suit = card.suit
-  · simp[hsuit]
+  by_cases hsuit: card.suit = c.suit
+  · simp[←hsuit]
     have h2 := nextRankNat (s.foundations card.suit) card.rank h.symm
     have hlt: optRankToNat (s.foundations card.suit) < rankToNat card.rank := by
       simp[h2]
-    by_cases hrankEq: rankToNat c.rank = rankToNat card.rank
-    · have hrank := rankInj hrankEq
-      simp [hrank]
-      have hsame : c = card := Card.ext hsuit hrank
-      have hcc: countCard (some card) c = 1 := by
-        simp[hsame,countCard]
-      simp[if_pos hlt]
-      simp[optRankToNat]
-      exact hcc
+    by_cases hrankEq: rankToNat card.rank = rankToNat c.rank
+    · have hrank := rankInj _ _ hrankEq
+      simp [←hrank]
+      simp [if_pos hlt]
+      simp [optRankToNat, countCard]
+      exact Card.ext hsuit hrank
     · have neg : ¬ card = c := by
         intro eq
         simp[eq] at hrankEq
@@ -128,7 +143,7 @@ theorem countUpdateFoundation (s : State) (card : Card)
       intro eq
       simp[eq] at hsuit
     simp[countCard, neg]
-    simp[if_neg hsuit]
+    simp[update, if_neg hsuit]
 
 theorem takeColPreservesCards (s : State) (col : Fin 10)
   (card : Card) (s': State)
@@ -168,7 +183,7 @@ theorem takePreservesCards (s : State) (pos : Position)
   (c : Card):
     countState s c = (countState s' c) + (countCard card c) := by
   cases pos with
-  | column src =>
+  | pile src =>
     simp[takeFromPosition] at h
     exact takeColPreservesCards s src card s' h c
   | cell src =>
@@ -182,7 +197,7 @@ theorem dropColPreservesCards (s : State) (col : Fin 10)
   (h : dropCol s col card = some s')  (c : Card):
     countState s c + (countCard card c) = (countState s' c) := by
   unfold dropCol at h
-  by_cases h1: top? (s.tableau col) = nextCard card
+  by_cases h1: (s.tableau col).head? = nextCard card
   · simp[if_pos h1] at h
     simp[h.symm]
     have h2 := countUpdateColumn s col (card :: s.tableau col) c
@@ -222,7 +237,7 @@ theorem dropPreservesCards (s : State) (pos : Position)
   (c : Card):
     countState s c + (countCard card c) = (countState s' c) := by
   cases pos with
-  | column src =>
+  | pile src =>
     simp[dropPosition] at h
     exact dropColPreservesCards s src card s' h c
   | cell src =>

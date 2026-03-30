@@ -5,7 +5,6 @@ theorem update_same [DecidableEq T1] (f : T1 → T2) (i : T1) (v : T2) :
   update f i v i = v := by
   simp[update]
 
-@[simp]
 theorem update_diff [DecidableEq T1] (f : T1 → T2) (i j : T1) (v : T2) (h : i ≠ j) :
   update f i v j = f j := by
   simp[update,h]
@@ -183,37 +182,77 @@ theorem checkFluteFree_mono (s s' : SimpState) (optcard : Option Card) (count : 
       have hrec := hyp (prevCard card)
       exact ⟨hfreecard h.1, hfoundation h.2.1, hrec h.2.2⟩
 
-theorem mergeExistingKeepsFlutesValid (s : SimpState) (pile : Fin 10)
-  (optcard : Option Card) (count : Nat)
-  (h : checkFluteIsFree s optcard count)
-  (d : Nat) (f : Nat) (h0: f >= 1) (h1 : d + f ≤ 6) (h2 : d ≤ s.depths pile) :
-  checkFluteIsFree (mergeExistingFlute s pile d f h0 h1) optcard count := by
+theorem mergeExisting_card2pos (s : SimpState) (pile : Fin 10)
+  (d : Nat) (f : Nat) (h0: f >= 1) (h1 : d + f ≤ 6) :
+  (mergeExistingFlute s pile d f h0 h1).card2pos = s.card2pos := by
+  funext
+  induction d generalizing f
+  case zero =>
+    simp[mergeExistingFlute]
+  case succ d hyp =>
+    unfold mergeExistingFlute
+    cases d
+    case zero =>
+      simp[updatePile]
+      split <;> simp
+    case succ d' =>
+      simp
+      split
+      · exact hyp (f + 1) (by omega) (by omega)
+      · simp[updatePile]
+
+theorem mergeExisting_foundations (s : SimpState) (pile : Fin 10)
+  (d : Nat) (f : Nat) (h0: f >= 1) (h1 : d + f ≤ 6) :
+  (mergeExistingFlute s pile d f h0 h1).foundations = s.foundations := by
+  funext
+  induction d generalizing f
+  case zero =>
+    simp[mergeExistingFlute]
+  case succ d hyp =>
+    unfold mergeExistingFlute
+    cases d
+    case zero =>
+      simp[updatePile]
+      split <;> simp
+    case succ d' =>
+      simp
+      split
+      · exact hyp (f + 1) (by omega) (by omega)
+      · simp[updatePile]
+
+theorem mergeExistingIsMonotone (s : SimpState) (pile : Fin 10)
+  (d : Nat) (f : Nat) (h0: f >= 1) (h1 : d + f ≤ 6) (h2 : d ≤ s.depths pile)
+  (p : Fin 10) :
+  (mergeExistingFlute s pile d f h0 h1).depths p ≤ s.depths p := by
   induction d generalizing f
   case zero =>
     unfold mergeExistingFlute
-    exact checkFluteFree_mono s _ optcard count rfl
-     (fun p => by simp[update] <;> split <;> omega)
-     (by simp) h
+    simp[update] <;> split <;> omega
   case succ d hyp =>
     unfold mergeExistingFlute
     cases d
     case zero =>
       simp
       split
-      · exact checkFluteFree_mono s _ optcard count
-          rfl (fun p => by simp[update] <;> split <;> omega)
-          (by simp) h
-      · exact checkFluteFree_mono s _ optcard count
-          rfl (updatePile_depths_mono _ _ _ _ (by omega))
-          (by simp[updatePile]) h
+      · simp[update] <;> split <;> omega
+      · exact updatePile_depths_mono _ _ _ _ (by omega) _
     case succ d' =>
       simp
       split
       · exact hyp (f + 1) (by omega) (by omega) (by omega)
-      · exact checkFluteFree_mono s _ optcard count
-          (by simp[updatePile])
-          (updatePile_depths_mono _ _ _ _ h2)
-          (by simp[updatePile]) h
+      · exact updatePile_depths_mono _ _ _ _ h2 _
+
+
+theorem mergeExistingKeepsFlutesValid (s : SimpState) (pile : Fin 10)
+  (optcard : Option Card) (count : Nat)
+  (h : checkFluteIsFree s optcard count)
+  (d : Nat) (f : Nat) (h0: f >= 1) (h1 : d + f ≤ 6) (h2 : d ≤ s.depths pile) :
+  checkFluteIsFree (mergeExistingFlute s pile d f h0 h1) optcard count := by
+  exact checkFluteFree_mono s _ optcard count
+    (mergeExisting_card2pos _ _ _ _ _ h1)
+    (mergeExistingIsMonotone _ _ _ _ _ _ h2)
+    (fun s => Fin.le_of_eq (congrFun (mergeExisting_foundations _ _ _ _ _ _) s))
+    h
 
 theorem nextPrevCard (c1 : Card) (c2 : Card) (h: nextCard c1 = some c2) :
   prevCard c2 = some c1 := by
@@ -286,7 +325,6 @@ theorem mergeExistingBuildsValidFlute (s : SimpState) (pile : Fin 10)
               simp[pc.symm]
               have cardFree : checkFreeCard (updatePile s pile ⟨d' + 2, by omega⟩ ⟨f + 1, by omega⟩) (s.pos2card ⟨(d' + 1) * 10 + ↑pile, by omega⟩) := by
                 have h1 := s.inverse (s.pos2card ⟨(d' + 1) * 10 + ↑pile, by omega⟩)
-
                 sorry
               exact ⟨cardFree, sorry, hfluteold⟩
         have hrec : checkFluteLenient (updatePile s pile ⟨d' + 1, by omega⟩ ⟨f + 1, by omega⟩) pile := by
