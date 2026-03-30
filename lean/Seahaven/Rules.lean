@@ -72,6 +72,9 @@ theorem nextRankNat (r: Option Rank) (r' : Rank) :
   have h2 := natToRankToNat (optRankToNat r + 1) r' h1
   exact h2
 
+theorem rankBounded (r: Rank) : rankToNat r <= 13 := by
+  cases r <;> simp[rankToNat]
+
 theorem rankInj (r r': Rank) (h : rankToNat r = rankToNat r') : r = r' := by
   unfold rankToNat at h
   cases r <;> cases r' <;> simp at h <;> simp
