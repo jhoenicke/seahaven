@@ -2,504 +2,519 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+#include <stdio.h>
+#ifndef STANDALONE
 #include <emscripten/emscripten.h>
+#else
 
-#define HEART 0
-#define DIAM  1
-#define CLUB  2
-#define SPADE 3
+static void emscripten_worker_respond_provisionally(char *buffer, int len) {
+    printf("ERR: ");
+    for (int i = 0; i < len; i++) {
+        printf("%d,", buffer[i]);
+    }
+    printf("\n");
+}
+static void emscripten_worker_respond(char *buffer, int len) {
+    printf("RES: ");
+    for (int i = 0; i < len; i++) {
+        printf("%d,", buffer[i]);
+    }
+    printf("\n");
+}
+#endif
 
 #define ACE    1
-#define JAKE  11
-#define QUEEN 12
 #define KING  13
 
-#define EXTRAPILE 10
-
 #define CARD(s,v) (((s)<<4) + (v))
-#define VALUE(c)  (c & 0xf)
-#define SUIT(c)   (c >> 4)
+#define VALUE(c)  ((c) & 0xf)
+#define SUIT(c)   ((c) >> 4)
 
 
-#define LOADFACTOR   3L/5
-#define KINGPILE     16
-#define FREESLOT     0xffff
-#define SLOT_VISITED (uint16_t*)1
-#define MAX_MOVES   100
-#define MAX_BRANCH  12
+#define KINGPILE     10
+#define EXTRA        14
+#define FREESLOT     0xff
+#define MAX_MOVES   50
 
 #define SUCCESS 0
 #define ABORTED 1
 #define NOMOVE  2 
 
-#define BIG_HASH_SIZE 32717        /* This is a double prime */
-#define MAX_HASHES    23
-#undef CHECK
+#define BIG_HASH_SIZE (1024*1024)
 
 typedef uint8_t CardType;
 
-static CardType pos2card[10][5];
-static int8_t card2pile[64];
-static int8_t card2depth[64];
-
-static const uint32_t pileHashes[10] = {
-    16, 96, 576, 3456, 20736, 124416, 746496, 4478976, 26873856, 161243136
-};
-
-static uint16_t unsolvable[MAX_HASHES][BIG_HASH_SIZE];
-
 typedef struct {
-    uint32_t   hash;          /* (pileDepth[i]+1)+pileHashes[i] + piled kings */
-    int8_t     pileDepth[10]; /* number of cards above flute; -1 if empty */
+    uint32_t   hash;          /* (pileDepth[i]+1)+pileHashes[i] */
+    int8_t     pileDepth[10]; /* number of cards above flute; 0 if empty */
     uint8_t    pileFlute[10]; /* number of cards in flute; 1 if empty */
     int8_t     aces[4];       /* Last card on aces; CARD(suit,0) if empty */
-    int8_t     kings[4];      /* First unfree card counted from king */
-    int8_t     freeSpace;     /* number of free places in extra */
+    int8_t     kings[4];      /* First unfree card counted from king (CARD(suit, KING) if king isn't free) (even if there is no king pile) */
+    int8_t     usedSpace;     /* number of cards in extra or on king piles */
     int8_t     freePiles;     /* number of free piles */
     int8_t     busyAces;      /* bitmask of suits whose aces must be rechecked */
 } SolverPosType;
 
-typedef struct {
-    int8_t     from;
-    int8_t     to;
-} SolverMoveType;
+static CardType pos2card[10][5];
+static uint8_t card2pile[64];
+static uint8_t card2depth[64];
+static uint16_t hashmap[BIG_HASH_SIZE];
+static SolverPosType gameStack[MAX_MOVES];
+
+
+static const uint32_t pileHashes[10] = {
+    1, 6, 36, 216, 1296, 7776, 46656, 279936, 1679616, 10077696
+};
+static const uint8_t bits2grlex[16] = {
+    0, 1, 2, 5, 3, 6, 7, 11, 
+    4, 8, 9, 12, 10, 13, 14, 15
+};
+static const uint8_t grlex2bits[16] = {
+    0, 1, 2, 4, 8,
+    3, 5, 6, 9, 10, 12,
+    7, 11, 13, 14, 15
+};
+
 
 void SolverInit(void)
 {
-    memset(unsolvable, 0xff, sizeof(unsolvable));
+    memset(hashmap, 0, sizeof(hashmap));
 }
 
-#define MAX_LOADSTRING 100
+static uint32_t hit;
+static uint32_t miss;
 
-static void SolverOutOfMemory(void) {
-    emscripten_worker_respond_provisionally("oom", 3);
+static uint8_t ctz(uint8_t bits) {
+    return __builtin_ctz(bits);
 }
 
-static bool growHash(void);
+typedef struct {
+    uint8_t   shiftValue;
+    uint8_t   numBits;
+    uint8_t   offset;
+} ClosureInfo;
 
-static uint16_t *getSlot(uint32_t key) {
-    int32_t  hash;
-    uint16_t entry;
-    uint16_t *hashTable;
+static const ClosureInfo closureInfos[11] = {
+    { 15,  5, 98 },
+    { 11, 10, 0 },
+    { 5, 10, 16 },
+    { 1, 1, 80 },
+    { 0, 1, 96 },
+    { 0, 1, 96 },
+    { 0, 1, 96 },
+    { 0, 1, 96 },
+    { 0, 1, 96 },
+    { 0, 1, 96 },
+    { 0, 1, 96 },
+};
 
- rehash:
-    hash = key % BIG_HASH_SIZE;
-    entry = (uint16_t) (key >> 14);
-    hashTable = &unsolvable[entry % MAX_HASHES][0];
+//0   4 3 2 1   34 24 23 14 13 12   234 134 124 123  1234
+static const uint8_t componentTable[100] = {
+    // table for level 2
+    0x00, 0x07, 0x19, 0x1f, 0x2a, 0x2f, 0x3b, 0x3f,
+    0x34, 0x37, 0x3d, 0x3f, 0x3e, 0x3f, 0x3f, 0x3f,
 
-    if (hashTable[hash] == entry)
-        return SLOT_VISITED;
+    // table for level 3
+    0x0, 0x3, 0x5, 0x7, 0x6, 0x7, 0x7, 0x7,
+    0x9, 0xb, 0xd, 0xf, 0,   0xf, 0xf, 0xf,
+    0xa, 0xb, 0,   0xf, 0xe, 0xf, 0xf, 0xf,
+    0xb, 0xb, 0xf, 0xf, 0xf, 0xf, 0xf, 0xf,
+    0xc, 0,   0xd, 0xf, 0xe, 0xf, 0xf, 0xf,
+    0xd, 0xf, 0xd, 0xf, 0xf, 0xf, 0xf, 0xf,
+    0xe, 0xf, 0xf, 0xf, 0xe, 0xf, 0xf, 0xf,
+    0xf, 0xf, 0xf, 0xf, 0xf, 0xf, 0xf, 0xf,
 
-    hashTable[hash] = entry;
-    return &hashTable[hash];
-}
+    // table for level 4
+    0x0, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1,
+    0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1,
 
-static void freeSlot(uint32_t key) {
-    int32_t  hash;
-    uint16_t entry;
-    uint16_t *hashTable;
+    // table for level 5
+    0x0, 0x0,
+    // table for level 1
+    0x00, 0x0f
+};
 
-    hash = key % BIG_HASH_SIZE;
-    entry = (uint16_t) (key >> 14);
-    hashTable = &unsolvable[entry % MAX_HASHES][0];
+//0   4 3 2 1   34 24 23 14 13 12   234 134 124 123  1234
+static const uint16_t subsetTable[100] = {
+    //table for level 2
+    0x0000, 0x8800, 0x9000, 0x9800, 0xa000, 0xa800, 0xb000, 0xb800,
+    0xc000, 0xc800, 0xd000, 0xd800, 0xe000, 0xe800, 0xf000, 0xf800,
+    //table for level 3
+    0x0000, 0x9820, 0xa840, 0xb860, 0xc880, 0xd8a0, 0xe8c0, 0xf8e0,
+    0xb100, 0xb920, 0xb940, 0xb960, 0xf980, 0xf9a0, 0xf9c0, 0xf9e0,
+    0xd200, 0xda20, 0xfa40, 0xfa60, 0xda80, 0xdaa0, 0xfac0, 0xfae0,
+    0xf300, 0xfb20, 0xfb40, 0xfb60, 0xfb80, 0xfba0, 0xfbc0, 0xfbe0,
+    0xe400, 0xfc20, 0xec40, 0xfc60, 0xec80, 0xfca0, 0xecc0, 0xfce0,
+    0xf500, 0xfd20, 0xfd40, 0xfd60, 0xfd80, 0xfda0, 0xfdc0, 0xfde0,
+    0xf600, 0xfe20, 0xfe40, 0xfe60, 0xfe80, 0xfea0, 0xfec0, 0xfee0,
+    0xf700, 0xff20, 0xff40, 0xff60, 0xff80, 0xffa0, 0xffc0, 0xffe0,
+    // table for level 4
+    0x0000, 0xb962, 0xdaa4, 0xffe6, 0xecc8, 0xffea, 0xffec, 0xffee,
+    0xf710, 0xfff2, 0xfff4, 0xfff6, 0xfff8, 0xfffa, 0xfffc, 0xfffe,
+    // table for level 5
+    0x0000, 0xffff,
+    //table for level 1
+    0x0000, 0x8000
+};
 
-    if (hashTable[hash] == entry) {
-        hashTable[hash] = FREESLOT;
+typedef struct {
+    uint16_t possibleKings[6];
+} KingInfo;
+
+static uint8_t getSlot(uint32_t key) {
+    uint32_t entry;
+    uint32_t high = (key / BIG_HASH_SIZE) + 1;
+    
+    entry = ((high * 0x10001) ^ key) & (BIG_HASH_SIZE - 1);
+    if (((hashmap[entry]^high) & 0x1ff) != 0) {
+        return FREESLOT;
+    } else {
+        return (uint8_t) (hashmap[entry] >> 9);
     }
 }
 
-static void SolverRemovedFlute(int pile, SolverPosType *game)
+static void setSlot(uint32_t key, uint16_t value) {
+    uint32_t entry;
+    uint32_t high = (key / BIG_HASH_SIZE) + 1;
+    
+    entry = ((high * 0x10001) ^ key) & (BIG_HASH_SIZE - 1);
+    hashmap[entry] = (value << 9) | (high & 0x1ff); 
+}
+
+
+static uint16_t computeComponentKingBits(SolverPosType *game) {
+    int emptyPiles = game->freePiles;
+    if (emptyPiles >= 1 && emptyPiles <= 3) {
+        const ClosureInfo *info = &closureInfos[emptyPiles - 1];
+        uint16_t result = 0;
+        for (int i = 0; i < info->numBits; i++) {
+            int usedSpace = game->usedSpace;
+            uint8_t kingBitmap = grlex2bits[info->shiftValue + i];
+            for (int suit = 0; suit < 4; suit++) {
+                if ((kingBitmap & (1 << suit)) == 0) {
+                    // king on pile
+                    usedSpace -= KING - VALUE(game->kings[suit]);
+                }
+            }
+            if (usedSpace <= 4) {
+                result |= (1 << i);
+            }
+        }
+        return componentTable[info->offset + result];
+    } else {
+        return 0;
+    }
+}
+
+static void computeKingSpaces(int shiftValue, int neededBits, KingInfo *kingInfo, SolverPosType *game) {
+    memset(kingInfo, 0, sizeof(KingInfo));
+
+    for (int i = 0; i < neededBits; i++) {
+        int usedSpace = game->usedSpace;
+        uint8_t kingBitmap = grlex2bits[shiftValue + i];
+        for (int suit = 0; suit < 4; suit++) {
+            if ((kingBitmap & (1 << suit)) == 0) {
+                // king on pile
+                usedSpace -= KING - VALUE(game->kings[suit]);
+            }
+        }
+        uint16_t bit = (1 << (shiftValue + i));
+        while (usedSpace <= 4) {
+            kingInfo->possibleKings[4 - usedSpace] |= bit;
+            usedSpace++;
+        }
+    }
+}
+
+//0   4 3 2 1   34 24 23 14 13 12   234 134 124 123  1234
+uint16_t kingOnPileMap[4] = {
+    
+    0x469d, 0x255b,  0x1337, 0x08ef
+};
+
+static uint8_t solverGetDestination(SolverPosType *game, int pile) {
+    uint8_t card = pos2card[pile][game->pileDepth[pile] - 1];
+    int suit = SUIT(card);
+    if (card == game->kings[suit]) {
+        return KINGPILE + suit;
+    }
+    int toPile;
+    int posFromTop;
+    do {
+        card++;
+        toPile = card2pile[card];
+        posFromTop = game->pileDepth[toPile] - card2depth[card];
+    } while (posFromTop <= 0);
+    return posFromTop == 1 ? toPile : 14;
+}
+
+static void SolverRemoveFlute(int pile, SolverPosType *game)
 {
     int card, prevCard, suit;
     int depth, flute;
     uint32_t hash, pilehash;
+    assert(pile >= 0 && pile < 10);
     depth = game->pileDepth[pile];
     pilehash = pileHashes[pile];
     hash = game->hash;
     
- repeat:
+    depth--;
+    hash -= pilehash;
     flute = 1;
-    
+
     if (depth == 0) {
         game->freePiles++;
-        goto done;
-    }
-    
-    card = pos2card[pile][depth-1];
-    suit = SUIT(card);
-    prevCard = card - 1;
-    
-    /* merge flutes */
-    while (depth > 1 && pos2card[pile][depth-2] == card + 1) {
-        hash -= pilehash;
-        flute++;
-        depth--; 
-        card++;
-    }
-    
- check_ace:
-    /*
-     * check if flute can be moved to aces.
-     */
-    if (game->aces[suit] == prevCard) {
-        game->aces[suit] = card;
-        hash -= pilehash;
-        depth--;
-        game->busyAces |= 1 << suit;
-        goto repeat;
-    }
-    
-    /* check if card from extra can be appended to flute 
-     */
-    if (card2depth[prevCard] >= game->pileDepth[card2pile[prevCard]]) {
-        game->freeSpace++;
-        flute++;
-        prevCard--;
-        goto check_ace;
+    } else {
+        card = pos2card[pile][depth-1];
+        suit = SUIT(card);
+        prevCard = card - 1;
+        
+        assert(card < 0x40 && VALUE(card) >= 1 && VALUE(card) <= KING);
+        /* merge flutes */
+        while (depth > 1 && pos2card[pile][depth-2] == card + 1) {
+            depth--;
+            hash -= pilehash;
+            flute++;
+            card++;
+            assert(card < 0x40 && VALUE(card) >= 1 && VALUE(card) <= KING);
+        }
+
+        /* check if card from extra can be appended to flute 
+         */
+        while (game->aces[suit] < prevCard 
+            && card2depth[prevCard] >= game->pileDepth[card2pile[prevCard]]) {
+            flute++;
+            prevCard--;
+            game->usedSpace--;
+        }
+
+        /*
+         * check if flute can be moved to aces.
+         */
+        if (game->aces[suit] == prevCard) {
+            game->busyAces |= 1 << suit;
+        }
+
+        /* check if flute is a single king flute and move to kings */
+        if (depth == 1 && VALUE(card) == KING) {
+            assert(suit == SUIT(card));
+            game->freePiles++;
+            game->usedSpace += flute;
+            game->kings[suit] -= flute;
+            hash = hash - pilehash;
+            depth = 0;
+            flute = 1;
+        }
     }
 
-    /* check if flute is a single king flute and move to kings */
-    if (depth == 1 && VALUE(card) == KING) {
-        hash = hash - pilehash + (1 << suit);
-        depth = 0;
-        flute = 1;
-        game->kings[suit] = prevCard;
-    }
-  
- done:
     game->hash = hash;
     game->pileDepth[pile] = depth;
     game->pileFlute[pile] = flute;
 }    
 
-static void SolverRemoveFlute(int pile, SolverPosType *game)
-{
-    game->pileDepth[pile]--;
-    game->hash -= pileHashes[pile];
-    SolverRemovedFlute(pile, game);
-}
-
 static void SolverMoveAces(SolverPosType *game)
 {
-    while (game->busyAces) {
-        int suit, card;
-        int found;
-        int suitBit;
-        
-        suit = 0;
-        suitBit = 1;
-        while (!(game->busyAces & suitBit)) {
-            suit++;
-            suitBit += suitBit;
-        }
-        
-        card = game->aces[suit] + 1;
-        found = 0;
-        while (VALUE(card) <= KING) {
-            int pile, cardDepth;
-            pile = card2pile[card];
-            cardDepth = card2depth[card] + 1 - game->pileDepth[pile];
-            if (cardDepth > 0) {
-                found++;
-                /* The card is accessible from elsewhere */
-                if (VALUE(card) == KING) {
-                    game->kings[suit] = card;
-                    game->aces[suit] = card;
-                    if (game->hash & (1 << suit)) {
-                        /* It is a king in a king suit */
-                        game->hash -= suitBit;
-                        game->freePiles++;
-                    } else {
-                        /* It is a king on space */
-                        game->freeSpace += found;
-                    }
-                    break;
-                }
-                card++;
-            } else if (cardDepth == 0) {
-                /* We found the pile from which we can remove the flute, 
-                 * just normalize it.
-                 */
-                game->aces[suit] = card;
-                SolverRemoveFlute(pile, game);
-                card = game->aces[suit] + 1;
-                found = 0;
-            } else {
-                /* card is unaccessible, but the previous cards were
-                   on extra */
-                game->freeSpace += found;
-                game->aces[suit] = card - 1;
-                break;
-            }
-        }
-        game->busyAces -= suitBit;
-    }
-}
-
-static int SolverGenMoves(SolverPosType * game, 
-                          SolverMoveType moves[MAX_BRANCH])
-{
-    int pile, suit;
-    int depth, card, prevCard, fromPile, flute;
-    int movedPiles = 0;
-    int numMoves = 0;
-
-    /* Get the possible moves that create new king piles */
-    if (game->freePiles > 0
-        && (game->hash & 15) != 15) {
-        int spaceking = 0;
-        for (suit = 0; suit < 4; suit++) {
-            if (!(game->hash & (1 << suit))) {
-                int cardDepth;
-                card = CARD(suit,KING);
-                fromPile = card2pile[card];
-                cardDepth = card2depth[card] + 1 - game->pileDepth[fromPile];
-                if (cardDepth >= 0 && game->aces[suit] != card) {
-                    if (cardDepth > 0) {
-                        moves[numMoves].from = EXTRAPILE + suit;
-                        moves[numMoves].to   = KINGPILE + suit;
-                        spaceking = 1;
-                        numMoves++;
-                    } else if (game->pileFlute[fromPile]
-                               <= game->freeSpace + 1) {
-                        /* Note that these moves may be removed later */
-                        moves[numMoves].from = fromPile;
-                        moves[numMoves].to   = KINGPILE + suit;
-                        numMoves++;
-                    }
-                }
-            }
-        }
-        /* If there is a free pile and a king on space only allow these
-         * kind of moves.
-         */
-        if (spaceking)
-            return numMoves;
-        /* Otherwise reset the moves.  We want the fromPile to king pile
-         * moves to come later.
-         */
-        numMoves = 0;
-    }
+    int suit, card;
+    int found;
+    int suitBit;
     
-    /* Last check for king to space moves.
-     * Do this last, since it may results in loops.
-     * But moves are done backwards, so put unlikely moves first.
-     */
-    for (suit = 0; suit < 4; suit++) {
-        if ((game->hash & (1 << suit))
-            && game->freePiles == 0
-            && KING - VALUE(game->kings[suit]) <= game->freeSpace) {
-            
-            /* We found a possible king2space move, but check if we
-             * really need this space 
+    suit = ctz(game->busyAces);
+    
+    card = game->aces[suit] + 1;
+    found = 0;
+    while (VALUE(card) <= KING) {
+        int pile, cardDepth;
+        pile = card2pile[card];
+        cardDepth = card2depth[card] + 1 - game->pileDepth[pile];
+        if (cardDepth > 0) {
+            found++;
+            card++;
+        } else if (cardDepth == 0) {
+            /* We found the pile from which we can remove the flute, 
+             * just normalize it.
              */
-            int i;
-            for (i = 0; i < 4; i++) {
-                card = CARD(i, KING);
-                if (!(game->hash & (1 << i))
-                    && card2depth[card] + 1 >= game->pileDepth[card2pile[card]]
-                    && game->aces[i] != card) {
-                    moves[numMoves].from = KINGPILE + suit;
-                    moves[numMoves].to = EXTRAPILE;
-                    numMoves++;
-                    break;
-                }
-            }
-        }
-    }
-
-    /* Now check for pile to pile moves */
-    for (pile = 0; pile < 10; pile++) {
-        depth = game->pileDepth[pile];
-        if (depth == 0)
-            continue;
-        card = pos2card[pile][depth-1];
-        prevCard = card - game->pileFlute[pile];
-        fromPile = card2pile[prevCard];
-        if (card2depth[prevCard] + 1 == game->pileDepth[fromPile]) {
-            /* We found a possible pile2pile move */
-            if (game->pileFlute[fromPile] <= game->freeSpace + 1) {
-                movedPiles |= 1 << fromPile;
-                moves[numMoves].from = fromPile;
-                moves[numMoves].to   = pile;
-                numMoves++;
-            }
-        }
-    }
-    
-    /* Now check for pile to kings moves.
-     */
-    for (suit = 0; suit < 4; suit++) {
-        prevCard = game->kings[suit];
-        fromPile = card2pile[prevCard];
-            
-        if (card2depth[prevCard] + 1 == game->pileDepth[fromPile]) {
-            /* We found a possible pile2king move */
-            movedPiles |= 1 << fromPile;
-            if (game->pileFlute[fromPile] <= game->freeSpace
-                || (game->pileFlute[fromPile] <= game->freeSpace + 1
-                    && (game->freePiles > 0
-                        || (game->hash & (1 << suit))))) {
-                moves[numMoves].from = fromPile;
-                moves[numMoves].to   = KINGPILE + suit;
-                numMoves++;
-            }
-        }
-    }
-    
-    for (pile = 0; pile < 10; pile++) {
-        if (!(movedPiles & (1 << pile))
-            && game->pileDepth[pile] > 0
-            && game->pileFlute[pile] <= game->freeSpace) {
-            /* We found a pile2space move */
-            moves[numMoves].from = pile;
-            moves[numMoves].to = EXTRAPILE;
-            numMoves++;
-        }
-    }
-    
-    return numMoves;
-}
-
-static void SolverMove(SolverPosType *game, SolverMoveType move)
-{
-    /* There are 5 possibile kinds of moves
-     *
-     *  space -> king
-     *  pile  -> king
-     *  pile  -> pile
-     *  pile  -> space
-     *  king  -> space
-     */
-    if (move.from < 10) {
-        
-        if (move.to < 10) {
-            /* from pile to pile */
-            game->pileFlute[move.to] += game->pileFlute[move.from];
-        } else if (move.to == EXTRAPILE) {
-            /* from pile to space */
-            game->freeSpace -= game->pileFlute[move.from];
+            game->aces[suit] = card;
+            SolverRemoveFlute(pile, game);
+            found = 0;
+            card++;
         } else {
-            /* from pile to king */
-            int suit = move.to - KINGPILE;
-            if (!(game->hash & (1<<suit))) {
-                if (game->freePiles > 0) {
-                    game->freePiles--;
-                    game->hash += 1 << suit;
-                } else {
-                    game->freeSpace -= game->pileFlute[move.from];
-                }
-            }
-            game->kings[suit] -= game->pileFlute[move.from];
+            break;
         }
-        SolverRemoveFlute(move.from, game);
-        if (game->busyAces)
-            SolverMoveAces(game);
+    }
+    /* card is unaccessible, but the previous cards were
+        on extra */
+    card--;
+    game->usedSpace -= found;
+    game->aces[suit] = card;
+    if (VALUE(card) == KING) {
+        game->kings[suit] = card;
+    }
+    game->busyAces -= (1 << suit);
+}
 
-    } else if (move.from < KINGPILE) {
-        /* from space to king */
-        int suit = move.to - KINGPILE;
-        game->freeSpace += KING - VALUE(game->kings[suit]);
-        game->freePiles--;
-        game->hash += 1 << suit;
-        
+static void SolverMove(SolverPosType *game, int pile, int toPile)
+{
+    int fluteLen = game->pileFlute[pile];
+    if (toPile < KINGPILE) {
+        /* from pile to pile */
+        game->pileFlute[toPile] += fluteLen;
     } else {
-        /* from king to space */
-        int suit = move.from - KINGPILE;
-        game->freeSpace -= KING - VALUE(game->kings[suit]);
-        game->freePiles++;
-        game->hash -= 1 << suit;
+        assert(toPile == EXTRA || toPile - 10 == SUIT(pos2card[pile][game->pileDepth[pile]-1]));
+        /* to king or space */
+        if (toPile < EXTRA) {
+            game->kings[toPile - KINGPILE] -= fluteLen;
+        }
+        game->usedSpace += fluteLen;
+    }
+    SolverRemoveFlute(pile, game);
+    while (game->busyAces)
+        SolverMoveAces(game);
+}
+
+static uint16_t solverGetMovable(KingInfo *kingInfo, int fluteLen, int toPile) {
+    if (fluteLen > 5) {
+        return 0;
+    }
+    if (toPile < KINGPILE) {
+        /* move is pile to pile */
+        return kingInfo->possibleKings[fluteLen - 1];
+    } else if (toPile < EXTRA) {
+        /* move is to king */
+        int kingOnPile = kingOnPileMap[toPile - KINGPILE];
+        return kingInfo->possibleKings[fluteLen] | (kingInfo->possibleKings[fluteLen - 1] & kingOnPile);
+    } else {
+        return kingInfo->possibleKings[fluteLen];
     }
 }
 
-typedef struct {
-    SolverPosType pos;
-    int numMoves;
-    SolverMoveType moves[MAX_BRANCH];
-} GameStack;
+static uint16_t solverRecCheckSolvable(SolverPosType *game) {
+    KingInfo kingInfo;
+    const ClosureInfo *closureInfo = &closureInfos[game->freePiles];
 
-GameStack stack[MAX_MOVES];
-
-static int SolverIsSolvable(SolverPosType *game) {
-    uint16_t *slot;
-    GameStack *stackPtr = stack;
-
-
-    /* No, I don't love goto, but sometimes they're quite nice :)
-     *
-     * This could be done recursively, of course, but the stack is
-     * valuable.
-     */
-
- checkSolvable:
-    if (game->hash == 0)
-        goto solved;
-        
-    if (stackPtr - stack >= MAX_MOVES)
-        goto oom;
-    
-    slot = getSlot(game->hash);
-    if (slot == SLOT_VISITED)
-        goto notSolvable;
-
-    if (!slot)
-        goto abort;
-    
-    stackPtr->numMoves = SolverGenMoves(game, stackPtr->moves);
-    stackPtr->pos      = *game;
-    
- nextMove:
-    if (stackPtr->numMoves-- > 0) {
-        SolverMove(game, stackPtr->moves[stackPtr->numMoves]);
-        stackPtr++;
-        goto checkSolvable;
+    if (game->hash == 0) {
+        return 1;
     }
 
- notSolvable:
-    /* reduce depth and try next move */
-    if (stackPtr-- > stack) {
-        *game = stackPtr->pos;
-        goto nextMove;
+    uint16_t cachedValue = getSlot(game->hash);
+    if (cachedValue != FREESLOT) {
+        hit++;
+        // printf ("Hit: %08x %d%d%d%d%d%d%d%d%d%d %02x (%x)\n", 
+        //     game->hash, 
+        //     game->pileDepth[0],
+        //     game->pileDepth[1],
+        //     game->pileDepth[2],
+        //     game->pileDepth[3],
+        //     game->pileDepth[4],
+        //     game->pileDepth[5],
+        //     game->pileDepth[6],
+        //     game->pileDepth[7],
+        //     game->pileDepth[8],
+        //     game->pileDepth[9],
+        //     cachedValue, game->freePiles);
+        return cachedValue;
     }
-    return NOMOVE;
+    miss++;
+    // printf ("Mis: %08x %d%d%d%d%d%d%d%d%d%d ?? (%x)\n", 
+    //     game->hash, 
+    //     game->pileDepth[0],
+    //     game->pileDepth[1],
+    //     game->pileDepth[2],
+    //     game->pileDepth[3],
+    //     game->pileDepth[4],
+    //     game->pileDepth[5],
+    //     game->pileDepth[6],
+    //     game->pileDepth[7],
+    //     game->pileDepth[8],
+    //     game->pileDepth[9],
+    //     game->freePiles);
 
- solved:
-    /* The game is solvable */
-    while (stackPtr-- > stack)
-        freeSlot(stackPtr->pos.hash);
-    return SUCCESS;
+    computeKingSpaces(closureInfo->shiftValue, closureInfo->numBits, &kingInfo, game);
+    // printf ("KingInfo: %04x,%04x,%04x,%04x,%04x\n", 
+    //     kingInfo.possibleKings[0],
+    //     kingInfo.possibleKings[1],
+    //     kingInfo.possibleKings[2],
+    //     kingInfo.possibleKings[3],
+    //     kingInfo.possibleKings[4]);
 
- oom:
-    SolverOutOfMemory();
-
- abort:
-    /* We have to abort, remove all cached positions from stack. */
-    while (stackPtr-- > stack)
-        freeSlot(stackPtr->pos.hash);
-    return ABORTED; 
+    uint16_t allkings = kingInfo.possibleKings[0];
+    uint16_t component = computeComponentKingBits(game) << closureInfo->shiftValue;
+    uint16_t solvable = 0;
+    assert(allkings != 0);
+    assert((component & ~allkings) == 0);
+    for (int pile = 0; pile < 10; pile++) {
+        if (game->pileDepth[pile] == 0) {
+            continue;
+        }
+        int fluteLen = game->pileFlute[pile];
+        int toPile = solverGetDestination(game, pile);
+        assert(toPile < KINGPILE || toPile == EXTRA || toPile - KINGPILE == SUIT(pos2card[pile][game->pileDepth[pile]-1]));
+        uint16_t movable = solverGetMovable(&kingInfo, fluteLen, toPile) & allkings;
+        if (movable & ~solvable) {
+            game[1] = game[0];
+            SolverMove(game + 1, pile, toPile);
+            uint8_t recursiveSolvable = solverRecCheckSolvable(game + 1);
+            // printf ("Try: %08x %d%d%d%d%d%d%d%d%d%d %04x (%x) %d %04x  -> %x\n", 
+            //     game->hash, 
+            //         game->pileDepth[0],
+            //         game->pileDepth[1],
+            //         game->pileDepth[2],
+            //         game->pileDepth[3],
+            //         game->pileDepth[4],
+            //         game->pileDepth[5],
+            //         game->pileDepth[6],
+            //         game->pileDepth[7],
+            //         game->pileDepth[8],
+            //         game->pileDepth[9], movable & ~solvable,
+            //         game->freePiles, pile, allkings, recursiveSolvable);
+            movable &= subsetTable[closureInfos[game[1].freePiles].offset + recursiveSolvable];
+            if (movable & component) {
+                movable |= component;
+            }
+            solvable |= (movable & allkings);
+            if (solvable == allkings)
+                break;
+        }
+    }
+    solvable >>= closureInfo->shiftValue;
+    // printf ("Res: %08x %d%d%d%d%d%d%d%d%d%d %02x (%x)\n", 
+    //     game->hash, 
+    //     game->pileDepth[0],
+    //     game->pileDepth[1],
+    //     game->pileDepth[2],
+    //     game->pileDepth[3],
+    //     game->pileDepth[4],
+    //     game->pileDepth[5],
+    //     game->pileDepth[6],
+    //     game->pileDepth[7],
+    //     game->pileDepth[8],
+    //     game->pileDepth[9],
+    //     solvable, game->freePiles);
+    setSlot(game->hash, solvable);
+    assert (getSlot(game->hash) == solvable);
+    return solvable;
 }
 
 static void SolverConvertFromPilesKings(uint8_t* pilesking, SolverPosType *game)
 {
-    uint8_t kingmask = pilesking[10];
     int i;
-    game->hash = kingmask;
     game->busyAces = 0;
-    game->freeSpace = 4 - 52;
+    game->usedSpace = 52;
     game->freePiles = 0;
+    game->hash = 0;
     for (i = 0; i < 10; i++) {
-	int depth = pilesking[i];
-	game->pileDepth[i] = depth;
+        int depth = pilesking[i];
+        game->pileDepth[i] = depth;
         if (depth > 0) {
-            game->hash      += pileHashes[i] * depth;
-	    int card = pos2card[i][game->pileDepth[i]-1] - 1;
-	    int flutelen = 1;
-	    while (card2depth[card] >= pilesking[card2pile[card]]) {
-		flutelen++;
-		card--;
-	    }
-	    game->pileFlute[i] = flutelen;
-	    game->freeSpace += depth + flutelen - 1;
+            game->hash += pileHashes[i] * depth;
+            int card = pos2card[i][game->pileDepth[i]-1] - 1;
+            int flutelen = 1;
+            while (card2depth[card] >= pilesking[card2pile[card]]) {
+                flutelen++;
+                card--;
+            }
+            game->pileFlute[i] = flutelen;
+            game->usedSpace -= depth + flutelen - 1;
         } else {
             game->pileFlute[i] = 1;
             game->freePiles++;
@@ -509,26 +524,20 @@ static void SolverConvertFromPilesKings(uint8_t* pilesking, SolverPosType *game)
         int card = CARD(i, KING);
         int count = 0;
 
-	int ace = CARD(i, ACE);
-	while (ace <= card &&
-	       card2depth[ace] >= game->pileDepth[card2pile[ace]]) {
-	    ace++;
-	}
-	ace--;
-	game->aces[i] = ace;
-        game->freeSpace += VALUE(ace);
+        int ace = CARD(i, ACE);
+        while (ace <= card &&
+               card2depth[ace] >= game->pileDepth[card2pile[ace]]) {
+            ace++;
+        }
+        ace--;
+        game->aces[i] = ace;
+        game->usedSpace -= VALUE(ace);
         if (ace < card) {
             while (card2depth[card] >= game->pileDepth[card2pile[card]]) {
                 count++;
                 card--;
             }
         }
-	if (count > 0) {
-	    if ((kingmask & (1 << i))) {
-		game->freeSpace += count;
-		game->freePiles--;
-	    }
-	}
         game->kings[i] = card;
     }
 }
@@ -537,28 +546,56 @@ void initcard(uint8_t *cardshuffle, int size) {
     int i;
     SolverInit();
     for (i = 0; i < 52; i++) {
-	int suit = (cardshuffle[i] - 1)/13;
-	int card = CARD(suit, cardshuffle[i] - 13 * suit);
-	card2pile[card] = i % 10;
-	card2depth[card] = i / 10;
-	if (i < 50) {
-	    pos2card[i%10][i/10] = card;
-	}
+        int suit = (cardshuffle[i] - 1)/13;
+        int card = CARD(suit, cardshuffle[i] - 13 * suit);
+        card2pile[card] = i % 10;
+        card2depth[card] = i / 10;
+        if (i < 50) {
+            pos2card[i%10][i/10] = card;
+        }
     }
 }
 
 void solve(uint8_t* stacks, int size) {
-    SolverPosType game;
+    SolverPosType *game = &gameStack[0];
     char result[12];
     memcpy(result, stacks, 11);
+    hit = 0;
+    miss = 0;
 
-    SolverConvertFromPilesKings(stacks, &game);
-    if (game.hash == 0) {
+    SolverConvertFromPilesKings(stacks, game);
+    if (game->hash == 0) {
         /* game is already solved */
-	result[11] = SUCCESS;
+        result[11] = SUCCESS;
     } else {
-	result[11] = SolverIsSolvable(&game);
+        uint8_t kingbit = bits2grlex[stacks[10] ^ 0xf];
+        uint8_t solvable = solverRecCheckSolvable(game);
+        result[11] = (subsetTable[closureInfos[game[0].freePiles].offset + solvable] & (1 << kingbit)) != 0 ? SUCCESS : NOMOVE;
     }
     emscripten_worker_respond(result, 12);
+    printf("Stats: %d hits %d misses\n", hit, miss);
 }
 
+#ifdef STANDALONE
+
+int 
+main() {
+    uint8_t shuffle[52] = { 
+        8,14,20,48,51,36,52,18,30,19,24,3,10,22,1,31,26,28,45,9,15,35,7,46,40,33,38,23,4,29,5,17,44,37,11,43,50,13,47,34,6,12,2,32,41,49,39,25,16,27,42,21
+        //20,21,31,13,4,42,11,28,46,3,5,52,32,35,6,41,25,44,51,40,16,7,29,22,17,26,9,8,18,43,34,19,23,10,45,37,36,38,39,15,2,1,50,47,27,48,14,49,24,33,12,30
+    };
+    uint8_t stacks[11] = {
+        1,5,1,4,0,0,0,5,5,4,14
+        //0,0,0,2,0,0,0,0,1,4,15
+        //1,3,5,2,2,3,1,4,4,3,0
+        //0,3,5,0,0,3,1,4,2,3,5
+        //4,4,5,5,4,5,4,5,5,5,0
+        //5,5,5,5,5,5,5,5,5,5,0
+    };
+
+    initcard(shuffle, sizeof(shuffle));
+    solve(stacks, sizeof(stacks));
+    return 0;
+}
+
+#endif

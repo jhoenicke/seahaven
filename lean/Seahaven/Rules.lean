@@ -117,7 +117,7 @@ def State.toView (s : State) : StateView :=
       ]
   }
 
-def update [DecidableEq T1] (f: T1 → T2) (i: T1) (v: T2) : T1 → T2 :=
+def update {T1 T2} [DecidableEq T1] (f: T1 → T2) (i: T1) (v: T2) : T1 → T2 :=
   fun j => if i = j then v else f j
 
 def updateColumn (s : State) (pile : Fin 10) (col : Column) : State :=
