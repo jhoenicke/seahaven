@@ -92,7 +92,7 @@ typedef uint8_t CardType;
  * because that would just fill up extra space, without freeing a new card.
  *
  * usedSpace counts cards currently occupying extra slots or sitting in king
- * piles.  Free extra slots = 4 - usedSpace - space used by piled kings. 
+ * piles.  Free extra slots = 4 - usedSpace - space used by piled kings.
  * Moves are legal only when there is sufficient free extra space.
  *
  * The king configuration (which kings are in free piles and which are in
@@ -112,7 +112,7 @@ typedef struct {
     uint8_t    pileFlute[10]; /* flute length (>= 1 when pileDepth > 0)             */
     int8_t     aces[4];       /* highest card on foundation per suit; CARD(suit,0) if none */
     int8_t     kings[4];      /* first un-freed card counting down from king; equals
-                               * CARD(suit,KING) when the king is not yet in a king 
+                               * CARD(suit,KING) when the king is not yet in a king
                                * pile or extra slot */
     int8_t     usedSpace;     /* cards in extra slots + cards in king piles          */
     int8_t     freePiles;     /* number of empty piles                               */
@@ -482,12 +482,17 @@ static uint8_t solverGetDestination(SolverPosType *game, int pile) {
  *
  * Special case: if the new single-card flute is a king, the pile becomes empty
  * (freePiles++) and the king moves to the king-pile tracking in kings[suit].
+ *
+ * Returns the king configurations that are forced by this move:  If the move
+ * uncovers a new king pile that was initially dealt as the first card in the
+ * pile, we must only consider configuration where this king is dedicated.
  */
-static void SolverRemoveFlute(int pile, SolverPosType *game)
+static uint16_t SolverRemoveFlute(int pile, SolverPosType *game)
 {
     int card, prevCard, suit;
     int depth, flute;
     uint32_t hash, pilehash;
+    uint16_t forcedKings = 0xffff;
     assert(pile >= 0 && pile < 10);
     depth = game->pileDepth[pile];
     pilehash = pileHashes[pile];
@@ -541,12 +546,14 @@ static void SolverRemoveFlute(int pile, SolverPosType *game)
             hash = hash - pilehash;
             depth = 0;
             flute = 1;
+            forcedKings &= kingOnPileMap[suit];
         }
     }
 
     game->hash = hash;
     game->pileDepth[pile] = depth;
     game->pileFlute[pile] = flute;
+    return forcedKings;
 }
 
 /*
@@ -562,12 +569,16 @@ static void SolverRemoveFlute(int pile, SolverPosType *game)
  *
  * At the end, subtracts `found` from usedSpace (freed cards that moved from
  * extra to foundation), and updates aces[suit] and kings[suit] accordingly.
+ *
+ * Returns the king configurations that are forced by this move:  If the move
+ * uncovers a new king pile that was initially dealt as the first card in the
+ * pile, we must only consider configuration where this king is dedicated.
  */
-static void SolverMoveAces(SolverPosType *game)
+static uint16_t SolverMoveAces(SolverPosType *game)
 {
     int suit, card;
     int found;
-    int suitBit;
+    uint16_t forcedKings = 0xffff;
 
     suit = ctz(game->busyAces);
 
@@ -583,7 +594,7 @@ static void SolverMoveAces(SolverPosType *game)
         } else if (cardDepth == 0) {
             /* Card is at top of its pile; advance foundation and recompute flute. */
             game->aces[suit] = card;
-            SolverRemoveFlute(pile, game);
+            forcedKings &= SolverRemoveFlute(pile, game);
             found = 0;
             card++;
         } else {
@@ -600,6 +611,7 @@ static void SolverMoveAces(SolverPosType *game)
         game->kings[suit] = card;
     }
     game->busyAces -= (1 << suit);
+    return forcedKings;
 }
 
 /*
@@ -614,8 +626,12 @@ static void SolverMoveAces(SolverPosType *game)
  *
  * After moving, recomputes the source pile's new flute via SolverRemoveFlute,
  * then drains any suits that can now advance their foundation (busyAces).
+ *
+ * Returns the king configurations that are forced by this move:  If the move
+ * uncovers a new king pile that was initially dealt as the first card in the
+ * pile, we must only consider configuration where this king is dedicated.
  */
-static void SolverMove(SolverPosType *game, int pile, int toPile)
+static uint16_t SolverMove(SolverPosType *game, int pile, int toPile)
 {
     int fluteLen = game->pileFlute[pile];
     if (toPile < KINGPILE) {
@@ -629,9 +645,10 @@ static void SolverMove(SolverPosType *game, int pile, int toPile)
         }
         game->usedSpace += fluteLen;
     }
-    SolverRemoveFlute(pile, game);
+    uint16_t forcedKings = SolverRemoveFlute(pile, game);
     while (game->busyAces)
-        SolverMoveAces(game);
+        forcedKings &= SolverMoveAces(game);
+    return forcedKings;
 }
 
 /*
@@ -748,8 +765,9 @@ static uint16_t solverRecCheckSolvable(SolverPosType *game) {
         if (movable & ~solvable) {
             /* At least one new config might become solvable; try the move. */
             game[1] = game[0];
-            SolverMove(game + 1, pile, toPile);
-            uint8_t recursiveSolvable = solverRecCheckSolvable(game + 1);
+            uint16_t forcedKings = SolverMove(game + 1, pile, toPile);
+            const ClosureInfo *nextClosureInfo = &closureInfos[game[1].freePiles];
+            uint8_t recursiveSolvable = solverRecCheckSolvable(game + 1) & (forcedKings >> nextClosureInfo->shiftValue);
             // printf ("Try: %08x %d%d%d%d%d%d%d%d%d%d %04x (%x) %d %04x  -> %x\n",
             //     game->hash,
             //         game->pileDepth[0],
@@ -765,7 +783,7 @@ static uint16_t solverRecCheckSolvable(SolverPosType *game) {
             //         game->freePiles, pile, allkings, recursiveSolvable);
             /* Translate child's solvable bitmask to parent's config space, then
              * intersect with the configs for which this move was actually affordable. */
-            movable &= subsetTable[closureInfos[game[1].freePiles].offset + recursiveSolvable] >> closureInfo->shiftValue;
+            movable &= subsetTable[nextClosureInfo->offset + recursiveSolvable] >> closureInfo->shiftValue;
             /* Propagate through the component: if any config in a component is
              * solvable, all configs in that component are solvable. */
             if (movable & component) {
@@ -842,7 +860,6 @@ static void SolverConvertFromPilesKings(uint8_t* pilesking, SolverPosType *game)
     }
     for (i = 0; i < 4; i++) {
         int card = CARD(i, KING);
-        int count = 0;
 
         /* Find the highest card of this suit already on the foundation. */
         int ace = CARD(i, ACE);
@@ -856,7 +873,6 @@ static void SolverConvertFromPilesKings(uint8_t* pilesking, SolverPosType *game)
         /* Find how many cards from the king end have been freed to king piles. */
         if (ace < card) {
             while (card2depth[card] >= game->pileDepth[card2pile[card]]) {
-                count++;
                 card--;
             }
         }
