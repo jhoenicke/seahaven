@@ -85,18 +85,26 @@ typedef uint8_t CardType;
  * pileDepth == 0: pile is empty.
  * pileDepth == 1: pile contains only the flute (no above-flute cards).
  *
- * The flute is the unit of movement: moving a flute of length L to another pile
+ * The flute is a unit of movement: moving a flute of length L to another pile
  * requires L-1 free extra slots (to park the interior cards temporarily) but
  * does not change usedSpace.  Moving a flute to extra uses L extra slots and
- * increases usedSpace by L.
+ * increases usedSpace by L.  It's never useful to move only a part of a flute,
+ * because that would just fill up extra space, without freeing a new card.
  *
  * usedSpace counts cards currently occupying extra slots or sitting in king
- * piles.  Free extra slots = 4 - usedSpace.  Moves are legal only when there
- * is sufficient free extra space.
+ * piles.  Free extra slots = 4 - usedSpace - space used by piled kings. 
+ * Moves are legal only when there is sufficient free extra space.
+ *
+ * The king configuration (which kings are in free piles and which are in
+ * extra space) is not part of the abstract game state.  Instead we compute
+ * for each game a bitmask of all solvable king configuration.  This keeps
+ * the part of moving the kings between freed piles inside a single
+ * game state node, avoiding cycles in the game state graph.
  *
  * The hash is sum(pileDepth[i] * pileHashes[i]).  Together with the fixed
  * initial card layout (pos2card / card2pile / card2depth), the pile depths
- * fully determine the game state, enabling memoisation.
+ * fully determine the game state (up to pile order/normalization), enabling
+ * memoisation.
  */
 typedef struct {
     uint32_t   hash;          /* weighted sum of pile depths, used as memoise key   */
@@ -104,7 +112,8 @@ typedef struct {
     uint8_t    pileFlute[10]; /* flute length (>= 1 when pileDepth > 0)             */
     int8_t     aces[4];       /* highest card on foundation per suit; CARD(suit,0) if none */
     int8_t     kings[4];      /* first un-freed card counting down from king; equals
-                               * CARD(suit,KING) when the king is not yet in a king pile */
+                               * CARD(suit,KING) when the king is not yet in a king 
+                               * pile or extra slot */
     int8_t     usedSpace;     /* cards in extra slots + cards in king piles          */
     int8_t     freePiles;     /* number of empty piles                               */
     int8_t     busyAces;      /* bitmask: suits whose aces need re-evaluation        */
@@ -200,10 +209,10 @@ typedef struct {
 } ClosureInfo;
 
 static const ClosureInfo closureInfos[11] = {
-    { 15,  5, 98 },   /* freePiles = 0 */
-    { 11, 10, 0  },   /* freePiles = 1 */
-    {  5, 10, 16 },   /* freePiles = 2 */
-    {  1,  1, 80 },   /* freePiles = 3 */
+    { 15,  1, 98 },   /* freePiles = 0 */
+    { 11,  4, 0  },   /* freePiles = 1 */
+    {  5,  6, 16 },   /* freePiles = 2 */
+    {  1,  4, 80 },   /* freePiles = 3 */
     {  0,  1, 96 },   /* freePiles = 4 */
     {  0,  1, 96 },   /* freePiles = 5 */
     {  0,  1, 96 },   /* freePiles = 6 */
@@ -214,7 +223,7 @@ static const ClosureInfo closureInfos[11] = {
 };
 
 /*
- * componentTable[offset + localSolvable] -> component bitmask.
+ * componentTable[king configs with one truely empty pile] -> component bitmask.
  *
  * Among the admissible king configurations (those where freed-king cards fit in
  * extra space), there is at most one non-singleton strongly-connected component:
@@ -223,37 +232,42 @@ static const ClosureInfo closureInfos[11] = {
  * configurations are singletons (cannot reach any other configuration).
  *
  * The component bitmask has a bit set for every configuration that belongs to
- * the same component as any bit set in localSolvable.  If a game position is
- * solvable for one configuration in a component, all configurations in that
- * component are also solvable (by reshuffling king pile assignments).
+ * this big component.  If a game position is solvable for one configuration in
+ * a component, all configurations in that component are also solvable (by
+ * reshuffling king pile assignments).
  *
- * Indexed by closureInfos[emptyPiles-1].offset + localSolvable for emptyPiles
- * in {1,2,3}; returns 0 outside that range.
+ * Indexed by the bitmask for the admissible king configurations with one empty
+ * pile, i.e., the bitmask containing the configuration with freePiles - 1
+ * unset bits (dedicated piles) where there the freed-king cards fit in extra
+ * space.
+ *
+ * The index is closureInfos[freePiles-1].offset + setOfConfigurations
+ * for freePiles in {1,2,3}; unused outside that range.
  *
  * Column labels (grlex order):  0  4 3 2 1   34 24 23 14 13 12   234 134 124 123  1234
  */
 static const uint8_t componentTable[100] = {
-    // table for level 2 (emptyPiles = 1, 16 input combinations)
+    // table for level 2 (freePiles = 2, 16 input combinations)
     0x00, 0x07, 0x19, 0x1f, 0x2a, 0x2f, 0x3b, 0x3f,
     0x34, 0x37, 0x3d, 0x3f, 0x3e, 0x3f, 0x3f, 0x3f,
 
-    // table for level 3 (emptyPiles = 2, 64 input combinations)
+    // table for level 3 (freePiles = 3, 64 input combinations)
     0x0, 0x3, 0x5, 0x7, 0x6, 0x7, 0x7, 0x7,
-    0x9, 0xb, 0xd, 0xf, 0,   0xf, 0xf, 0xf,
-    0xa, 0xb, 0,   0xf, 0xe, 0xf, 0xf, 0xf,
+    0x9, 0xb, 0xd, 0xf, 0xf, 0xf, 0xf, 0xf,
+    0xa, 0xb, 0xf, 0xf, 0xe, 0xf, 0xf, 0xf,
     0xb, 0xb, 0xf, 0xf, 0xf, 0xf, 0xf, 0xf,
-    0xc, 0,   0xd, 0xf, 0xe, 0xf, 0xf, 0xf,
+    0xc, 0xf, 0xd, 0xf, 0xe, 0xf, 0xf, 0xf,
     0xd, 0xf, 0xd, 0xf, 0xf, 0xf, 0xf, 0xf,
     0xe, 0xf, 0xf, 0xf, 0xe, 0xf, 0xf, 0xf,
     0xf, 0xf, 0xf, 0xf, 0xf, 0xf, 0xf, 0xf,
 
-    // table for level 4 (emptyPiles = 3, 16 input combinations)
+    // table for level 4 (freePiles = 4, 16 input combinations); unused
     0x0, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1,
     0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1,
 
-    // table for level 5 (emptyPiles = 4+, 2 input combinations)
+    // table for level 5 (freePiles = 5+, 2 input combinations); unused
     0x0, 0x0,
-    // table for level 1 (emptyPiles = 0, 2 input combinations)
+    // table for level 1 (freePiles = 1, 2 input combinations)
     0x00, 0x0f
 };
 
@@ -339,10 +353,22 @@ static void setSlot(uint32_t key, uint16_t value) {
  * freeing a slot, then moving the longest king stack into that slot.  This
  * works only when usedSpace is small enough to absorb one additional king stack.
  *
- * For 1..3 empty piles, evaluates each pair of (one-fewer-empty-pile,
- * current-empty-pile) king configurations to find which ones are mutually
- * reachable, then looks up the component closure in componentTable.
+ * For 1..3 empty piles, first evaluates the configurations where one pile is
+ * kept truely free and the other empty piles are dedicated to a king.  It creates
+ * the bitmask, where the bit is one if the configuration is feasible, i.e., the
+ * four extra cells are enough to hold the unpiled kings.
  *
+ * All these configurations are reachable from each other: by iteratively moving
+ * the largest king flute that should be dedicated to the empty pile and then freeing
+ * the pile with the shortest king flute that should be on extra space, one can
+ * reach any feasible configuration where one pile is empty.  From these one can
+ * reach all configurations with one more dedicated king on the empty pile.  This
+ * means that all the configurations that are a superset of a feasble configuation
+ * with one fewer pile are forming a big component of admissible king configuations.
+ * All other feasible configuarations with all piles dedicated are their own singleton
+ * component.
+ *
+ * This function computes the big component of admissible king configurations.
  * Returns 0 if emptyPiles is 0 or >= 4 (no reshuffling needed or possible).
  */
 static uint16_t computeComponentKingBits(SolverPosType *game) {
@@ -413,7 +439,7 @@ static void computeKingSpaces(int shiftValue, int neededBits, KingInfo *kingInfo
  */
 //0   4 3 2 1   34 24 23 14 13 12   234 134 124 123  1234
 uint16_t kingOnPileMap[4] = {
-    0x469d, 0x255b,  0x1337, 0x08ef
+    0x469d, 0x255b, 0x1337, 0x08ef
 };
 
 /*
@@ -499,8 +525,8 @@ static void SolverRemoveFlute(int pile, SolverPosType *game)
             game->usedSpace--;
         }
 
-        /* If the lowest predecessor needed for the foundation is already freed,
-         * this flute can potentially move to aces; mark it for re-evaluation. */
+        /* If the predecessor of the flute is already on the foundation,
+         * this flute can move to there; mark it for re-evaluation. */
         if (game->aces[suit] == prevCard) {
             game->busyAces |= 1 << suit;
         }
@@ -569,6 +595,7 @@ static void SolverMoveAces(SolverPosType *game)
     card--;
     game->usedSpace -= found;
     game->aces[suit] = card;
+    /* if we moved all cards including the king, mark the king suit as empty. */
     if (VALUE(card) == KING) {
         game->kings[suit] = card;
     }
@@ -715,8 +742,9 @@ static uint16_t solverRecCheckSolvable(SolverPosType *game) {
         int fluteLen = game->pileFlute[pile];
         int toPile = solverGetDestination(game, pile);
         assert(toPile < KINGPILE || toPile == EXTRA || toPile - KINGPILE == SUIT(pos2card[pile][game->pileDepth[pile]-1]));
-        /* movable: configs where this move is affordable AND globally feasible. */
-        uint16_t movable = solverGetMovable(&kingInfo, closureInfo->shiftValue, fluteLen, toPile) & allkings;
+        /* movable: configs where this move is affordable. */
+        uint16_t movable = solverGetMovable(&kingInfo, closureInfo->shiftValue, fluteLen, toPile);
+        assert((movable & ~allkings) == 0);
         if (movable & ~solvable) {
             /* At least one new config might become solvable; try the move. */
             game[1] = game[0];
@@ -743,7 +771,7 @@ static uint16_t solverRecCheckSolvable(SolverPosType *game) {
             if (movable & component) {
                 movable |= component;
             }
-            solvable |= (movable & allkings);
+            solvable |= movable;
             if (solvable == allkings)
                 break;
         }
