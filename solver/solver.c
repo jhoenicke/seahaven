@@ -134,8 +134,6 @@ static CardType pos2card[10][5];
 static uint8_t card2pile[64];
 static uint8_t card2depth[64];
 static uint16_t hashmap[BIG_HASH_SIZE];
-/* DFS stack: game[0] is the current frame, game[1] the child frame, etc. */
-static SolverPosType gameStack[MAX_MOVES];
 
 
 /* pileHashes[i] = 6^i, used to compute a position hash as a polynomial in the
@@ -767,10 +765,10 @@ static uint16_t solverRecCheckSolvable(SolverPosType *game) {
         assert((movable & ~allkings) == 0);
         if (movable & ~solvable) {
             /* At least one new config might become solvable; try the move. */
-            game[1] = game[0];
-            uint16_t forcedKings = SolverMove(game + 1, pile, toPile);
-            const ClosureInfo *nextClosureInfo = &closureInfos[game[1].freePiles];
-            uint8_t recursiveSolvable = solverRecCheckSolvable(game + 1) & (forcedKings >> nextClosureInfo->shiftValue);
+            SolverPosType childGame = *game;
+            uint16_t forcedKings = SolverMove(&childGame, pile, toPile);
+            const ClosureInfo *nextClosureInfo = &closureInfos[childGame.freePiles];
+            uint8_t recursiveSolvable = solverRecCheckSolvable(&childGame) & (forcedKings >> nextClosureInfo->shiftValue);
             // printf ("Try: %08x %d%d%d%d%d%d%d%d%d%d %04x (%x) %d %04x  -> %x\n",
             //     game->hash,
             //         game->pileDepth[0],
@@ -979,21 +977,21 @@ void initcard(uint8_t *cardshuffle, int size) {
  * corresponding to the current king configuration derived from stacks[10].
  */
 void solve(uint8_t* stacks, int size) {
-    SolverPosType *game = &gameStack[0];
+    SolverPosType game;
     char result[12];
     memcpy(result, stacks, 11);
     hit = 0;
     miss = 0;
     assert(size == 11);
 
-    uint16_t forcedKings = SolverConvertFromPilesKings(stacks, game);
-    if (game->hash == 0) {
+    uint16_t forcedKings = SolverConvertFromPilesKings(stacks, &game);
+    if (game.hash == 0) {
         /* game is already solved */
         result[11] = SUCCESS;
     } else {
         uint8_t kingbit = bits2grlex[stacks[10] ^ 0xf];
-        const ClosureInfo *ci = &closureInfos[game->freePiles];
-        uint8_t solvable = solverRecCheckSolvable(game) & (uint8_t)(forcedKings >> ci->shiftValue);
+        const ClosureInfo *ci = &closureInfos[game.freePiles];
+        uint8_t solvable = solverRecCheckSolvable(&game) & (uint8_t)(forcedKings >> ci->shiftValue);
         result[11] = (subsetTable[ci->offset + solvable] & (1 << kingbit)) ? SUCCESS : NOMOVE;
     }
     emscripten_worker_respond(result, 12);
@@ -1014,17 +1012,17 @@ void solve(uint8_t* stacks, int size) {
  */
 static int checkFreshGame(uint8_t shuffle[52]) {
     uint8_t stacks[11] = { 5,5,5,5,5,5,5,5,5,5, 0 };
-    SolverPosType *game = &gameStack[0];
+    SolverPosType game;
 
     initcard(shuffle, 52);
-    uint16_t forcedKings = SolverConvertFromPilesKings(stacks, game);
+    uint16_t forcedKings = SolverConvertFromPilesKings(stacks, &game);
 
-    if (game->hash == 0)
+    if (game.hash == 0)
         return SUCCESS;
 
     uint8_t kingbit = bits2grlex[stacks[10] ^ 0xf];
-    const ClosureInfo *ci = &closureInfos[game->freePiles];
-    uint8_t solvable = solverRecCheckSolvable(game) & (uint8_t)(forcedKings >> ci->shiftValue);
+    const ClosureInfo *ci = &closureInfos[game.freePiles];
+    uint8_t solvable = solverRecCheckSolvable(&game) & (uint8_t)(forcedKings >> ci->shiftValue);
     return (subsetTable[ci->offset + solvable] & (1 << kingbit)) ? SUCCESS : NOMOVE;
 }
 
