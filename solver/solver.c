@@ -116,7 +116,7 @@ typedef struct {
                                * pile or extra slot */
     int8_t     usedSpace;     /* cards in extra slots + cards in king piles          */
     int8_t     freePiles;     /* number of empty piles                               */
-    int8_t     busyAces;      /* bitmask: suits whose aces need re-evaluation        */
+    uint8_t    busyAces;      /* bitmask: suits whose aces need re-evaluation        */
 } SolverPosType;
 
 /*
@@ -438,7 +438,7 @@ static void computeKingSpaces(int shiftValue, int neededBits, KingInfo *kingInfo
  * (the dedicated pile absorbs the flute boundary card directly).
  */
 //0   4 3 2 1   34 24 23 14 13 12   234 134 124 123  1234
-uint16_t kingOnPileMap[4] = {
+static const uint16_t kingOnPileMap[4] = {
     0x469d, 0x255b, 0x1337, 0x08ef
 };
 
@@ -462,11 +462,14 @@ static uint8_t solverGetDestination(SolverPosType *game, int pile) {
     int toPile;
     int posFromTop;
     do {
+        if (card == game->kings[suit]) {
+            return KINGPILE + suit;
+        }
         card++;
         toPile = card2pile[card];
         posFromTop = game->pileDepth[toPile] - card2depth[card];
     } while (posFromTop <= 0);
-    return posFromTop == 1 ? toPile : 14;
+    return posFromTop == 1 ? toPile : EXTRA;
 }
 
 /*
@@ -828,56 +831,112 @@ static uint16_t solverRecCheckSolvable(SolverPosType *game) {
  * un-freed card from the king end) similarly.
  *
  * usedSpace is computed as 52 minus all pile cards minus all foundation cards.
+ * Returns the king configurations forced by any lone-king piles found during
+ * normalisation (same bitmask convention as SolverRemoveFlute).
  */
-static void SolverConvertFromPilesKings(uint8_t* pilesking, SolverPosType *game)
+static uint16_t SolverConvertFromPilesKings(uint8_t* pilesking, SolverPosType *game)
 {
     int i;
+    uint16_t forcedKings = 0xffff;
+
     game->busyAces = 0;
     game->usedSpace = 52;
     game->freePiles = 0;
     game->hash = 0;
+
+    /* Set pile depths and hash; freed-card checks (card2depth >= pileDepth)
+     * rely on these being set correctly before the per-pile loops below. */
     for (i = 0; i < 10; i++) {
-        int depth = pilesking[i];
-        game->pileDepth[i] = depth;
-        if (depth > 0) {
-            game->hash += pileHashes[i] * depth;
-            /* Walk down the suit sequence from the boundary card to find freed
-             * predecessor cards that extend the flute. */
-            int card = pos2card[i][game->pileDepth[i]-1] - 1;
-            int flutelen = 1;
-            while (card2depth[card] >= pilesking[card2pile[card]]) {
-                flutelen++;
-                card--;
-            }
-            game->pileFlute[i] = flutelen;
-            /* Subtract all cards belonging to this pile: above-flute (depth)
-             * plus flute interior (flutelen-1). */
-            game->usedSpace -= depth + flutelen - 1;
+        int d = pilesking[i];
+        game->pileDepth[i] = d;
+        if (d > 0) {
+            game->hash += pileHashes[i] * d;
         } else {
-            game->pileFlute[i] = 1;
             game->freePiles++;
         }
     }
+
+    /* Compute aces[] first (foundation guard prevents double-counting freed
+     * low-value cards that are both flute predecessors and foundation cards)
+     * and kings[] (freed king cards from the high end). */
     for (i = 0; i < 4; i++) {
         int card = CARD(i, KING);
-
-        /* Find the highest card of this suit already on the foundation. */
         int ace = CARD(i, ACE);
-        while (ace <= card &&
-               card2depth[ace] >= game->pileDepth[card2pile[ace]]) {
+        while (ace <= card && card2depth[ace] >= game->pileDepth[card2pile[ace]])
             ace++;
-        }
         ace--;
         game->aces[i] = ace;
         game->usedSpace -= VALUE(ace);
-        /* Find how many cards from the king end have been freed to king piles. */
         if (ace < card) {
-            while (card2depth[card] >= game->pileDepth[card2pile[card]]) {
+            while (card2depth[card] >= game->pileDepth[card2pile[card]])
                 card--;
-            }
         }
         game->kings[i] = card;
     }
+
+    /* For each non-empty pile: merge consecutive same-suit sequences, absorb
+     * freed predecessor cards from extra (with aces guard), detect lone kings,
+     * and set busyAces when the flute can advance to foundation. */
+    for (i = 0; i < 10; i++) {
+        int depth = pilesking[i];
+        if (depth == 0) {
+            game->pileFlute[i] = 1;
+            continue;
+        }
+
+        int card = pos2card[i][depth - 1];  /* top card = initial flute boundary */
+        int suit = SUIT(card);
+        int prevCard = card - 1;            /* predecessor for freed-card extension */
+        int flute = 1;
+
+        /* Merge consecutive same-suit cards from the top going deeper. */
+        while (depth > 1 && pos2card[i][depth - 2] == card + 1) {
+            depth--;
+            game->hash -= pileHashes[i];
+            flute++;
+            card++;  /* boundary moves to the deeper (higher-value) card */
+        }
+
+        /* Extend flute with freed predecessor cards (foundation guard prevents
+         * double-counting cards already tracked in aces[]). */
+        while (game->aces[suit] < prevCard &&
+               card2depth[prevCard] >= game->pileDepth[card2pile[prevCard]]) {
+            flute++;
+            prevCard--;
+        }
+
+        /* If the predecessor is at the foundation top, the flute can advance. */
+        if (game->aces[suit] == prevCard)
+            game->busyAces |= (uint8_t)(1 << suit);
+
+        /* Subtract this pile's cards from usedSpace:
+         *   depth          = above-flute cards + 1 (the flute boundary)
+         *   flute - 1      = flute interior (merged pile cards + freed predecessors)
+         * The freed predecessors were in usedSpace (extra cells); this removes them
+         * since they are now committed to this flute and not freely usable. */
+        game->usedSpace -= depth + flute - 1;
+
+        /* Lone king: the entire pile (after merge) is a single-card king flute.
+         * Vacate the pile and track the king sequence in usedSpace/kings[]. */
+        if (depth == 1 && VALUE(card) == KING) {
+            game->freePiles++;
+            game->usedSpace += flute;  /* king cards rejoin usedSpace as king-pile */
+            game->kings[suit] -= flute;
+            game->hash -= pileHashes[i];
+            depth = 0;
+            flute = 1;
+            forcedKings &= kingOnPileMap[suit];
+        }
+
+        game->pileDepth[i] = depth;
+        game->pileFlute[i] = flute;
+    }
+
+    /* Auto-advance any suits whose flute can be moved directly to foundation. */
+    while (game->busyAces)
+        forcedKings &= SolverMoveAces(game);
+
+    return forcedKings;
 }
 
 /*
@@ -890,6 +949,7 @@ static void SolverConvertFromPilesKings(uint8_t* pilesking, SolverPosType *game)
  */
 void initcard(uint8_t *cardshuffle, int size) {
     int i;
+    assert(size == 52);
     SolverInit();
     for (i = 0; i < 52; i++) {
         int suit = (cardshuffle[i] - 1)/13;
@@ -924,21 +984,91 @@ void solve(uint8_t* stacks, int size) {
     memcpy(result, stacks, 11);
     hit = 0;
     miss = 0;
+    assert(size == 11);
 
-    SolverConvertFromPilesKings(stacks, game);
+    uint16_t forcedKings = SolverConvertFromPilesKings(stacks, game);
     if (game->hash == 0) {
         /* game is already solved */
         result[11] = SUCCESS;
     } else {
         uint8_t kingbit = bits2grlex[stacks[10] ^ 0xf];
-        uint8_t solvable = solverRecCheckSolvable(game);
-        result[11] = (subsetTable[closureInfos[game[0].freePiles].offset + solvable] & (1 << kingbit)) != 0 ? SUCCESS : NOMOVE;
+        const ClosureInfo *ci = &closureInfos[game->freePiles];
+        uint8_t solvable = solverRecCheckSolvable(game) & (uint8_t)(forcedKings >> ci->shiftValue);
+        result[11] = (subsetTable[ci->offset + solvable] & (1 << kingbit)) ? SUCCESS : NOMOVE;
     }
     emscripten_worker_respond(result, 12);
     printf("Stats: %d hits %d misses\n", hit, miss);
 }
 
 #ifdef STANDALONE
+#include <time.h>
+
+/*
+ * Checks solvability of a fresh game position (all 10 piles at depth 5, no
+ * kings on dedicated piles yet) for the given card shuffle.
+ * Returns SUCCESS (0) or NOMOVE (2).
+ *
+ * stacks[10] = 0: no kings on dedicated empty piles.  This gives
+ * kingbit = bits2grlex[0^0xf] = 15 (grlex-15 = all kings in extra), which is
+ * the correct configuration to query for a state with freePiles = 0.
+ */
+static int checkFreshGame(uint8_t shuffle[52]) {
+    uint8_t stacks[11] = { 5,5,5,5,5,5,5,5,5,5, 0 };
+    SolverPosType *game = &gameStack[0];
+
+    initcard(shuffle, 52);
+    uint16_t forcedKings = SolverConvertFromPilesKings(stacks, game);
+
+    if (game->hash == 0)
+        return SUCCESS;
+
+    uint8_t kingbit = bits2grlex[stacks[10] ^ 0xf];
+    const ClosureInfo *ci = &closureInfos[game->freePiles];
+    uint8_t solvable = solverRecCheckSolvable(game) & (uint8_t)(forcedKings >> ci->shiftValue);
+    return (subsetTable[ci->offset + solvable] & (1 << kingbit)) ? SUCCESS : NOMOVE;
+}
+
+/*
+ * Generates numGames random Seahaven Towers deals and tests each for
+ * solvability from the initial position.  Uses a Fisher-Yates shuffle.
+ * Prints the number of solvable games, the percentage, and total time.
+ */
+static void testGames(int numGames) {
+    uint8_t shuffle[52];
+    int solvableCount = 0;
+    uint64_t totalHits = 0, totalMisses = 0;
+    uint32_t maxHits = 0, maxMisses = 0;
+
+    clock_t start = clock();
+
+    for (int g = 0; g < numGames; g++) {
+        for (int i = 0; i < 52; i++) shuffle[i] = (uint8_t)(i + 1);
+        for (int i = 51; i > 0; i--) {
+            int j = rand() % (i + 1);
+            uint8_t tmp = shuffle[i]; shuffle[i] = shuffle[j]; shuffle[j] = tmp;
+        }
+
+        hit = 0; miss = 0;
+        if (checkFreshGame(shuffle) == SUCCESS)
+            solvableCount++;
+        totalHits  += hit;
+        totalMisses += miss;
+        if (hit > maxHits) {
+            maxHits = hit;
+        }
+        if (miss > maxMisses) {
+            maxMisses = miss;
+        }
+    }
+
+    double elapsed = (double)(clock() - start) / CLOCKS_PER_SEC;
+    printf("Tested %d games: %d solvable (%.1f%%) in %.2fs  "
+           "[avg hits %.0f, misses %.0f] "
+           "[max hits %d, misses %d]\n",
+           numGames, solvableCount, 100.0 * solvableCount / numGames,
+           elapsed, (double)totalHits / numGames, (double)totalMisses / numGames,
+           maxHits, maxMisses);
+}
 
 int
 main() {
@@ -957,6 +1087,9 @@ main() {
 
     initcard(shuffle, sizeof(shuffle));
     solve(stacks, sizeof(stacks));
+
+    srand(42);
+    testGames(10000);
     return 0;
 }
 
