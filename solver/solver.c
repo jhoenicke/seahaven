@@ -488,44 +488,42 @@ static uint8_t solverGetDestination(SolverPosType *game, int pile) {
  * uncovers a new king pile that was initially dealt as the first card in the
  * pile, we must only consider configuration where this king is dedicated.
  */
-static uint16_t SolverRemoveFlute(int pile, SolverPosType *game)
+/*
+ * Given that game->pileDepth[pile] and game->hash already reflect the removal
+ * of the old flute boundary, recomputes the pile's new flute: merges
+ * consecutive same-suit pile cards, absorbs freed predecessor cards
+ * (adjusting usedSpace), marks busyAces, and handles the lone-king case.
+ * Writes updated pileDepth/pileFlute back to game.
+ *
+ * Returns the king configurations that are forced by this move.
+ */
+static uint16_t SolverCleanupPile(int pile, SolverPosType *game)
 {
-    int card, prevCard, suit;
-    int depth, flute;
-    uint32_t hash, pilehash;
     uint16_t forcedKings = 0xffff;
-    assert(pile >= 0 && pile < 10);
-    depth = game->pileDepth[pile];
-    pilehash = pileHashes[pile];
-    hash = game->hash;
-
-    /* Remove the old flute boundary: the pile shrinks by one depth level. */
-    depth--;
-    hash -= pilehash;
-    flute = 1;
+    int depth = game->pileDepth[pile];
+    uint32_t pilehash = pileHashes[pile];
+    int flute = 1;
 
     if (depth == 0) {
         game->freePiles++;
     } else {
-        card = pos2card[pile][depth-1];
-        suit = SUIT(card);
-        prevCard = card - 1;
+        int card = pos2card[pile][depth - 1];
+        int suit = SUIT(card);
+        int prevCard = card - 1;
 
-        assert(card < 0x40 && VALUE(card) >= 1 && VALUE(card) <= KING);
         /* Merge consecutive same-suit cards below the new top into the flute. */
-        while (depth > 1 && pos2card[pile][depth-2] == card + 1) {
+        while (depth > 1 && pos2card[pile][depth - 2] == card + 1) {
             depth--;
-            hash -= pilehash;
+            game->hash -= pilehash;
             flute++;
             card++;
-            assert(card < 0x40 && VALUE(card) >= 1 && VALUE(card) <= KING);
         }
 
         /* Extend the flute with predecessor cards that have already been freed
          * from their original piles (they are in extra space).  Each such card
          * reduces usedSpace because it is now accounted for by this flute. */
         while (game->aces[suit] < prevCard
-            && card2depth[prevCard] >= game->pileDepth[card2pile[prevCard]]) {
+               && card2depth[prevCard] >= game->pileDepth[card2pile[prevCard]]) {
             flute++;
             prevCard--;
             game->usedSpace--;
@@ -533,28 +531,33 @@ static uint16_t SolverRemoveFlute(int pile, SolverPosType *game)
 
         /* If the predecessor of the flute is already on the foundation,
          * this flute can move to there; mark it for re-evaluation. */
-        if (game->aces[suit] == prevCard) {
+        if (game->aces[suit] == prevCard)
             game->busyAces |= 1 << suit;
-        }
 
         /* A lone-king flute: the king has no cards above it, so the pile can be
          * vacated.  The king stack moves to king-pile tracking (usedSpace). */
         if (depth == 1 && VALUE(card) == KING) {
-            assert(suit == SUIT(card));
             game->freePiles++;
             game->usedSpace += flute;
             game->kings[suit] -= flute;
-            hash = hash - pilehash;
+            game->hash -= pilehash;
             depth = 0;
             flute = 1;
             forcedKings &= kingOnPileMap[suit];
         }
     }
 
-    game->hash = hash;
     game->pileDepth[pile] = depth;
     game->pileFlute[pile] = flute;
     return forcedKings;
+}
+
+static uint16_t SolverRemoveFlute(int pile, SolverPosType *game)
+{
+    assert(pile >= 0 && pile < 10);
+    game->pileDepth[pile]--;
+    game->hash -= pileHashes[pile];
+    return SolverCleanupPile(pile, game);
 }
 
 /*
@@ -847,11 +850,9 @@ static uint16_t SolverConvertFromPilesKings(uint8_t* pilesking, SolverPosType *g
     for (i = 0; i < 10; i++) {
         int d = pilesking[i];
         game->pileDepth[i] = d;
-        if (d > 0) {
-            game->hash += pileHashes[i] * d;
-        } else {
-            game->freePiles++;
-        }
+        game->pileFlute[i] = 1;
+        game->usedSpace -= d;
+        game->hash += pileHashes[i] * d;
     }
 
     /* Compute aces[] first (foundation guard prevents double-counting freed
@@ -876,58 +877,7 @@ static uint16_t SolverConvertFromPilesKings(uint8_t* pilesking, SolverPosType *g
      * freed predecessor cards from extra (with aces guard), detect lone kings,
      * and set busyAces when the flute can advance to foundation. */
     for (i = 0; i < 10; i++) {
-        int depth = pilesking[i];
-        if (depth == 0) {
-            game->pileFlute[i] = 1;
-            continue;
-        }
-
-        int card = pos2card[i][depth - 1];  /* top card = initial flute boundary */
-        int suit = SUIT(card);
-        int prevCard = card - 1;            /* predecessor for freed-card extension */
-        int flute = 1;
-
-        /* Merge consecutive same-suit cards from the top going deeper. */
-        while (depth > 1 && pos2card[i][depth - 2] == card + 1) {
-            depth--;
-            game->hash -= pileHashes[i];
-            flute++;
-            card++;  /* boundary moves to the deeper (higher-value) card */
-        }
-
-        /* Extend flute with freed predecessor cards (foundation guard prevents
-         * double-counting cards already tracked in aces[]). */
-        while (game->aces[suit] < prevCard &&
-               card2depth[prevCard] >= game->pileDepth[card2pile[prevCard]]) {
-            flute++;
-            prevCard--;
-        }
-
-        /* If the predecessor is at the foundation top, the flute can advance. */
-        if (game->aces[suit] == prevCard)
-            game->busyAces |= (uint8_t)(1 << suit);
-
-        /* Subtract this pile's cards from usedSpace:
-         *   depth          = above-flute cards + 1 (the flute boundary)
-         *   flute - 1      = flute interior (merged pile cards + freed predecessors)
-         * The freed predecessors were in usedSpace (extra cells); this removes them
-         * since they are now committed to this flute and not freely usable. */
-        game->usedSpace -= depth + flute - 1;
-
-        /* Lone king: the entire pile (after merge) is a single-card king flute.
-         * Vacate the pile and track the king sequence in usedSpace/kings[]. */
-        if (depth == 1 && VALUE(card) == KING) {
-            game->freePiles++;
-            game->usedSpace += flute;  /* king cards rejoin usedSpace as king-pile */
-            game->kings[suit] -= flute;
-            game->hash -= pileHashes[i];
-            depth = 0;
-            flute = 1;
-            forcedKings &= kingOnPileMap[suit];
-        }
-
-        game->pileDepth[i] = depth;
-        game->pileFlute[i] = flute;
+        forcedKings &= SolverCleanupPile(i, game);
     }
 
     /* Auto-advance any suits whose flute can be moved directly to foundation. */
