@@ -445,3 +445,55 @@ def SolverConvertFromPilesKings (pilesking : Vector UInt8 11) :
     forcedKings := forcedKings &&& (← SolverMoveAces)
 
   return forcedKings
+
+-- A default SolverPosType used as a throwaway initial state.
+-- cardshuffle[i] is a card number 1..52 (1=Ace of suit 0, 13=King of suit 0,
+-- 14=Ace of suit 1, ...).  Cards are dealt column-by-column into 10 piles of 5.
+-- The last two cards (i=50,51) go to extra and are not placed in pos2card.
+def initcard (cardshuffle : Vector UInt8 52) : EStateM Error Globals Unit := do
+  SolverInit
+  for i in List.range 52 do
+    let ci ← cardshuffle.getE (UInt32.ofNat i)
+    let suit : UInt8 := (ci - 1) / 13
+    let card : UInt8 := CARD suit (ci - 13 * suit)
+    let mut g ← get
+    g := { g with card2pile  := ← g.card2pile.setE  card.toUInt32 (UInt8.ofNat (i % 10)) }
+    g := { g with card2depth := ← g.card2depth.setE card.toUInt32 (UInt8.ofNat (i / 10)) }
+    if i < 50 then
+      let innerVec ← g.pos2card.getE (UInt32.ofNat (i % 10))
+      let innerVec ← innerVec.setE (UInt32.ofNat (i / 10)) card
+      g := { g with pos2card := ← g.pos2card.setE (UInt32.ofNat (i % 10)) innerVec }
+    set g
+
+private def emptySolverPosType : SolverPosType := {
+  hash      := 0
+  pileDepth := mkVector 10 0
+  pileFlute := mkVector 10 0
+  aces      := mkVector 4 0
+  kings     := mkVector 4 0
+  usedSpace := 0
+  freePiles := 0
+  busyAces  := 0
+}
+
+-- stacks[0..9]: current pile depths.  stacks[10]: king bitmask (bit k SET
+-- means suit k's king is still in a regular pile; XOR 0xf converts to internal
+-- convention).  Returns SUCCESS (0) if solvable, NOMOVE (2) if not.
+def solve (stacks : Vector UInt8 11) : EStateM Error Globals UInt8 := do
+  let globals ← get
+  -- Run SolverConvertFromPilesKings in the paired state monad.
+  match EStateM.run (SolverConvertFromPilesKings stacks) (globals, emptySolverPosType) with
+  | .error e _ => throw e
+  | .ok forcedKings (globals', game) =>
+    set globals'
+    if game.hash == 0 then
+      return 0  -- SUCCESS: game already solved
+    let kingbit ← bits2grlex.getE ((← stacks.getE 10) ^^^ 0xf).toUInt32
+    let ci ← closureInfos.getE game.freePiles.toInt32.toUInt32
+    let solvable := (← solverRecCheckSolvable game) &&&
+                    (forcedKings >>> ci.shiftValue.toUInt16)
+    let tableEntry ← subsetTable.getE (ci.offset.toUInt32 + solvable.toUInt32)
+    if tableEntry &&& ((1 : UInt16) <<< kingbit.toUInt16) != 0 then
+      return 0  -- SUCCESS
+    else
+      return 2  -- NOMOVE
