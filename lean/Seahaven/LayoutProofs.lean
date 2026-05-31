@@ -326,14 +326,80 @@ theorem StateMatchesLayout.card_in_pile
     only the flute (the top same-suit descending run) grows or shrinks — so
     `PileMatches` is preserved for all piles, and the partition of all 52 cards
     across foundation, cells, and tableau is maintained. -/
--- ---- Helper: removing the top card preserves PileMatches (with same n)
--- when the removed card was in the flute (col.length > n).
-private lemma PileMatches_tail_of_flute
+-- ---- Helper: removing the top card of a non-empty column gives a column
+-- that still satisfies PileMatches, possibly with a smaller n.
+--
+-- Two cases arise depending on which card is on top:
+--   col.length > n  (a flute card is on top)  → same n
+--   col.length = n  (the boundary card is on top, flute is trivial) → n decreases by 1
+--
+-- The result is stated existentially to cover both cases uniformly.
+private lemma PileMatches_tail
     {g : Globals} {col : Column} {p : Fin 10} {n : Fin 6}
     (hm : PileMatches g col p n)
-    (hgt : col.length > n.val) :
-    PileMatches g col.tail p n := by
-  sorry
+    (hne : 0 < col.length) :
+    ∃ n' : Fin 6, n'.val ≤ n.val ∧ PileMatches g col.tail p n' := by
+  obtain ⟨hlen, hbot, hflute⟩ := hm
+  -- Key rewriting: col.tail.reverse = col.reverse.dropLast
+  have h_rev : col.tail.reverse = col.reverse.dropLast := List.dropLast_reverse.symm
+  by_cases hgt : col.length > n.val
+  · -- The top card is in the flute; n stays the same.
+    refine ⟨n, le_refl _, ?_, ?_, ?_⟩
+    · -- length: col.tail.length = col.length - 1 ≥ n
+      simp [List.length_tail]; omega
+    · -- bottom n cards unchanged
+      intro k
+      have hk_lt : k.val < col.reverse.length - 1 := by
+        simp [List.length_reverse]; omega
+      rw [h_rev, List.getElem?_dropLast, if_pos hk_lt]
+      exact hbot k
+    · -- flute: (col.tail.reverse.drop n).map encodeCard = (fluteCards).dropLast
+      -- which still satisfies IsSameSuitDescending
+      simp only [h_rev]
+      rw [show (col.reverse.dropLast).drop n.val = (col.reverse.drop n.val).dropLast from by
+        simp [List.dropLast_eq_take, List.drop_take]; omega]
+      rw [List.map_dropLast]
+      -- hflute : flute condition for col; apply dropLast to get condition for col.tail
+      -- Helper to transfer IsSameSuitDescending through dropLast
+      have transfer : ∀ {suit sv} {cards : List UInt8},
+          IsSameSuitDescending suit sv cards →
+          IsSameSuitDescending suit sv cards.dropLast := fun {_ _} {cards} h i => by
+        have hlen : cards.dropLast.length = cards.length - 1 := List.length_dropLast
+        have h' := h ⟨i.val, by omega⟩
+        simp only [List.get_eq_getElem, List.getElem_dropLast] at h' ⊢
+        exact h'
+      split_ifs with hn
+      · -- n > 0: extract from dif, apply transfer
+        simp only [dif_pos hn] at hflute
+        exact transfer hflute
+      · -- n = 0: king-sequence
+        simp only [dif_neg hn] at hflute
+        obtain ⟨suit, hf⟩ := hflute
+        exact ⟨suit, transfer hf⟩
+  · -- The top card is the boundary card (col.length = n); n decreases by 1.
+    have heq : col.length = n.val := by omega
+    have hn_pos : 0 < n.val := by omega
+    have h_rev : col.tail.reverse = col.reverse.dropLast := List.dropLast_reverse.symm
+    refine ⟨⟨n.val - 1, by omega⟩, by simp, ?_, ?_, ?_⟩
+    · -- length: col.tail.length = n.val - 1
+      simp [List.length_tail, heq]
+    · -- bottom n-1 cards unchanged (they all have index < n-1 < n.val - 1 in col.reverse)
+      intro k
+      have hk_lt : k.val < col.reverse.length - 1 := by
+        simp [List.length_reverse, heq]
+      have hk_n : k.val < n.val :=
+        Nat.lt_trans k.isLt (Nat.sub_lt hn_pos Nat.one_pos)
+      rw [h_rev, List.getElem?_dropLast, if_pos hk_lt]
+      exact hbot ⟨k.val, hk_n⟩
+    · -- flute: col.tail.reverse has length n-1, so dropping n-1 gives []
+      have h_empty : col.tail.reverse.drop (n.val - 1) = [] := by
+        apply List.drop_eq_nil_iff.mpr
+        simp [List.length_reverse, List.length_tail, heq]
+      simp only [h_empty, List.map_nil]
+      -- IsSameSuitDescending ... [] is vacuously true in both branches
+      split_ifs
+      · exact fun i => i.elim0
+      · exact ⟨0, fun i => i.elim0⟩
 
 -- ---- Helper: adding a card on top preserves PileMatches (with same n)
 -- when the card continues the flute's descending sequence.
@@ -368,83 +434,90 @@ theorem StateMatchesLayout.applyMove
       match m.src with
       | Position.pile p => if p = q then (s.tableau q).tail else s.tableau q
       | _               => s.tableau q := by
-    rcases m.src with p | c
-    · -- source is a pile
+    rcases h_src : m.src with p | c | _
+    · -- source is a pile: specialize h_take then unpack it
+      rw [h_src] at h_take
       simp only [takeFromPosition, takeFromCol] at h_take
       rcases h_col : s.tableau p with _ | ⟨top, rest⟩
       · simp [h_col] at h_take
-      · simp only [h_col, Option.some.injEq, Prod.mk.injEq] at h_take
+      · rw [h_col] at h_take
+        simp only [Option.some.injEq, Prod.mk.injEq] at h_take
         obtain ⟨rfl, rfl⟩ := h_take
         intro q; simp [updateColumn, update]
-        split_ifs with h; · subst h; simp [h_col]
+        split_ifs with h
+        · subst h; simp [h_col]
+        · rfl
     · -- source is a cell: tableau unchanged
-      simp [takeFromPosition, takeFromCell] at h_take
+      rw [h_src] at h_take
+      simp only [takeFromPosition, takeFromCell] at h_take
       split at h_take
       · simp at h_take
-      · obtain ⟨rfl, rfl⟩ := h_take; intro q; rfl
+      · simp only [Option.some.injEq, Prod.mk.injEq] at h_take
+        obtain ⟨rfl, rfl⟩ := h_take; intro q; rfl
+    · -- source is foundation: h_take is a contradiction
+      simp [h_src, takeFromPosition] at h_take
   -- Characterize the tableau/cells of s' based on the destination.
   have h_s'_piles : ∀ q : Fin 10, s'.tableau q =
       match m.dest with
       | Position.pile p => if p = q then card :: s1.tableau q else s1.tableau q
       | _               => s1.tableau q := by
-    rcases m.dest with p | c
-    · simp only [dropPosition, dropCol] at h_drop
+    rcases h_dest : m.dest with p | c | _
+    · -- dest is a pile
+      rw [h_dest] at h_drop
+      simp only [dropPosition, dropCol] at h_drop
       split_ifs at h_drop with h
       · simp only [Option.some.injEq] at h_drop
         rw [← h_drop]
         intro q; simp [updateColumn, update]
-        split_ifs with h2; · subst h2; rfl
-      · simp at h_drop
-    · simp only [dropPosition, dropCell] at h_drop
-      split_ifs at h_drop with h
-      · simp only [Option.some.injEq] at h_drop
-        rw [← h_drop]; intro q; rfl
-      · simp at h_drop
-    · simp only [dropPosition, dropFoundation] at h_drop
+        split_ifs with h2
+        · subst h2; rfl
+        · rfl
+    · -- dest is a cell: tableau unchanged (updateCell doesn't touch tableau)
+      rw [h_dest] at h_drop
+      simp [dropPosition, dropCell] at h_drop
+      obtain ⟨_, rfl⟩ := h_drop
+      intro q; rfl
+    · -- dest is foundation: use split_ifs
+      rw [h_dest] at h_drop
+      simp only [dropPosition, dropFoundation] at h_drop
       split_ifs at h_drop with h
       · simp only [Option.some.injEq] at h_drop; rw [← h_drop]; intro q; rfl
-      · simp at h_drop
   constructor
-  · -- piles_match
-    intro q
-    -- Get the PileMatches witness for q in the original state.
-    obtain ⟨n, hn⟩ := hs.piles_match q
-    -- Determine s'.tableau q from the source/dest characterizations.
-    rw [show s'.tableau q = (match m.dest with
-        | Position.pile p => if p = q then card :: s1.tableau q else s1.tableau q
-        | _               => s1.tableau q) from h_s'_piles q]
-    rw [show s1.tableau q = (match m.src with
-        | Position.pile p => if p = q then (s.tableau q).tail else s.tableau q
-        | _               => s.tableau q) from h_s1_piles q]
-    -- Split on whether q is the source/dest pile
-    rcases m.src with src | src_cell <;> rcases m.dest with dst | dst_cell <;>
-      simp only
-    · -- pile → pile
-      by_cases h_src : src = q <;> by_cases h_dst : dst = q <;> simp [h_src, h_dst]
-      · -- q is both source and destination (same pile): tail then cons
-        exact ⟨n, sorry⟩
-      · -- q is source only
-        exact ⟨n, PileMatches_tail_of_flute hn (by
-          obtain ⟨hlen, _⟩ := hn; subst h_src; sorry)⟩
-      · -- q is destination only
-        exact ⟨n, PileMatches_cons_of_flute hn (by sorry)⟩
-      · -- q is neither: unchanged
+  · -- piles_match: prove in two independent steps.
+    -- Step 1: taking from src preserves PileMatches (only the src pile changes).
+    have h_take_piles : ∀ q : Fin 10, ∃ n, PileMatches g (s1.tableau q) q n := by
+      intro q
+      obtain ⟨n, hn⟩ := hs.piles_match q
+      rw [h_s1_piles q]
+      rcases h_src2 : m.src with src | _ | _
+      · -- pile source: src pile loses its top; all other piles unchanged
+        by_cases h : src = q
+        · simp [h]
+          obtain ⟨n', _, hn'⟩ := PileMatches_tail hn (by
+            subst h  -- now src = q is gone; use src everywhere
+            apply List.length_pos_iff_ne_nil.mpr
+            intro hnil
+            rw [h_src2, takeFromPosition] at h_take
+            simp [takeFromCol, hnil] at h_take)
+          exact ⟨n', hn'⟩
+        · simp [h]; exact ⟨n, hn⟩
+      · -- cell source: no pile changes
         exact ⟨n, hn⟩
-    · -- pile → cell: only source pile changes
-      by_cases h_src : src = q <;> simp [h_src]
-      · exact ⟨n, PileMatches_tail_of_flute hn (by subst h_src; sorry)⟩
-      · exact ⟨n, hn⟩
-    · -- pile → foundation: only source pile changes
-      by_cases h_src : src = q <;> simp [h_src]
-      · exact ⟨n, PileMatches_tail_of_flute hn (by subst h_src; sorry)⟩
-      · exact ⟨n, hn⟩
-    · -- cell → pile: only destination pile changes
-      by_cases h_dst : dst = q <;> simp [h_dst]
-      · exact ⟨n, PileMatches_cons_of_flute hn (by sorry)⟩
-      · exact ⟨n, hn⟩
-    · -- cell → cell: no pile changes
+      · -- foundation source: contradiction from h_take
+        simp [h_src2, takeFromPosition] at h_take
+    -- Step 2: dropping to dst preserves PileMatches (only the dst pile changes).
+    intro q
+    obtain ⟨n, hn⟩ := h_take_piles q
+    rw [h_s'_piles q]
+    rcases m.dest with dst | _ | _
+    · -- pile dest: dst pile gains card on top; all other piles unchanged
+      by_cases h : dst = q
+      · simp [h]
+        exact ⟨n, PileMatches_cons hn (by sorry)⟩
+      · simp [h]; exact ⟨n, hn⟩
+    · -- cell dest: no pile changes
       exact ⟨n, hn⟩
-    · -- cell → foundation: no pile changes
+    · -- foundation dest: no pile changes
       exact ⟨n, hn⟩
   · -- cells_valid
     sorry
