@@ -1,10 +1,11 @@
+import Mathlib.Tactic
 import Seahaven.Rules
 import Seahaven.Solver
 
 /-!
 # Layout Consistency and State Matching
 
-This file defines the bridge between the high-level `Rules.State` world and
+This file defines the bridge between the high-level `State` world and
 the low-level `Globals` / `UInt8` card-code world used by the solver.
 
 Three layers of properties are developed:
@@ -12,10 +13,30 @@ Three layers of properties are developed:
 1. **Encoding**: bijection between `Rules.Card` and valid `UInt8` card codes.
 2. **`LayoutConsistent`**: the `Globals` arrays `pos2card`, `card2pile`,
    `card2depth` are mutually consistent (they encode a valid initial deal).
-3. **`StateMatchesLayout`**: a `Rules.State` is compatible with a layout,
+3. **`StateMatchesLayout`**: a `State` is compatible with a layout,
    meaning the cards in each tableau column correspond to what the layout
    recorded for those positions.
 -/
+
+-- ============================================================
+-- Section 0: Fintype instances (needed for fin_cases on Card)
+-- ============================================================
+
+instance : Fintype Suit :=
+  Fintype.ofList [Suit.clubs, Suit.diamonds, Suit.hearts, Suit.spades]
+    (fun s => by cases s <;> simp)
+
+instance : Fintype Rank :=
+  Fintype.ofList [Rank.ace, Rank.two, Rank.three, Rank.four, Rank.five,
+                  Rank.six, Rank.seven, Rank.eight, Rank.nine, Rank.ten,
+                  Rank.jack, Rank.queen, Rank.king]
+    (fun r => by cases r <;> simp)
+
+/-- `Card` is finite because it is isomorphic to `Suit × Rank`. -/
+def cardEquiv : Card ≃ Suit × Rank :=
+  ⟨fun c => (c.suit, c.rank), fun p => ⟨p.1, p.2⟩, fun _ => rfl, fun _ => rfl⟩
+
+instance : Fintype Card := Fintype.ofEquiv _ cardEquiv.symm
 
 -- ============================================================
 -- Section 1: Encoding Cards
@@ -66,31 +87,28 @@ def IsValidCard (code : UInt8) : Prop :=
   (code >>> 4).toNat < 4 ∧
   1 ≤ (code &&& 0xf).toNat ∧ (code &&& 0xf).toNat ≤ 13
 
+instance (code : UInt8) : Decidable (IsValidCard code) :=
+  inferInstanceAs (Decidable (_ ∧ _ ∧ _))
+
 theorem encodeCard_valid (c : Card) : IsValidCard (encodeCard c) := by
-  simp [IsValidCard, encodeCard, CARD, SUIT, VALUE, suitToNat_lt]
-  constructor
-  · omega
-  exact ⟨by have := rankBounded c.rank; omega, by exact rankBounded c.rank⟩
+  fin_cases c <;> native_decide
 
 /-- Valid card codes fit in the 64-entry lookup arrays. -/
 theorem IsValidCard_lt64 {code : UInt8} (h : IsValidCard code) : code.toNat < 64 := by
-  obtain ⟨hs, hv_lo, hv_hi⟩ := h
-  have : code.toNat = (code >>> 4).toNat * 16 + (code &&& 0xf).toNat := by
-    simp [UInt8.toNat_shiftRight, UInt8.toNat_and]
-    omega
+  obtain ⟨hs, _, _⟩ := h
+  -- (code >>> 4).toNat = code.toNat / 16, so code.toNat / 16 < 4 → code.toNat < 64
+  have hshift : (code >>> 4).toNat = code.toNat / 16 := by
+    simp [UInt8.toNat_shiftRight, Nat.shiftRight_eq_div_pow]
   omega
 
 theorem decodeCard_encodeCard (c : Card) : decodeCard (encodeCard c) = some c := by
-  simp [decodeCard, encodeCard, CARD, SUIT, VALUE, suitToNat_lt, suitToNat_natToSuit]
-  constructor
-  · exact suitToNat_lt c.suit
-  · rw [natToSuit_suitToNat, rankToNatToRank]
+  fin_cases c <;> native_decide
 
 theorem encodeCard_inj {c1 c2 : Card} (h : encodeCard c1 = encodeCard c2) : c1 = c2 := by
-  have := decodeCard_encodeCard c1
-  have := decodeCard_encodeCard c2
-  simp [h] at *
-  exact this.symm.trans ‹_›
+  have h1 := decodeCard_encodeCard c1
+  have h2 := decodeCard_encodeCard c2
+  rw [h] at h1
+  exact Option.some.inj (h1.symm.trans h2)
 
 -- ============================================================
 -- Section 2: Layout Consistency
@@ -127,18 +145,16 @@ structure LayoutConsistent (g : Globals) : Prop where
   pos2card_valid : ∀ (p : Fin 10) (d : Fin 5),
       IsValidCard (g.pos2cardAt p d)
 
-  /-- `card2pile` is the left inverse of `pos2card`'s pile index:
-      the pile stored for a card equals the pile it was placed in. -/
-  card2pile_eq : ∀ (p : Fin 10) (d : Fin 5),
-      let code := g.pos2cardAt p d
-      have hlt : code.toNat < 64 := IsValidCard_lt64 (g.pos2card_valid p d)
-      (g.pileOf code hlt).toNat = p.val
+  /-- `card2pile` is the left inverse of `pos2card`'s pile index.
+      The caller supplies the validity proof `hv`; `hlt` is derived from it. -/
+  card2pile_eq : ∀ (p : Fin 10) (d : Fin 5)
+      (hv : IsValidCard (g.pos2cardAt p d)),
+      (g.pileOf (g.pos2cardAt p d) (IsValidCard_lt64 hv)).toNat = p.val
 
   /-- `card2depth` is the left inverse of `pos2card`'s depth index. -/
-  card2depth_eq : ∀ (p : Fin 10) (d : Fin 5),
-      let code := g.pos2cardAt p d
-      have hlt : code.toNat < 64 := IsValidCard_lt64 (g.pos2card_valid p d)
-      (g.depthOf code hlt).toNat = d.val
+  card2depth_eq : ∀ (p : Fin 10) (d : Fin 5)
+      (hv : IsValidCard (g.pos2cardAt p d)),
+      (g.depthOf (g.pos2cardAt p d) (IsValidCard_lt64 hv)).toNat = d.val
 
   /-- `pos2card` is injective: distinct positions hold distinct cards. -/
   pos2card_inj : ∀ (p1 p2 : Fin 10) (d1 d2 : Fin 5),
@@ -155,34 +171,36 @@ structure LayoutConsistent (g : Globals) : Prop where
 theorem LayoutConsistent.pos2card_roundtrip
     {g : Globals} (hg : LayoutConsistent g)
     (p : Fin 10) (d : Fin 5) :
+    let hv  := hg.pos2card_valid p d
+    let hlt := IsValidCard_lt64 hv
     let code := g.pos2cardAt p d
-    have hlt := IsValidCard_lt64 (hg.pos2card_valid p d)
     g.pos2cardAt
-      ⟨(g.pileOf code hlt).toNat, by
-        have := hg.card2pile_eq p d; simp at this; omega⟩
-      ⟨(g.depthOf code hlt).toNat, by
-        have := hg.card2depth_eq p d; simp at this; omega⟩
+      ⟨(g.pileOf code hlt).toNat,
+        (hg.card2pile_eq p d (hg.pos2card_valid p d)).symm ▸ p.isLt⟩
+      ⟨(g.depthOf code hlt).toNat,
+        (hg.card2depth_eq p d (hg.pos2card_valid p d)).symm ▸ d.isLt⟩
     = code := by
-  intro code hlt
-  have hp := hg.card2pile_eq p d
-  have hd := hg.card2depth_eq p d
-  simp only at hp hd
-  conv_rhs => rw [show p = ⟨(g.pileOf code hlt).toNat, _⟩ from by ext; exact hp.symm]
-  conv_rhs => rw [show d = ⟨(g.depthOf code hlt).toNat, _⟩ from by ext; exact hd.symm]
+  simp only
+  have hv := hg.pos2card_valid p d
+  have hp := hg.card2pile_eq  p d hv
+  have hd := hg.card2depth_eq p d hv
+  congr 1
+  · exact Fin.ext hp
+  · exact Fin.ext hd
 
 -- ============================================================
 -- Section 3: State Matches Layout
 -- ============================================================
 
 /-!
-A `Rules.State` **matches** a layout if the cards in each tableau column
+A `State` **matches** a layout if the cards in each tableau column
 are the cards that the layout says were originally dealt there.
 
 Concretely: for each pile `p`, the bottom `n` cards of `state.tableau p`
 (reading bottom-up) are `pos2card[p][0], pos2card[p][1], ..., pos2card[p][n-1]`.
 The value `n` is the *pile depth* tracked by the solver.
 
-The tableau in `Rules.State` is a `List Card` where the **head is the top**
+The tableau in `State` is a `List Card` where the **head is the top**
 (most accessible) card.  So the bottom card is at index `length - 1`.
 The card at depth `d` from the bottom (0 = bottom) is at list index `length - 1 - d`.
 
@@ -216,10 +234,10 @@ def IsSameSuitDescending (suit : UInt8) (startVal : Nat) (cards : List UInt8) : 
 def PileMatches (g : Globals) (col : Column) (p : Fin 10) (n : Fin 6) : Prop :=
   n.val ≤ col.length ∧
   -- The bottom n cards match pos2card[p][0..n-1].
+  -- Use get? to avoid an inline bound proof (the bound follows from the first conjunct + k.isLt).
   (∀ (k : Fin n.val),
-    encodeCard (col.reverse.get ⟨k.val, by
-      simp [List.length_reverse]; omega⟩) =
-    (g.pos2card.get p).get ⟨k.val, by omega⟩) ∧
+    (col.reverse[k.val]?).map encodeCard =
+    some ((g.pos2card.get p).get ⟨k.val, by omega⟩)) ∧
   -- The flute portion is a same-suit descending sequence.
   let fluteCards := (col.reverse.drop n.val).map encodeCard
   if h : n.val > 0 then
@@ -233,7 +251,7 @@ def PileMatches (g : Globals) (col : Column) (p : Fin 10) (n : Fin 6) : Prop :=
 /-- `state` is consistent with layout `g`: each pile's bottom cards are those
     recorded in `pos2card`, each cell holds a valid card, and every valid card
     appears exactly once across the tableau, cells, and foundation. -/
-structure StateMatchesLayout (g : Globals) (s : Rules.State) : Prop where
+structure StateMatchesLayout (g : Globals) (s : State) : Prop where
 
   /-- For each pile, the bottom `n` cards match the layout (for some `n`). -/
   piles_match : ∀ (p : Fin 10),
@@ -245,13 +263,13 @@ structure StateMatchesLayout (g : Globals) (s : Rules.State) : Prop where
 
   /-- Every valid card code appears in exactly one location across
       foundation, cells, and tableau. -/
-  cards_partition : ∀ (code : UInt8), IsValidCard code →
+  cards_partition : ∀ (code : UInt8) (hv : IsValidCard code),
       -- card is on its foundation (rank ≤ foundation top for its suit)
-      let suit := natToSuit ⟨(code >>> 4).toNat, by obtain ⟨h, _⟩ := ‹IsValidCard code›; exact h⟩
+      let suit := natToSuit ⟨(code >>> 4).toNat, hv.1⟩
       let rank := (code &&& 0xf).toNat
       (rank ≤ optRankToNat (s.foundations suit)) ∨
-      -- card is in a cell
-      (∃ (i : Fin 4), s.cells i = some (decodeCard code).get!) ∨
+      -- card is in a cell (exists a cell containing a card that encodes to code)
+      (∃ (i : Fin 4) (c : Card), s.cells i = some c ∧ encodeCard c = code) ∨
       -- card is somewhere in the tableau
       (∃ (p : Fin 10), ∃ (pos : Fin (s.tableau p).length),
           encodeCard ((s.tableau p).get pos) = code)
@@ -265,20 +283,170 @@ structure StateMatchesLayout (g : Globals) (s : Rules.State) : Prop where
 theorem LayoutConsistent.depthOf_lt5
     {g : Globals} (hg : LayoutConsistent g) (p : Fin 10) (d : Fin 5) :
     (g.depthOf (g.pos2cardAt p d) (IsValidCard_lt64 (hg.pos2card_valid p d))).toNat < 5 := by
-  have := hg.card2depth_eq p d; simp only at this; omega
+  have := hg.card2depth_eq p d (hg.pos2card_valid p d); omega
 
 /-- If a card's original pile depth `d` is less than the pile's current depth `n`,
     the card is still in the pile at the correct position. -/
 theorem StateMatchesLayout.card_in_pile
-    {g : Globals} {s : Rules.State}
+    {g : Globals} {s : State}
     (hg : LayoutConsistent g)
     (hs : StateMatchesLayout g s)
     (p : Fin 10) (d : Fin 5)
     (hn : ∃ n : Fin 6, PileMatches g (s.tableau p) p n ∧ d.val < n.val) :
     ∃ (pos : Fin (s.tableau p).length),
         encodeCard ((s.tableau p).get pos) = g.pos2cardAt p d := by
-  obtain ⟨n, ⟨hlen, hmatch⟩, hd⟩ := hn
-  have hk : d.val < (s.tableau p).reverse.length := by simp [List.length_reverse]; omega
-  exact ⟨⟨(s.tableau p).length - 1 - d.val, by omega⟩,
-    by rw [List.get_eq_get_reverse (s.tableau p) ⟨_, by omega⟩]
-       exact hmatch ⟨d.val, hd⟩⟩
+  obtain ⟨n, ⟨hlen, hmatch, _⟩, hd⟩ := hn
+  have hlen_pos : 0 < (s.tableau p).length := by omega
+  have hk : d.val < (s.tableau p).length := by omega
+  -- Extract the element from hmatch using the d-th index
+  have h_opt := hmatch ⟨d.val, hd⟩
+  -- h_opt : (s.tableau p).reverse[d.val]?.map encodeCard = some (g.pos2cardAt p d)
+  -- Since d.val < (s.tableau p).reverse.length = (s.tableau p).length, get? returns some
+  have hk_rev : d.val < (s.tableau p).reverse.length := by simp [List.length_reverse]; omega
+  rw [List.getElem?_eq_getElem hk_rev, Option.map_some] at h_opt
+  -- h_opt : encodeCard (s.tableau p).reverse[d.val] = g.pos2cardAt p d
+  -- The d-th element of reverse = the (length-1-d)-th element forwards
+  refine ⟨⟨(s.tableau p).length - 1 - d.val, by omega⟩, ?_⟩
+  simp only [List.get_eq_getElem]
+  rw [List.getElem_reverse hk_rev] at h_opt
+  -- h_opt : some (encodeCard l[length-1-d]) = some (pos2cardAt p d)
+  simp only [Globals.pos2cardAt]
+  exact Option.some.inj h_opt
+
+-- ============================================================
+-- Section 5: Preservation Under Rules Moves
+-- ============================================================
+
+/-- Applying a valid `Rules.Move` to a state that matches the layout yields
+    a state that still matches the layout.
+
+    A move takes a card from a source position (`pile`, `cell`) and places it
+    at a destination position (`pile`, `cell`, `foundation`).  The bottom
+    portion of every column recorded in `pos2card` is unchanged by moves —
+    only the flute (the top same-suit descending run) grows or shrinks — so
+    `PileMatches` is preserved for all piles, and the partition of all 52 cards
+    across foundation, cells, and tableau is maintained. -/
+-- ---- Helper: removing the top card preserves PileMatches (with same n)
+-- when the removed card was in the flute (col.length > n).
+private lemma PileMatches_tail_of_flute
+    {g : Globals} {col : Column} {p : Fin 10} {n : Fin 6}
+    (hm : PileMatches g col p n)
+    (hgt : col.length > n.val) :
+    PileMatches g col.tail p n := by
+  sorry
+
+-- ---- Helper: adding a card on top preserves PileMatches (with same n)
+-- when the card continues the flute's descending sequence.
+private lemma PileMatches_cons
+    {g : Globals} {col : Column} {p : Fin 10} {n : Fin 6} {card : Card}
+    (hm : PileMatches g col p n)
+    (hcont : col = [] ∨ col.head?.map encodeCard =
+             (nextCard card).map encodeCard) :
+    PileMatches g (card :: col) p n := by
+  sorry
+
+theorem StateMatchesLayout.applyMove
+    {g : Globals} {s s' : State} {m : Move}
+    (hg : LayoutConsistent g)
+    (hs : StateMatchesLayout g s)
+    (hm : applyMove s m = some s') :
+    StateMatchesLayout g s' := by
+  -- Extract the moved card and the intermediate state after the take.
+  have h_step : ∃ card s1,
+      takeFromPosition s m.src = some (card, s1) ∧
+      dropPosition s1 m.dest card = some s' := by
+    rcases h_tf : takeFromPosition s m.src with _ | ⟨card, s1⟩
+    · simp [_root_.applyMove, h_tf] at hm
+    · -- rcases substituted takeFromPosition s m.src ↦ some (card, s1) in the goal;
+      -- first conjunct is rfl. Rewrite hm to extract dropPosition.
+      unfold _root_.applyMove at hm
+      rw [h_tf] at hm   -- match some (card,s1) reduces
+      exact Exists.intro card (Exists.intro s1 ⟨rfl, hm⟩)
+  obtain ⟨card, s1, h_take, h_drop⟩ := h_step
+  -- Characterize the tableau/cells of s1 based on the source.
+  have h_s1_piles : ∀ q : Fin 10, s1.tableau q =
+      match m.src with
+      | Position.pile p => if p = q then (s.tableau q).tail else s.tableau q
+      | _               => s.tableau q := by
+    rcases m.src with p | c
+    · -- source is a pile
+      simp only [takeFromPosition, takeFromCol] at h_take
+      rcases h_col : s.tableau p with _ | ⟨top, rest⟩
+      · simp [h_col] at h_take
+      · simp only [h_col, Option.some.injEq, Prod.mk.injEq] at h_take
+        obtain ⟨rfl, rfl⟩ := h_take
+        intro q; simp [updateColumn, update]
+        split_ifs with h; · subst h; simp [h_col]
+    · -- source is a cell: tableau unchanged
+      simp [takeFromPosition, takeFromCell] at h_take
+      split at h_take
+      · simp at h_take
+      · obtain ⟨rfl, rfl⟩ := h_take; intro q; rfl
+  -- Characterize the tableau/cells of s' based on the destination.
+  have h_s'_piles : ∀ q : Fin 10, s'.tableau q =
+      match m.dest with
+      | Position.pile p => if p = q then card :: s1.tableau q else s1.tableau q
+      | _               => s1.tableau q := by
+    rcases m.dest with p | c
+    · simp only [dropPosition, dropCol] at h_drop
+      split_ifs at h_drop with h
+      · simp only [Option.some.injEq] at h_drop
+        rw [← h_drop]
+        intro q; simp [updateColumn, update]
+        split_ifs with h2; · subst h2; rfl
+      · simp at h_drop
+    · simp only [dropPosition, dropCell] at h_drop
+      split_ifs at h_drop with h
+      · simp only [Option.some.injEq] at h_drop
+        rw [← h_drop]; intro q; rfl
+      · simp at h_drop
+    · simp only [dropPosition, dropFoundation] at h_drop
+      split_ifs at h_drop with h
+      · simp only [Option.some.injEq] at h_drop; rw [← h_drop]; intro q; rfl
+      · simp at h_drop
+  constructor
+  · -- piles_match
+    intro q
+    -- Get the PileMatches witness for q in the original state.
+    obtain ⟨n, hn⟩ := hs.piles_match q
+    -- Determine s'.tableau q from the source/dest characterizations.
+    rw [show s'.tableau q = (match m.dest with
+        | Position.pile p => if p = q then card :: s1.tableau q else s1.tableau q
+        | _               => s1.tableau q) from h_s'_piles q]
+    rw [show s1.tableau q = (match m.src with
+        | Position.pile p => if p = q then (s.tableau q).tail else s.tableau q
+        | _               => s.tableau q) from h_s1_piles q]
+    -- Split on whether q is the source/dest pile
+    rcases m.src with src | src_cell <;> rcases m.dest with dst | dst_cell <;>
+      simp only
+    · -- pile → pile
+      by_cases h_src : src = q <;> by_cases h_dst : dst = q <;> simp [h_src, h_dst]
+      · -- q is both source and destination (same pile): tail then cons
+        exact ⟨n, sorry⟩
+      · -- q is source only
+        exact ⟨n, PileMatches_tail_of_flute hn (by
+          obtain ⟨hlen, _⟩ := hn; subst h_src; sorry)⟩
+      · -- q is destination only
+        exact ⟨n, PileMatches_cons_of_flute hn (by sorry)⟩
+      · -- q is neither: unchanged
+        exact ⟨n, hn⟩
+    · -- pile → cell: only source pile changes
+      by_cases h_src : src = q <;> simp [h_src]
+      · exact ⟨n, PileMatches_tail_of_flute hn (by subst h_src; sorry)⟩
+      · exact ⟨n, hn⟩
+    · -- pile → foundation: only source pile changes
+      by_cases h_src : src = q <;> simp [h_src]
+      · exact ⟨n, PileMatches_tail_of_flute hn (by subst h_src; sorry)⟩
+      · exact ⟨n, hn⟩
+    · -- cell → pile: only destination pile changes
+      by_cases h_dst : dst = q <;> simp [h_dst]
+      · exact ⟨n, PileMatches_cons_of_flute hn (by sorry)⟩
+      · exact ⟨n, hn⟩
+    · -- cell → cell: no pile changes
+      exact ⟨n, hn⟩
+    · -- cell → foundation: no pile changes
+      exact ⟨n, hn⟩
+  · -- cells_valid
+    sorry
+  · -- cards_partition
+    sorry
