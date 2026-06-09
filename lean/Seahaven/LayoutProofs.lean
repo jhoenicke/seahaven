@@ -278,8 +278,6 @@ theorem LayoutConsistent.depthOf_lt5
     the card is still in the pile at the correct position. -/
 theorem StateMatchesLayout.card_in_pile
     {g : Globals} {s : State}
-    (hg : LayoutConsistent g)
-    (hs : StateMatchesLayout g s)
     (p : Fin 10) (d : Fin 5)
     (hn : ∃ n : Fin 6, PileMatches g (s.tableau p) p n ∧ d.val < n.val) :
     ∃ (pos : Fin (s.tableau p).length),
@@ -558,7 +556,7 @@ private lemma PileMatches_cons
       -- Establish VALUE (encodeCard card).toNat = startVal - m.
       have hVALUE_card :
           (VALUE (encodeCard card)).toNat =
-          (VALUE boundary).toNat - 1 - ((top :: rest).length - n.val) := by
+          (VALUE boundary).toNat - 1 - (rest.length + 1 - n.val) := by
         by_cases hm0 : (top :: rest).length = n.val
         · -- Flute empty: top = boundary, m = 0.
           have htop_boundary : encodeCard top = boundary := by
@@ -567,38 +565,62 @@ private lemma PileMatches_cons
             rw [hrev_last_eq_top hm0, Option.map_some] at hk
             exact Option.some.inj hk
           have hm_zero : (top :: rest).length - n.val = 0 := by omega
-          rw [hm_zero, Nat.sub_zero]
+          simp only [List.length_cons] at hm_zero
           have : (VALUE (encodeCard top)).toNat = (VALUE boundary).toNat := by rw [htop_boundary]
           omega
         · have := (hnonempty_facts hm0).2
-          simp only [List.length_cons]; sorry
+          simp only [List.length_cons] at hlen hm0
+          omega
       -- Apply IsSameSuitDescending_snoc using the proved facts.
-      exact IsSameSuitDescending_snoc hflute hSUIT_card (by simp [hm_len]; sorry)
-    · -- Case n = 0: the whole column must be a king-sequence (or empty).
+      exact IsSameSuitDescending_snoc hflute hSUIT_card (by simp; omega)
+    · -- Case n = 0: whole column is a king-sequence (or empty).
       simp only [dif_neg hn] at hflute
-      have hn0 : n.val = 0 := by omega
-      have hcol : col = [] := by
-        rcases col with _ | ⟨_, _⟩
-        · rfl
-        · simp at hlen; sorry
-      subst hcol
-      -- hcont : none = nextCard card, so card is a king.
-      simp only [List.head?] at hcont
-      have hking_rank : rankToNat card.rank = 13 := nextCard_none_rank hcont.symm
-      -- Old flute is [], new flute is [encodeCard card].
-      -- Need ∃ suit, IsSameSuitDescending suit 13 [encodeCard card].
-      obtain ⟨-, -⟩ := hflute
-      simp only [hn0, List.drop_zero, List.map_nil]
-      refine ⟨SUIT (encodeCard card), ?_⟩
-      intro ⟨i, hi⟩
-      have hi0 : i = 0 := by sorry
-      subst hi0
-      simp only [List.get_eq_getElem, List.getElem_cons_zero, Nat.sub_zero]
-      exact ⟨rfl, by simp [encodeCard_VALUE, hking_rank]⟩
+      have hn0 : (↑n : ℕ) = 0 := by omega
+      simp only [hn0, List.drop_zero] at hflute ⊢
+      -- Goal: ∃ suit, IsSameSuitDescending suit 13 (col.reverse.map encodeCard ++ [encodeCard card])
+      -- hflute: ∃ suit, IsSameSuitDescending suit 13 (col.reverse.map encodeCard)
+      rcases col with _ | ⟨top, rest⟩
+      · -- col = []: card must be a king.
+        simp only [List.head?] at hcont
+        have hking_rank : rankToNat card.rank = 13 := nextCard_none_rank hcont.symm
+        simp only [List.reverse_nil, List.map_nil, List.nil_append]
+        refine ⟨SUIT (encodeCard card), fun ⟨i, hi⟩ => ?_⟩
+        simp only [List.length_singleton] at hi
+        have hi0 : i = 0 := by omega
+        subst hi0
+        simp [List.get_eq_getElem, encodeCard_VALUE, hking_rank]
+      · -- col = top :: rest: extend via IsSameSuitDescending_snoc.
+        simp only [List.head?] at hcont
+        have hcont' : nextCard card = some top := hcont.symm
+        have hsuit_eq : top.suit = card.suit := nextCard_suit hcont'
+        have hrank_eq : rankToNat top.rank = rankToNat card.rank + 1 := nextCard_rank hcont'
+        have hSUIT : SUIT (encodeCard card) = SUIT (encodeCard top) := by
+          simp [encodeCard_SUIT, hsuit_eq]
+        have hVALUE : (VALUE (encodeCard card)).toNat + 1 = (VALUE (encodeCard top)).toNat := by
+          simp [encodeCard_VALUE, hrank_eq]
+        obtain ⟨suit, hflute_suit⟩ := hflute
+        -- Rewrite old flute as rest.reverse.map encodeCard ++ [encodeCard top].
+        have hflute_eq : ((top :: rest).reverse.map encodeCard) =
+            rest.reverse.map encodeCard ++ [encodeCard top] := by
+          simp [List.reverse_cons, List.map_append]
+        have hlen_A : (rest.reverse.map encodeCard).length = rest.length := by
+          simp [List.length_reverse]
+        have hfidx : rest.length < (rest.reverse.map encodeCard ++ [encodeCard top]).length := by
+          simp
+        -- Apply hflute_suit (via ▸) at the last index to get suit and value for encodeCard top.
+        have h_pair := (hflute_eq ▸ hflute_suit) ⟨rest.length, hfidx⟩
+        have h_last : (rest.reverse.map encodeCard ++ [encodeCard top])[rest.length]'hfidx =
+            encodeCard top := by
+          rw [List.getElem_append_right (by omega)]
+          simp
+        simp only [List.get_eq_getElem, h_last] at h_pair
+        -- h_pair : SUIT (encodeCard top) = suit ∧ (VALUE (encodeCard top)).toNat = 13 - rest.length
+        refine ⟨suit, IsSameSuitDescending_snoc hflute_suit ?_ ?_⟩
+        · rw [hSUIT]; exact h_pair.1
+        · simp only [List.length_map, List.length_reverse, List.length_cons]; omega
 
 theorem StateMatchesLayout.applyMove
     {g : Globals} {s s' : State} {m : Move}
-    (hg : LayoutConsistent g)
     (hs : StateMatchesLayout g s)
     (hm : applyMove s m = some s') :
     StateMatchesLayout g s' := by
