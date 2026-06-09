@@ -1,6 +1,9 @@
 import Mathlib.Tactic
 import Seahaven.Rules
 import Seahaven.Solver
+import Seahaven.CountProofs
+-- CountProofs exports @[simp] lemmas for `update` that interfere with proofs here.
+attribute [-simp] update_same update_diff update2
 
 /-!
 # Layout Consistency and State Matching
@@ -257,22 +260,8 @@ structure StateMatchesLayout (g : Globals) (s : State) : Prop where
   piles_match : ∀ (p : Fin 10),
       ∃ (n : Fin 6), PileMatches g (s.tableau p) p n
 
-  /-- Every card in a cell is a valid card code when encoded. -/
-  cells_valid : ∀ (i : Fin 4) (c : Card),
-      s.cells i = some c → IsValidCard (encodeCard c)
-
-  /-- Every valid card code appears in exactly one location across
-      foundation, cells, and tableau. -/
-  cards_partition : ∀ (code : UInt8) (hv : IsValidCard code),
-      -- card is on its foundation (rank ≤ foundation top for its suit)
-      let suit := natToSuit ⟨(code >>> 4).toNat, hv.1⟩
-      let rank := (code &&& 0xf).toNat
-      (rank ≤ optRankToNat (s.foundations suit)) ∨
-      -- card is in a cell (exists a cell containing a card that encodes to code)
-      (∃ (i : Fin 4) (c : Card), s.cells i = some c ∧ encodeCard c = code) ∨
-      -- card is somewhere in the tableau
-      (∃ (p : Fin 10), ∃ (pos : Fin (s.tableau p).length),
-          encodeCard ((s.tableau p).get pos) = code)
+  /-- Every card appears exactly once across foundation, cells, and tableau. -/
+  cards_count : ∀ (c : Card), countState s c = 1
 
 -- ============================================================
 -- Section 4: Key Lemmas Relating the Two Predicates
@@ -316,6 +305,7 @@ theorem StateMatchesLayout.card_in_pile
 -- ============================================================
 -- Section 5: Preservation Under Rules Moves
 -- ============================================================
+
 
 /-- Applying a valid `Rules.Move` to a state that matches the layout yields
     a state that still matches the layout.
@@ -401,15 +391,210 @@ private lemma PileMatches_tail
       · exact fun i => i.elim0
       · exact ⟨0, fun i => i.elim0⟩
 
+-- ---- Encoding helpers
+private lemma encodeCard_SUIT (c : Card) :
+    SUIT (encodeCard c) = UInt8.ofNat (suitToNat c.suit) := by
+  fin_cases c <;> native_decide
+
+private lemma encodeCard_VALUE (c : Card) :
+    (VALUE (encodeCard c)).toNat = rankToNat c.rank := by
+  fin_cases c <;> native_decide
+
+-- nextCard preserves suit; rank increases by 1
+private lemma nextCard_suit {c top : Card} (h : nextCard c = some top) :
+    top.suit = c.suit := by
+  simp [nextCard] at h; split at h <;> simp_all [Card.ext_iff]
+
+private lemma nextCard_rank {c top : Card} (h : nextCard c = some top) :
+    rankToNat top.rank = rankToNat c.rank + 1 := by
+  simp [nextCard, nextRank] at h
+  split at h <;> [simp at h; rename_i r hr]
+  have hinjr : top.rank = r := by have := Option.some.inj h; simp [Card.ext_iff] at this; exact this.2.symm
+  rw [hinjr]; exact nextRankNat (some c.rank) r (by simpa [optRankToNat, nextRank])
+
+-- nextCard c = none means c is a king (rank 13)
+private lemma nextCard_none_rank {c : Card} (h : nextCard c = none) :
+    rankToNat c.rank = 13 := by
+  obtain ⟨suit, rank⟩ := c
+  simp[nextCard] at h
+  rcases h_eq: nextRank (some rank) with _ | r
+  · cases rank <;> simp[nextRank,optRankToNat,rankToNat,natToRank] at h_eq
+    simp[rankToNat]
+  · simp[h_eq] at h
+
+-- ---- Extend IsSameSuitDescending by appending one element
+private lemma IsSameSuitDescending_snoc
+    {suit : UInt8} {sv : Nat} {cards : List UInt8} {c : UInt8}
+    (h : IsSameSuitDescending suit sv cards)
+    (hsuit : SUIT c = suit)
+    (hval : (VALUE c).toNat = sv - cards.length) :
+    IsSameSuitDescending suit sv (cards ++ [c]) := by
+  intro ⟨i, hi⟩
+  simp only [List.length_append, List.length_singleton] at hi
+  by_cases hlt : i < cards.length
+  · have := h ⟨i, hlt⟩
+    simp only [List.get_eq_getElem, List.getElem_append_left hlt]
+    exact this
+  · have heq : i = cards.length := by omega
+    subst heq
+    simp only [List.get_eq_getElem, List.getElem_append_right (le_refl _),
+               Nat.sub_self, List.getElem_cons_zero]
+    exact ⟨hsuit, hval⟩
+
 -- ---- Helper: adding a card on top preserves PileMatches (with same n)
 -- when the card continues the flute's descending sequence.
+-- hcont uses the exact dropCol guard: col.head? = nextCard card.
+-- When col = [], this requires nextCard card = none, i.e. card is a king.
+-- When col ≠ [], it requires the current top to be the card one rank above card.
 private lemma PileMatches_cons
     {g : Globals} {col : Column} {p : Fin 10} {n : Fin 6} {card : Card}
     (hm : PileMatches g col p n)
-    (hcont : col = [] ∨ col.head?.map encodeCard =
-             (nextCard card).map encodeCard) :
+    (hcont : col.head? = nextCard card) :
     PileMatches g (card :: col) p n := by
-  sorry
+  obtain ⟨hlen, hbot, hflute⟩ := hm
+  refine ⟨by simp; omega, ?_, ?_⟩
+  · -- Bottom n cards unchanged: (card :: col).reverse = col.reverse ++ [card],
+    -- and for k < n, k < col.reverse.length, so the ++ [card] suffix is invisible.
+    intro k
+    have hk : k.val < col.reverse.length := by simp [List.length_reverse]; omega
+    simp only [List.reverse_cons, List.getElem?_append_left hk]
+    exact hbot k
+  · -- Flute condition.  New reverse = col.reverse ++ [card]; dropping n yields
+    -- (col.reverse.drop n) ++ [card], so new fluteCards = old fluteCards ++ [encodeCard card].
+    simp only
+    rw [show (card :: col).reverse = col.reverse ++ [card] from List.reverse_cons ..]
+    rw [List.drop_append_of_le_length (by simp [List.length_reverse]; omega)]
+    rw [List.map_append, List.map_singleton]
+    have hm_len : ((col.reverse.drop n.val).map encodeCard).length = col.length - n.val := by
+      simp [List.length_drop, List.length_reverse]
+    split_ifs with hn
+    · -- Case n > 0: flute continues from the boundary card pos2card[p][n-1].
+      simp only [dif_pos hn] at hflute
+      -- col ≠ [] because col.length ≥ n ≥ 1.  Destructure to name the head `top`.
+      have hne : col ≠ [] := List.ne_nil_of_length_pos (by omega)
+      obtain ⟨top, rest, rfl⟩ := List.exists_cons_of_ne_nil hne
+      simp only [List.head?] at hcont
+      have hcont' : nextCard card = some top := hcont.symm
+      -- Suit/rank correspondence between card and top.
+      have hsuit_eq : top.suit = card.suit   := nextCard_suit hcont'
+      have hrank_eq : rankToNat top.rank = rankToNat card.rank + 1 := nextCard_rank hcont'
+      -- Derived encoding equalities.
+      have hSUIT : SUIT (encodeCard card) = SUIT (encodeCard top) := by
+        simp [encodeCard_SUIT, hsuit_eq]
+      have hVALUE : (VALUE (encodeCard card)).toNat + 1 = (VALUE (encodeCard top)).toNat := by
+        simp [encodeCard_VALUE, hrank_eq]
+      set boundary := (g.pos2card.get p).get ⟨n.val - 1, by omega⟩
+      -- Helper: the (n-1)-th element of (top :: rest).reverse is `top` when
+      -- rest.length = n - 1 (i.e. the old flute is empty and top IS the boundary card).
+      have hrev_last_eq_top : ∀ hm0 : (top :: rest).length = n.val,
+          (top :: rest).reverse[n.val - 1]? = some top := fun hm0 => by
+        rw [show (top :: rest).reverse = rest.reverse ++ [top] from List.reverse_cons ..]
+        have hlen_rest : rest.length = n.val - 1 := by simp at hm0; omega
+        -- reindex: n-1 = rest.reverse.length, so the append suffix is at index 0
+        have hkey : n.val - 1 = rest.reverse.length := by simp [List.length_reverse, hlen_rest]
+        rw [hkey, List.getElem?_append_right (le_refl _), Nat.sub_self]
+        simp
+      -- Helper for nonempty-flute branches: the last element of the mapped old flute is encodeCard top.
+      -- We state this with getElem? (no bound argument) to avoid dependent-motive issues in rw.
+      -- Proof: drop n from (rest.reverse ++ [top]) gives (rest.reverse.drop n) ++ [top];
+      --        its last position (index rest.length - n) is the singleton [top].
+      have hlast_is_top : ∀ hn_le : n.val ≤ rest.length,
+          (((top :: rest).reverse.drop n.val).map encodeCard)[rest.length - n.val]? =
+          some (encodeCard top) := fun hn_le => by
+        -- (top :: rest).reverse = rest.reverse ++ [top]
+        -- drop n from that = rest.reverse.drop n ++ [top]
+        have hlist_eq : (top :: rest).reverse.drop n.val = rest.reverse.drop n.val ++ [top] := by
+          rw [List.reverse_cons, List.drop_append_of_le_length (by simp [List.length_reverse]; omega)]
+        simp only [hlist_eq, List.map_append, List.map_singleton]
+        -- (map …).length at the split point
+        have hlen_d : (List.map encodeCard (rest.reverse.drop n.val)).length = rest.length - n.val := by
+          simp [List.length_drop, List.length_reverse]
+        -- index rest.length - n.val into (A ++ [encodeCard top]) lands in the singleton
+        rw [List.getElem?_append_right (by omega), hlen_d, Nat.sub_self]
+        simp
+      -- Shared helper for the nonempty-flute sub-case:
+      -- rewrite hflute to the concrete form A ++ [encodeCard top], then index directly.
+      -- The ▸ motive (fun x => IsSameSuitDescending … x) is type-correct, so no motive issues.
+      have hnonempty_facts : (top :: rest).length ≠ n.val →
+          SUIT (encodeCard top) = SUIT boundary ∧
+          (VALUE (encodeCard top)).toNat = (VALUE boundary).toNat - 1 - (rest.length - n.val) := by
+        intro hm0
+        have hn_le : n.val ≤ rest.length := by simp only [List.length_cons] at hlen hm0; omega
+        -- (top :: rest).reverse.drop n = rest.reverse.drop n ++ [top]
+        have hflute_eq : (((top :: rest).reverse.drop n.val).map encodeCard) =
+            (rest.reverse.drop n.val).map encodeCard ++ [encodeCard top] := by
+          rw [show (top :: rest).reverse.drop n.val = rest.reverse.drop n.val ++ [top] from by
+            rw [List.reverse_cons, List.drop_append_of_le_length (by simp [List.length_reverse]; omega)]]
+          simp [List.map_append]
+        -- Inline A to avoid set-opacity issues with simp.
+        have hA_len : ((rest.reverse.drop n.val).map encodeCard).length = rest.length - n.val := by
+          simp [List.length_drop, List.length_reverse]
+        have hfidx : rest.length - n.val <
+            ((rest.reverse.drop n.val).map encodeCard ++ [encodeCard top]).length := by
+          simp
+        -- Apply hflute (rewritten via ▸) at index A.length.
+        have h_pair := (hflute_eq ▸ hflute) ⟨rest.length - n.val, hfidx⟩
+        -- Reduce getElem on (A ++ [encodeCard top]) at index A.length to encodeCard top.
+        -- Motive is (fun x => x = encodeCard top): type-correct, no dependency issues.
+        have h_last :
+            ((rest.reverse.drop n.val).map encodeCard ++ [encodeCard top])[rest.length - n.val]'hfidx =
+            encodeCard top := by
+          rw [List.getElem_append_right (by omega)]
+          simp
+        simp only [List.get_eq_getElem, h_last] at h_pair
+        exact ⟨h_pair.1, h_pair.2⟩
+      -- Establish SUIT (encodeCard card) = SUIT boundary.
+      have hSUIT_card : SUIT (encodeCard card) = SUIT boundary := by
+        rw [hSUIT]
+        by_cases hm0 : (top :: rest).length = n.val
+        · -- Flute empty: top IS the boundary card.
+          have htop_boundary : encodeCard top = boundary := by
+            have hk := hbot ⟨n.val - 1, by omega⟩
+            simp only at hk
+            rw [hrev_last_eq_top hm0, Option.map_some] at hk
+            exact Option.some.inj hk
+          rw [htop_boundary]
+        · exact (hnonempty_facts hm0).1
+      -- Establish VALUE (encodeCard card).toNat = startVal - m.
+      have hVALUE_card :
+          (VALUE (encodeCard card)).toNat =
+          (VALUE boundary).toNat - 1 - ((top :: rest).length - n.val) := by
+        by_cases hm0 : (top :: rest).length = n.val
+        · -- Flute empty: top = boundary, m = 0.
+          have htop_boundary : encodeCard top = boundary := by
+            have hk := hbot ⟨n.val - 1, by omega⟩
+            simp only at hk
+            rw [hrev_last_eq_top hm0, Option.map_some] at hk
+            exact Option.some.inj hk
+          have hm_zero : (top :: rest).length - n.val = 0 := by omega
+          rw [hm_zero, Nat.sub_zero]
+          have : (VALUE (encodeCard top)).toNat = (VALUE boundary).toNat := by rw [htop_boundary]
+          omega
+        · have := (hnonempty_facts hm0).2
+          simp only [List.length_cons]; sorry
+      -- Apply IsSameSuitDescending_snoc using the proved facts.
+      exact IsSameSuitDescending_snoc hflute hSUIT_card (by simp [hm_len]; sorry)
+    · -- Case n = 0: the whole column must be a king-sequence (or empty).
+      simp only [dif_neg hn] at hflute
+      have hn0 : n.val = 0 := by omega
+      have hcol : col = [] := by
+        rcases col with _ | ⟨_, _⟩
+        · rfl
+        · simp at hlen; sorry
+      subst hcol
+      -- hcont : none = nextCard card, so card is a king.
+      simp only [List.head?] at hcont
+      have hking_rank : rankToNat card.rank = 13 := nextCard_none_rank hcont.symm
+      -- Old flute is [], new flute is [encodeCard card].
+      -- Need ∃ suit, IsSameSuitDescending suit 13 [encodeCard card].
+      obtain ⟨-, -⟩ := hflute
+      simp only [hn0, List.drop_zero, List.map_nil]
+      refine ⟨SUIT (encodeCard card), ?_⟩
+      intro ⟨i, hi⟩
+      have hi0 : i = 0 := by sorry
+      subst hi0
+      simp only [List.get_eq_getElem, List.getElem_cons_zero, Nat.sub_zero]
+      exact ⟨rfl, by simp [encodeCard_VALUE, hking_rank]⟩
 
 theorem StateMatchesLayout.applyMove
     {g : Globals} {s s' : State} {m : Move}
@@ -509,17 +694,19 @@ theorem StateMatchesLayout.applyMove
     intro q
     obtain ⟨n, hn⟩ := h_take_piles q
     rw [h_s'_piles q]
-    rcases m.dest with dst | _ | _
+    rcases h_dest : m.dest with dst | c | _
     · -- pile dest: dst pile gains card on top; all other piles unchanged
       by_cases h : dst = q
       · simp [h]
-        exact ⟨n, PileMatches_cons hn (by sorry)⟩
+        simp[dropPosition,h_dest,dropCol,h] at h_drop
+        obtain⟨headcard,_⟩ := h_drop
+        exact ⟨n, PileMatches_cons hn headcard⟩
       · simp [h]; exact ⟨n, hn⟩
     · -- cell dest: no pile changes
       exact ⟨n, hn⟩
     · -- foundation dest: no pile changes
       exact ⟨n, hn⟩
-  · -- cells_valid
-    sorry
-  · -- cards_partition
-    sorry
+  · -- cards_count: preserved by movePreservesCards
+    intro c
+    have hpres := congrFun (movePreservesCards s m s' hm) c
+    rw [← hpres]; exact hs.cards_count c
