@@ -397,6 +397,69 @@ static uint16_t computeComponentKingBits(SolverPosType *game) {
 }
 
 /*
+ * Check that the game position is well-formed and normalized.  This checks that
+ * no automatic moves are possible, that the usedSpace is correct as well as the
+ * free piles, and that the hashcode is correct.
+ */
+static bool checkCleanPosition(SolverPosType *game) {
+    int freePiles = 0;
+    int numCards = 52;
+    uint32_t hash = 0;
+
+    for (int i = 0; i < 4; i++) {
+        assert(SUIT(game->aces[i]) == i);
+        assert(SUIT(game->kings[i]) == i);
+        assert(VALUE(game->kings[i]) <= KING);
+        assert(VALUE(game->aces[i]) <= VALUE(game->kings[i]));
+
+        numCards -= VALUE(game->aces[i]);
+        if (game->aces[i] == CARD(i, KING)) {
+            assert(game->kings[i] == CARD(i,KING));
+        } else {
+            assert(game->aces[i] < game->kings[i]);
+            int nextfoundation = game->aces[i] + 1;
+            assert(card2depth[nextfoundation] < game->pileDepth[card2pile[nextfoundation]] - 1);
+            int nextking = game->kings[i];
+            assert(card2depth[nextking] <= game->pileDepth[card2pile[nextking]] - 1);
+        }
+        for(int j = CARD(i,1); j <= game->aces[i]; j++) {
+            assert(card2depth[j] > game->pileDepth[card2pile[j]] - 1);
+        }
+        for(int j = game->kings[i] + 1; j <= CARD(i,KING); j++) {
+            assert(card2depth[j] > game->pileDepth[card2pile[j]] - 1);
+        }
+    }
+
+    for (int i = 0; i < 10; i++) {
+        hash += pileHashes[i] * game->pileDepth[i];
+        if (game->pileDepth[i] == 0) {
+            freePiles++;
+            assert(game->pileFlute[i] == 1);
+        } else {
+            numCards -= game->pileDepth[i] + game->pileFlute[i] - 1;
+            int card = pos2card[i][game->pileDepth[i] - 1];
+            for (int j = 1 ; j < game->pileFlute[i]; j++) {
+                assert(VALUE(card-j) > ACE);
+                assert(card2depth[card-j] > game->pileDepth[card2pile[card-j]] - 1);
+            }
+            int nextcard = card - game->pileFlute[i];
+            assert(VALUE(nextcard) >= ACE);
+            assert(card2depth[nextcard] <= game->pileDepth[card2pile[nextcard]] - 1);
+            if (game->pileDepth[i] > 1) {
+                assert(pos2card[i][game->pileDepth[i] - 2] != card + 1);
+            } else {
+                assert(VALUE(card) != KING);
+            }
+        }
+    }
+    assert(game->usedSpace == numCards);
+    assert(game->freePiles == freePiles);
+    assert(game->busyAces == 0);
+    assert(game->hash == hash);
+    return 1;
+}
+
+/*
  * Populates kingInfo->possibleKings[k] with a bitmask of local king-config
  * indices that have at least k free extra slots.
  *
@@ -703,6 +766,7 @@ static uint16_t solverGetMovable(KingInfo *kingInfo, int shiftValue, int fluteLe
 static uint16_t solverRecCheckSolvable(SolverPosType *game) {
     KingInfo kingInfo;
     const ClosureInfo *closureInfo = &closureInfos[game->freePiles];
+    assert(checkCleanPosition(game));
 
     if (game->hash == 0) {
         return 1;
