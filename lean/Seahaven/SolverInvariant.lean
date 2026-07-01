@@ -1,21 +1,8 @@
+import Mathlib.Tactic
 import Seahaven.Solver
 
--- Safe accessor: original card at position `pos` in `pile`'s initial layout.
--- Returns 0 when `pos` is out of range (negative or ≥ 5).
-private def pos2cardAt (g : Globals) (pile : Fin 10) (pos : Int32) : UInt8 :=
-  if h : pos.toNatClampNeg < 5 then
-    (g.pos2card.get pile).get ⟨pos.toNatClampNeg, h⟩
-  else 0
-
--- Safe accessors for aces / kings (indexed by suit as UInt8; default 0).
-private def aceLevel (p : SolverPosType) (suit : UInt8) : Int8 :=
-  if h : suit.toNat < 4 then p.aces.get ⟨suit.toNat, h⟩ else 0
-
-private def kingLevel (p : SolverPosType) (suit : UInt8) : Int8 :=
-  if h : suit.toNat < 4 then p.kings.get ⟨suit.toNat, h⟩ else 0
-
 /-- Card `c` is **free**: its original pile's depth has been reduced to or
-    below its original position, so it has been moved off the pile. -/
+    past its original position, meaning it has been moved off the pile. -/
 def isFreeCard (g : Globals) (p : SolverPosType) (c : UInt8) : Prop :=
   let pile      : UInt8 := if h : c.toNat < 64 then g.card2pile.get  ⟨c.toNat, h⟩ else 0
   let origDepth : UInt8 := if h : c.toNat < 64 then g.card2depth.get ⟨c.toNat, h⟩ else 0
@@ -25,32 +12,95 @@ def isFreeCard (g : Globals) (p : SolverPosType) (c : UInt8) : Prop :=
 
 /-- A `SolverPosType` is in **canonical form** — the form produced by
     `SolverConvertFromPilesKings` followed by `SolverCleanupPile` and
-    `SolverMoveAces` — when all five conditions below hold.
+    `SolverMoveAces` — when all seven conditions below hold.
 
     Key consequence: two canonical positions with equal `pileDepth` vectors
     are necessarily equal (see `IsCanonicalPos_unique`), because every other
     field is uniquely determined by the pile depths. -/
 structure IsCanonicalPos (g : Globals) (p : SolverPosType) : Prop where
 
-  /-- **(1) Merge complete.** For every non-trivial pile, the card immediately
-      below the boundary is *not* the same-suit predecessor of the boundary
-      card.  (The merge loop in `SolverCleanupPile` has terminated.) -/
+  /-- **(0) Pile depth bound.** All pile depths are at most 5 (the initial
+      deal size), expressed as a `Nat` bound so it is directly usable by
+      `omega` when constructing `Fin 5` indices. -/
+  pileDepth_bound : ∀ i : Fin 10, (p.pileDepth.get i).toNatClampNeg ≤ 5
+
+  /-- **(0b) Pile depths non-negative.** Pile depths never go below zero. -/
+  pileDepth_nonneg : ∀ i : Fin 10, 0 ≤ p.pileDepth.get i
+
+  /-- **(1) Aces and kings well-formedness.** For each suit `s`:
+      - `aces[s]` has suit `s` and value in `[0, 13]`;
+      - `kings[s]` has suit `s` and value in `[1, 13]` (value 0 would mean
+        all cards of the suit are free and should have been moved to the
+        foundation already);
+      - `aces[s] ≤ kings[s]` (equality holds iff the suit is complete, i.e.
+        `VALUE(aces[s]) = 13`). -/
+  aces_kings_valid : ∀ s : Fin 4,
+    SUIT (p.aces.get s).toUInt8 = s.val.toUInt8 ∧
+    (VALUE (p.aces.get s).toUInt8).toNat ≤ 13 ∧
+    SUIT (p.kings.get s).toUInt8 = s.val.toUInt8 ∧
+    1 ≤ (VALUE (p.kings.get s).toUInt8).toNat ∧
+    (VALUE (p.kings.get s).toUInt8).toNat ≤ 13 ∧
+    p.aces.get s ≤ p.kings.get s
+
+  /-- **(2) Merge complete.** For every non-trivial pile, the card just below
+      the boundary is not the same-suit predecessor of the boundary card.
+      (The merge loop in `SolverCleanupPile` has terminated.) -/
   merge_complete : ∀ i : Fin 10,
     p.pileDepth.get i ≤ 1 ∨
-    pos2cardAt g i ((p.pileDepth.get i).toInt32 - 2) ≠
-    pos2cardAt g i ((p.pileDepth.get i).toInt32 - 1) + 1
+    (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 2,
+        by have := pileDepth_bound i; omega⟩ ≠
+    (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound i; omega⟩ + 1
 
-  /-- **(2) Flute maximal.** For every non-empty pile, the card that would
-      further extend the flute upward is either at or below the foundation
-      level for that suit, or is not free.
+  /-- **(3) Flute length.** `pileFlute[i] ≥ 1` always.  The boundary card is
+      the "start" of the flute and is not free (it is still in the pile), so
+      the minimum meaningful flute length is 1.  For empty piles (`pileDepth =
+      0`) there is no boundary card, and we canonicalise `pileFlute = 1`. -/
+  flute_pos : ∀ i : Fin 10, 1 ≤ (p.pileFlute.get i).toNat
+
+  flute_empty : ∀ i : Fin 10,
+    p.pileDepth.get i = 0 → p.pileFlute.get i = 1
+
+  /-- **(3a) Flute cards are free.** For every non-empty pile, the
+      `pileFlute[i] - 1` cards strictly below the boundary (i.e.
+      `boundary - j` for `0 < j < pileFlute[i]`) are free.
+      The boundary card itself is NOT free — it is still in the pile. -/
+  flute_cards_free : ∀ i : Fin 10, ∀ j : UInt8,
+    (p.pileDepth.get i).toNatClampNeg > 0 →
+    0 < j.toNat → j.toNat < (p.pileFlute.get i).toNat →
+    isFreeCard g p
+      ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+          by have := pileDepth_bound i; omega⟩ -
+       j)
+
+  /-- **(3c) Interior flute cards not aces-captured.** Each interior flute card
+      (positions 1 through pileFlute-2) has not yet been moved to the foundation:
+      `aces[suit] < (boundary - j)` as `Int8`.  This, combined with `flute_maximal`,
+      uniquely pins `pileFlute`. -/
+  flute_not_aces : ∀ i : Fin 10, ∀ j : UInt8,
+    (p.pileDepth.get i).toNatClampNeg > 0 →
+    0 < j.toNat → j.toNat < (p.pileFlute.get i).toNat →
+    ∀ hs : (SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound i; omega⟩)).toNat < 4,
+    p.aces.get ⟨(SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound i; omega⟩)).toNat, hs⟩ <
+    ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound i; omega⟩ - j).toInt8
+
+  /-- **(3b) Flute maximal.** For every non-empty pile, the card that would
+      further extend the flute downward (`prevCard = boundary - pileFlute`) is
+      either at or below the foundation level for that suit, or is not free.
       (The freed-predecessor loop in `SolverCleanupPile` has terminated.) -/
   flute_maximal : ∀ i : Fin 10,
     p.pileDepth.get i = 0 ∨
-    (let boundary := pos2cardAt g i ((p.pileDepth.get i).toInt32 - 1)
-     let prevCard := boundary - p.pileFlute.get i
-     aceLevel p (SUIT boundary) ≥ prevCard.toInt8 ∨ ¬ isFreeCard g p prevCard)
+    let boundary := (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound i; omega⟩
+    let prevCard := boundary - p.pileFlute.get i
+    (∃ hs : (SUIT boundary).toNat < 4,
+      p.aces.get ⟨(SUIT boundary).toNat, hs⟩ ≥ prevCard.toInt8) ∨
+    ¬ isFreeCard g p prevCard
 
-  /-- **(3a) Foundation cards are free.** Every card of suit `s` with value
+  /-- **(4a) Foundation cards are free.** Every card of suit `s` with value
       between 1 and `VALUE(aces[s])` (inclusive) has been freed. -/
   foundation_cards_free : ∀ s : Fin 4, ∀ c : UInt8,
     SUIT c = s.val.toUInt8 →
@@ -58,13 +108,13 @@ structure IsCanonicalPos (g : Globals) (p : SolverPosType) : Prop where
     (VALUE c).toNat ≤ (VALUE (p.aces.get s).toUInt8).toNat →
     isFreeCard g p c
 
-  /-- **(3b) Foundation maximal.** The card just above `aces[s]` is not free
+  /-- **(4b) Foundation maximal.** The card just above `aces[s]` is not free
       (or the suit is already complete with `ace = 13`). -/
   foundation_maximal : ∀ s : Fin 4,
     (VALUE (p.aces.get s).toUInt8).toNat = 13 ∨
     ¬ isFreeCard g p ((p.aces.get s).toUInt8 + 1)
 
-  /-- **(4) King frontier.** Either the suit is complete — all 13 cards are in
+  /-- **(5) King frontier.** Either the suit is complete — all 13 cards are in
       the foundation and `kings[s] = aces[s]` — or `kings[s]` is the
       lowest-value card in the suit that is still not free, and every card of
       the same suit with a strictly higher value (up to 13) is free. -/
@@ -77,16 +127,414 @@ structure IsCanonicalPos (g : Globals) (p : SolverPosType) : Prop where
        (VALUE c).toNat ≤ 13 →
        isFreeCard g p c)
 
-  /-- **(5) No pending foundation work.** `busyAces = 0` means
-      `SolverMoveAces` has been called to quiescence. -/
+  /-- **(6) busyAces complete.** For each suit `s`, if the next foundation
+      card `aces[s] + 1` is exactly the boundary card of some pile, then
+      bit `s` is set in `busyAces`.  This is the invariant maintained by
+      `SolverCleanupPile` (and preserved by `SolverMoveAces`). -/
+  busyAces_complete : ∀ s : Fin 4, ∀ i : Fin 10,
+    (p.pileDepth.get i).toNatClampNeg > 0 →
+    (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound i; omega⟩ =
+    (p.aces.get s).toUInt8 + 1 →
+    p.busyAces &&& ((1 : UInt8) <<< s.val.toUInt8) ≠ 0
+
+  /-- **(7) busyAces zero.** No foundation advancement is pending:
+      `SolverMoveAces` has run to quiescence and all bits are clear. -/
   busyAces_zero : p.busyAces = 0
 
+  /-- **(8) Hash formula.** The hash is the dot product of `pileHashes` and
+      `pileDepth` (mod 2^32), so it is uniquely determined by `pileDepth`. -/
+  hash_def : p.hash = (List.finRange 10).foldl
+    (fun acc i => acc + pileHashes.get i * (p.pileDepth.get i).toNatClampNeg.toUInt32) 0
+
+  /-- **(9) Free-piles count.** `freePiles` equals the number of piles whose
+      depth is zero.  (Lone-king piles are vacated to depth 0 during cleanup.) -/
+  freePiles_def : p.freePiles.toInt =
+    (p.pileDepth.toList.countP (· == 0) : Nat)
+
+  /-- **(10) Used-space formula.**  The merge-loop depth decrements and the
+      lone-king `usedSpace` correction cancel exactly, leaving:
+        usedSpace = 52 − Σ depths − Σ VALUE(aces[s]) − Σ_{dp>0} (pileFlute[i]−1). -/
+  usedSpace_def : p.usedSpace.toInt =
+    (52 : Int)
+    - (p.pileDepth.toList.foldl (fun acc d => acc + d.toNatClampNeg) 0 : Nat)
+    - (p.aces.toList.foldl (fun acc a => acc + (VALUE a.toUInt8).toNat) 0 : Nat)
+    - (List.zipWith (fun d f => if d ≠ (0 : Int8) then f.toNat - 1 else 0)
+        p.pileDepth.toList p.pileFlute.toList |>.foldl (· + ·) 0 : Nat)
+
+-- ---------------------------------------------------------------------------
+-- Arithmetic helpers for SUIT / VALUE
+-- ---------------------------------------------------------------------------
+
+private theorem nat_and_15 (n : Nat) : n &&& 15 = n % 16 := by
+  simpa using Nat.and_two_pow_sub_one_eq_mod n 4
+
+private theorem VALUE_toNat (c : UInt8) : (VALUE c).toNat = c.toNat % 16 := by
+  simp [VALUE, UInt8.toNat_and, nat_and_15]
+
+private theorem SUIT_toNat (c : UInt8) : (SUIT c).toNat = c.toNat / 16 := by
+  simp [SUIT, Nat.shiftRight_eq_div_pow]
+
+private theorem toNat_succ (c : UInt8) (hc : c.toNat < 255) : (c + 1).toNat = c.toNat + 1 := by
+  simp only [UInt8.toNat_add, UInt8.toNat_ofNat]; omega
+
+/-- Adding 1 to a card preserves suit when its value is at most 14. -/
+private theorem SUIT_succ (c : UInt8) (h : (VALUE c).toNat < 15) : SUIT (c + 1) = SUIT c := by
+  apply UInt8.toNat_inj.mp; rw [SUIT_toNat, SUIT_toNat]
+  have hv := VALUE_toNat c
+  rw [toNat_succ c (by have := c.toNat_lt; omega)]; omega
+
+/-- Adding 1 to a card increments its value when the value is at most 14. -/
+private theorem VALUE_succ (c : UInt8) (h : (VALUE c).toNat < 15) :
+    (VALUE (c + 1)).toNat = (VALUE c).toNat + 1 := by
+  simp only [VALUE_toNat]
+  have hv := VALUE_toNat c
+  rw [toNat_succ c (by have := c.toNat_lt; omega)]; omega
+
+/-- Two cards with the same suit and value are equal. -/
+private theorem card_eq_of_suit_value (c d : UInt8)
+    (hs : SUIT c = SUIT d) (hv : (VALUE c).toNat = (VALUE d).toNat) : c = d := by
+  apply UInt8.toNat_inj.mp
+  have hsc : c.toNat = (SUIT c).toNat * 16 + (VALUE c).toNat := by
+    rw [SUIT_toNat, VALUE_toNat]; omega
+  have hsd : d.toNat = (SUIT d).toNat * 16 + (VALUE d).toNat := by
+    rw [SUIT_toNat, VALUE_toNat]; omega
+  rw [hsc, hsd, hs, hv]
+
+-- ---------------------------------------------------------------------------
+-- Arithmetic helpers for Int8 / toNatClampNeg
+-- ---------------------------------------------------------------------------
+
+private theorem toNatClampNeg_pos {x : Int8} (h1 : 0 ≤ x) (h2 : x ≠ 0) :
+    x.toNatClampNeg > 0 := by
+  rw [Int8.le_iff_toInt_le, show (0 : Int8).toInt = 0 from rfl] at h1
+  have h3 : x.toInt ≠ 0 := fun h => h2 (Int8.toInt_inj.mp h)
+  show x.toInt.toNat > 0
+  omega
+
+-- ---------------------------------------------------------------------------
+-- Uniqueness theorem
+-- ---------------------------------------------------------------------------
+
 /-- Two canonical `SolverPosType`s with identical pile depths are equal.
-    Proof sketch: with the same `pileDepth`, `isFreeCard` is identical for
-    every card, uniquely determining `aces` (free-prefix walk from ACE),
-    `kings` (free-suffix walk from KING), `pileFlute` (merge + freed-
-    predecessor walk), `usedSpace`, `freePiles`, `hash`, and `busyAces = 0`. -/
+    Because `isFreeCard` depends only on `pileDepth`, all other fields are
+    uniquely pinned by the canonical-form conditions. -/
 theorem IsCanonicalPos_unique (g : Globals) (p q : SolverPosType)
     (hp : IsCanonicalPos g p) (hq : IsCanonicalPos g q)
     (hdepth : p.pileDepth = q.pileDepth) : p = q := by
-  sorry
+  -- isFreeCard is identical for p and q (depends only on pileDepth)
+  have free_iff : ∀ c : UInt8, isFreeCard g p c ↔ isFreeCard g q c := fun c => by
+    simp only [isFreeCard, hdepth]
+  -- busyAces: both are 0
+  have hbusy : p.busyAces = q.busyAces := by
+    rw [hp.busyAces_zero, hq.busyAces_zero]
+  -- aces: uniquely determined by the free-prefix walk
+  have haces : p.aces = q.aces := by
+    apply Vector.ext; intro sn hn
+    let s : Fin 4 := ⟨sn, hn⟩
+    show p.aces.get s = q.aces.get s
+    -- It suffices to show the VALUE components agree (SUIT is s for both)
+    have hpsuit := (hp.aces_kings_valid s).1
+    have hqsuit := (hq.aces_kings_valid s).1
+    have hpval  := (hp.aces_kings_valid s).2.1
+    have hqval  := (hq.aces_kings_valid s).2.1
+    suffices hv : (VALUE (p.aces.get s).toUInt8).toNat = (VALUE (q.aces.get s).toUInt8).toNat by
+      -- UInt8 equality, then Int8 equality
+      have hUInt8 : (p.aces.get s).toUInt8 = (q.aces.get s).toUInt8 :=
+        card_eq_of_suit_value _ _ (hpsuit.trans hqsuit.symm) hv
+      exact congrArg Int8.ofUInt8 hUInt8
+    apply Nat.le_antisymm
+    · -- VALUE(p.aces) ≤ VALUE(q.aces):
+      -- if not, the card (q.aces+1) would be free in p but forbidden by foundation_maximal
+      by_contra hlt; push Not at hlt
+      have hcval : (VALUE (q.aces.get s).toUInt8).toNat < 15 := by omega
+      have hcsuit : SUIT ((q.aces.get s).toUInt8 + 1) = s.val.toUInt8 :=
+        (SUIT_succ _ hcval).trans hqsuit
+      have hcval1 : 1 ≤ (VALUE ((q.aces.get s).toUInt8 + 1)).toNat := by
+        have h := VALUE_succ _ hcval; omega
+      have hcval2 : (VALUE ((q.aces.get s).toUInt8 + 1)).toNat ≤
+          (VALUE (p.aces.get s).toUInt8).toNat := by
+        have h := VALUE_succ _ hcval; omega
+      have hfree_p := hp.foundation_cards_free s _ hcsuit hcval1 hcval2
+      have hfree_q := (free_iff _).mp hfree_p
+      rcases hq.foundation_maximal s with h13 | hnfree
+      · omega
+      · exact hnfree hfree_q
+    · -- VALUE(q.aces) ≤ VALUE(p.aces): symmetric
+      by_contra hlt; push Not at hlt
+      have hcval : (VALUE (p.aces.get s).toUInt8).toNat < 15 := by omega
+      have hcsuit : SUIT ((p.aces.get s).toUInt8 + 1) = s.val.toUInt8 :=
+        (SUIT_succ _ hcval).trans hpsuit
+      have hcval1 : 1 ≤ (VALUE ((p.aces.get s).toUInt8 + 1)).toNat := by
+        have h := VALUE_succ _ hcval; omega
+      have hcval2 : (VALUE ((p.aces.get s).toUInt8 + 1)).toNat ≤
+          (VALUE (q.aces.get s).toUInt8).toNat := by
+        have h := VALUE_succ _ hcval; omega
+      have hfree_q := hq.foundation_cards_free s _ hcsuit hcval1 hcval2
+      have hfree_p := (free_iff _).mpr hfree_q
+      rcases hp.foundation_maximal s with h13 | hnfree
+      · omega
+      · exact hnfree hfree_p
+  -- kings: uniquely determined by the free-suffix walk
+  have hkings : p.kings = q.kings := by
+    apply Vector.ext; intro sn hn
+    let s : Fin 4 := ⟨sn, hn⟩
+    show p.kings.get s = q.kings.get s
+    have hpsuit := (hp.aces_kings_valid s).2.2.1   -- SUIT(p.kings[s]) = s
+    have hqsuit := (hq.aces_kings_valid s).2.2.1   -- SUIT(q.kings[s]) = s
+    have hpval1 := (hp.aces_kings_valid s).2.2.2.1  -- 1 ≤ VALUE(p.kings[s])
+    have hqval1 := (hq.aces_kings_valid s).2.2.2.1  -- 1 ≤ VALUE(q.kings[s])
+    have hpval  := (hp.aces_kings_valid s).2.2.2.2.1 -- VALUE(p.kings[s]) ≤ 13
+    have hqval  := (hq.aces_kings_valid s).2.2.2.2.1 -- VALUE(q.kings[s]) ≤ 13
+    -- Helper: VALUE(kings[s]) = 13 when king_frontier case 1 holds
+    have kings_val_13 : ∀ (r : SolverPosType) (t : Fin 4),
+        r.kings.get t = r.aces.get t →
+        (VALUE (r.aces.get t).toUInt8).toNat = 13 →
+        (VALUE (r.kings.get t).toUInt8).toNat = 13 := fun r t hkeq h13 =>
+      (congrArg (fun x : Int8 => (VALUE x.toUInt8).toNat) hkeq).trans h13
+    suffices hv : (VALUE (p.kings.get s).toUInt8).toNat = (VALUE (q.kings.get s).toUInt8).toNat by
+      have hUInt8 := card_eq_of_suit_value _ _ (hpsuit.trans hqsuit.symm) hv
+      exact congrArg Int8.ofUInt8 hUInt8
+    apply Nat.le_antisymm
+    · -- VALUE(p.kings) ≤ VALUE(q.kings)
+      -- Contradiction assumption: VALUE_q < VALUE_p
+      by_contra hlt; push Not at hlt
+      rcases hp.king_frontier s with ⟨h13p, hkp⟩ | ⟨hnfp, hap⟩
+      · -- hp case 1: VALUE(p.aces) = 13, p.kings = p.aces, so VALUE(p.kings) = 13.
+        -- q.kings is free in p (foundation covers all of suit s up to 13).
+        -- Contradiction from q's king_frontier.
+        have hkp13 := kings_val_13 p s hkp h13p
+        have hkq_free_p := hp.foundation_cards_free s (q.kings.get s).toUInt8
+          hqsuit hqval1 (by omega)
+        rcases hq.king_frontier s with ⟨h13q, hkq⟩ | ⟨hnfq, _⟩
+        · exact absurd (kings_val_13 q s hkq h13q) (by omega)
+        · exact hnfq ((free_iff _).mp hkq_free_p)
+      · -- hp case 2: p.kings is not free; all above p.kings are free in p.
+        -- Since VALUE_q < VALUE_p, p.kings is above q.kings in q's frontier.
+        rcases hq.king_frontier s with ⟨h13q, hkq⟩ | ⟨hnfq, haq⟩
+        · -- hq case 1: VALUE(q.kings) = 13; hlt gives 13 < VALUE_p ≤ 13
+          exact absurd (kings_val_13 q s hkq h13q) (by omega)
+        · -- hq case 2: p.kings is above q.kings (VALUE_p > VALUE_q), free in q, hence in p
+          exact hnfp ((free_iff _).mpr (haq _ hpsuit (by omega) (by omega)))
+    · -- VALUE(q.kings) ≤ VALUE(p.kings): symmetric
+      -- Contradiction assumption: VALUE_p < VALUE_q
+      by_contra hlt; push Not at hlt
+      rcases hq.king_frontier s with ⟨h13q, hkq⟩ | ⟨hnfq, haq⟩
+      · -- hq case 1: VALUE(q.aces) = 13, q.kings = q.aces, so VALUE(q.kings) = 13.
+        -- p.kings is free in q (foundation covers all of suit s up to 13).
+        -- Contradiction from p's king_frontier.
+        have hkq13 := kings_val_13 q s hkq h13q
+        have hkp_free_q := hq.foundation_cards_free s (p.kings.get s).toUInt8
+          hpsuit hpval1 (by omega)
+        rcases hp.king_frontier s with ⟨h13p, hkp⟩ | ⟨hnfp, _⟩
+        · exact absurd (kings_val_13 p s hkp h13p) (by omega)
+        · exact hnfp ((free_iff _).mpr hkp_free_q)
+      · -- hq case 2: q.kings is not free; all above q.kings are free in q.
+        rcases hp.king_frontier s with ⟨h13p, hkp⟩ | ⟨hnfp, hap⟩
+        · -- hp case 1: VALUE(p.kings) = 13; hlt gives 13 < VALUE_q ≤ 13
+          exact absurd (kings_val_13 p s hkp h13p) (by omega)
+        · -- hp case 2: q.kings is above p.kings (VALUE_q > VALUE_p), free in p, hence in q
+          exact hnfq ((free_iff _).mp (hap _ hqsuit (by omega) (by omega)))
+  -- pileFlute: uniquely determined by the same isFreeCard / aces plus flute_not_aces
+  have hflute : p.pileFlute = q.pileFlute := by
+    apply Vector.ext; intro in_ hn
+    let i : Fin 10 := ⟨in_, hn⟩
+    show p.pileFlute.get i = q.pileFlute.get i
+    have hdepth_i : p.pileDepth.get i = q.pileDepth.get i :=
+      congrArg (fun v : Vector Int8 10 => v.get i) hdepth
+    by_cases hd : p.pileDepth.get i = 0
+    · -- Empty pile: both pileFlute = 1 by flute_empty
+      rw [hp.flute_empty i hd, hq.flute_empty i (hdepth_i ▸ hd)]
+    · -- Non-empty pile: use antisymmetry
+      have hdp_pos : (p.pileDepth.get i).toNatClampNeg > 0 :=
+        toNatClampNeg_pos (hp.pileDepth_nonneg i) hd
+      have hdq_pos : (q.pileDepth.get i).toNatClampNeg > 0 := hdepth_i ▸ hdp_pos
+      -- The boundary card is the same for p and q (same pos2card index)
+      have hdnc : (p.pileDepth.get i).toNatClampNeg = (q.pileDepth.get i).toNatClampNeg :=
+        congrArg Int8.toNatClampNeg hdepth_i
+      have hbdy : (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+              by have := hp.pileDepth_bound i; omega⟩ =
+                 (g.pos2card.get i).get ⟨(q.pileDepth.get i).toNatClampNeg - 1,
+              by have := hq.pileDepth_bound i; omega⟩ :=
+        congrArg (g.pos2card.get i).get (Fin.ext (congrArg (· - 1) hdnc))
+      -- Helper: apply flute_not_aces contradiction given the aces/card equalities
+      -- pileFlute_p ≤ pileFlute_q
+      have hle1 : (p.pileFlute.get i).toNat ≤ (q.pileFlute.get i).toNat := by
+        by_contra hlt
+        have hlt' : (q.pileFlute.get i).toNat < (p.pileFlute.get i).toNat := Nat.lt_of_not_le hlt
+        have hj1 : 0 < (q.pileFlute.get i).toNat := hq.flute_pos i
+        -- boundary_p - pileFlute_q is interior to p's flute, hence free in both
+        have hfree_q := (free_iff _).mp
+          (hp.flute_cards_free i (q.pileFlute.get i) hdp_pos hj1 hlt')
+        rcases hq.flute_maximal i with hd0 | ⟨hs, hge⟩ | hnfree
+        · exact hd (hdepth_i.symm ▸ hd0)
+        · -- aces_q ≥ prevCard_q; flute_not_aces of p gives aces_p < same card
+          have hsuit : (SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+                          by have := hp.pileDepth_bound i; omega⟩)).toNat =
+                       (SUIT ((g.pos2card.get i).get ⟨(q.pileDepth.get i).toNatClampNeg - 1,
+                          by have := hq.pileDepth_bound i; omega⟩)).toNat :=
+            congrArg UInt8.toNat (congrArg SUIT hbdy)
+          have hs' : (SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+                        by have := hp.pileDepth_bound i; omega⟩)).toNat < 4 := hsuit ▸ hs
+          have hlt_aces := hp.flute_not_aces i (q.pileFlute.get i) hdp_pos hj1 hlt' hs'
+          have haces_s : p.aces.get ⟨_, hs'⟩ = q.aces.get ⟨_, hs⟩ :=
+            (congrArg (fun v : Vector Int8 4 => v.get ⟨_, hs'⟩) haces).trans
+              (congrArg q.aces.get (Fin.ext hsuit))
+          have hcard : ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+                          by have := hp.pileDepth_bound i; omega⟩ -
+                        q.pileFlute.get i).toInt8 =
+                       ((g.pos2card.get i).get ⟨(q.pileDepth.get i).toNatClampNeg - 1,
+                          by have := hq.pileDepth_bound i; omega⟩ -
+                        q.pileFlute.get i).toInt8 := by rw [hbdy]
+          rw [haces_s, hcard] at hlt_aces
+          exact absurd hge (Int8.not_le.mpr hlt_aces)
+        · exact hnfree (hbdy ▸ hfree_q)
+      -- pileFlute_q ≤ pileFlute_p (symmetric)
+      have hle2 : (q.pileFlute.get i).toNat ≤ (p.pileFlute.get i).toNat := by
+        by_contra hlt
+        have hlt' : (p.pileFlute.get i).toNat < (q.pileFlute.get i).toNat := Nat.lt_of_not_le hlt
+        have hj1 : 0 < (p.pileFlute.get i).toNat := hp.flute_pos i
+        have hfree_p := (free_iff _).mpr
+          (hq.flute_cards_free i (p.pileFlute.get i) hdq_pos hj1 hlt')
+        rcases hp.flute_maximal i with hd0 | ⟨hs, hge⟩ | hnfree
+        · exact hd hd0
+        · have hsuit : (SUIT ((g.pos2card.get i).get ⟨(q.pileDepth.get i).toNatClampNeg - 1,
+                          by have := hq.pileDepth_bound i; omega⟩)).toNat =
+                       (SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+                          by have := hp.pileDepth_bound i; omega⟩)).toNat :=
+            congrArg UInt8.toNat (congrArg SUIT hbdy.symm)
+          have hs' : (SUIT ((g.pos2card.get i).get ⟨(q.pileDepth.get i).toNatClampNeg - 1,
+                        by have := hq.pileDepth_bound i; omega⟩)).toNat < 4 := hsuit ▸ hs
+          have hlt_aces := hq.flute_not_aces i (p.pileFlute.get i) hdq_pos hj1 hlt' hs'
+          have haces_s : q.aces.get ⟨_, hs'⟩ = p.aces.get ⟨_, hs⟩ :=
+            (congrArg (fun v : Vector Int8 4 => v.get ⟨_, hs'⟩) haces.symm).trans
+              (congrArg p.aces.get (Fin.ext hsuit))
+          have hcard : ((g.pos2card.get i).get ⟨(q.pileDepth.get i).toNatClampNeg - 1,
+                          by have := hq.pileDepth_bound i; omega⟩ -
+                        p.pileFlute.get i).toInt8 =
+                       ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+                          by have := hp.pileDepth_bound i; omega⟩ -
+                        p.pileFlute.get i).toInt8 := by rw [hbdy.symm]
+          rw [haces_s, hcard] at hlt_aces
+          exact absurd hge (Int8.not_le.mpr hlt_aces)
+        · exact hnfree (hbdy.symm ▸ hfree_p)
+      exact UInt8.ext (Nat.le_antisymm hle1 hle2)
+  -- freePiles: count of piles with depth 0, so determined by pileDepth
+  have hfree : p.freePiles = q.freePiles :=
+    Int8.toInt_inj.mp (hp.freePiles_def.trans (by rw [hdepth]) |>.trans hq.freePiles_def.symm)
+  -- usedSpace: formula in pileDepth, aces, pileFlute
+  have hused : p.usedSpace = q.usedSpace :=
+    Int8.toInt_inj.mp (hp.usedSpace_def.trans (by rw [hdepth, haces, hflute]) |>.trans hq.usedSpace_def.symm)
+  -- hash: dot product of pileHashes and pileDepth
+  have hhash : p.hash = q.hash :=
+    hp.hash_def.trans (by rw [hdepth]) |>.trans hq.hash_def.symm
+  -- Combine all field equalities into p = q
+  obtain ⟨ph, ppd, ppf, pa, pk, pus, pfp, pba⟩ := p
+  obtain ⟨qh, qpd, qpf, qa, qk, qus, qfp, qba⟩ := q
+  simp only [SolverPosType.mk.injEq] at *
+  exact ⟨hhash, hdepth, hflute, haces, hkings, hused, hfree, hbusy⟩
+
+-- ---------------------------------------------------------------------------
+-- Hash injectivity
+-- ---------------------------------------------------------------------------
+
+/-- An `Int8` that is nonnegative is determined by `x.toInt.toNat`. -/
+private theorem Int8_eq_of_toNat_eq {x y : Int8} (hx : (0 : Int8) ≤ x) (hy : (0 : Int8) ≤ y)
+    (h : x.toInt.toNat = y.toInt.toNat) : x = y := by
+  apply Int8.toInt_inj.mp
+  have hx' : (0 : Int) ≤ x.toInt := Int8.le_iff_toInt_le.mp hx
+  have hy' : (0 : Int) ≤ y.toInt := Int8.le_iff_toInt_le.mp hy
+  omega
+
+/-- **Base-6 hash injectivity, arithmetic core.**  If two base-6 dot products of
+    ten digits each in `{0,…,5}` agree as `UInt32`, the digits agree.  The sum is
+    at most `6^10 - 1 = 60466175 < 2^32`, so the `UInt32` reduction never wraps and
+    the equation is a genuine `Nat` equation, decided by `omega`. -/
+private theorem hash_dot_inj (d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 : Nat) (hd0 : d0 ≤ 5) (hd1 : d1 ≤ 5) (hd2 : d2 ≤ 5) (hd3 : d3 ≤ 5) (hd4 : d4 ≤ 5) (hd5 : d5 ≤ 5) (hd6 : d6 ≤ 5) (hd7 : d7 ≤ 5) (hd8 : d8 ≤ 5) (hd9 : d9 ≤ 5) (he0 : e0 ≤ 5) (he1 : e1 ≤ 5) (he2 : e2 ≤ 5) (he3 : e3 ≤ 5) (he4 : e4 ≤ 5) (he5 : e5 ≤ 5) (he6 : e6 ≤ 5) (he7 : e7 ≤ 5) (he8 : e8 ≤ 5) (he9 : e9 ≤ 5)
+    (h : (0 + 1 * d0.toUInt32 + 6 * d1.toUInt32 + 36 * d2.toUInt32 + 216 * d3.toUInt32 + 1296 * d4.toUInt32 + 7776 * d5.toUInt32 + 46656 * d6.toUInt32 + 279936 * d7.toUInt32 + 1679616 * d8.toUInt32 + 10077696 * d9.toUInt32 : UInt32) =
+         (0 + 1 * e0.toUInt32 + 6 * e1.toUInt32 + 36 * e2.toUInt32 + 216 * e3.toUInt32 + 1296 * e4.toUInt32 + 7776 * e5.toUInt32 + 46656 * e6.toUInt32 + 279936 * e7.toUInt32 + 1679616 * e8.toUInt32 + 10077696 * e9.toUInt32 : UInt32)) :
+    d0 = e0 ∧ d1 = e1 ∧ d2 = e2 ∧ d3 = e3 ∧ d4 = e4 ∧ d5 = e5 ∧ d6 = e6 ∧ d7 = e7 ∧ d8 = e8 ∧ d9 = e9 := by
+  -- Rewrite each side as `(Nat dot product).toUInt32` via the ring homomorphism `Nat.toUInt32`.
+  rw [show (0 + 1 * d0.toUInt32 + 6 * d1.toUInt32 + 36 * d2.toUInt32 + 216 * d3.toUInt32 + 1296 * d4.toUInt32 + 7776 * d5.toUInt32 + 46656 * d6.toUInt32 + 279936 * d7.toUInt32 + 1679616 * d8.toUInt32 + 10077696 * d9.toUInt32 : UInt32)
+          = (1 * d0 + 6 * d1 + 36 * d2 + 216 * d3 + 1296 * d4 + 7776 * d5 + 46656 * d6 + 279936 * d7 + 1679616 * d8 + 10077696 * d9).toUInt32 from by
+        simp only [show ∀ x : Nat, x.toUInt32 = UInt32.ofNat x from fun _ => rfl,
+                   UInt32.ofNat_add, UInt32.ofNat_mul, UInt32.reduceOfNat, UInt32.zero_add],
+      show (0 + 1 * e0.toUInt32 + 6 * e1.toUInt32 + 36 * e2.toUInt32 + 216 * e3.toUInt32 + 1296 * e4.toUInt32 + 7776 * e5.toUInt32 + 46656 * e6.toUInt32 + 279936 * e7.toUInt32 + 1679616 * e8.toUInt32 + 10077696 * e9.toUInt32 : UInt32)
+          = (1 * e0 + 6 * e1 + 36 * e2 + 216 * e3 + 1296 * e4 + 7776 * e5 + 46656 * e6 + 279936 * e7 + 1679616 * e8 + 10077696 * e9).toUInt32 from by
+        simp only [show ∀ x : Nat, x.toUInt32 = UInt32.ofNat x from fun _ => rfl,
+                   UInt32.ofNat_add, UInt32.ofNat_mul, UInt32.reduceOfNat, UInt32.zero_add]] at h
+  -- Both dot products are `< 2^32`, so taking `.toNat` yields a plain `Nat` equation.
+  have bp : 1 * d0 + 6 * d1 + 36 * d2 + 216 * d3 + 1296 * d4 + 7776 * d5 + 46656 * d6 + 279936 * d7 + 1679616 * d8 + 10077696 * d9 < 4294967296 := by omega
+  have bq : 1 * e0 + 6 * e1 + 36 * e2 + 216 * e3 + 1296 * e4 + 7776 * e5 + 46656 * e6 + 279936 * e7 + 1679616 * e8 + 10077696 * e9 < 4294967296 := by omega
+  have hnat : 1 * d0 + 6 * d1 + 36 * d2 + 216 * d3 + 1296 * d4 + 7776 * d5 + 46656 * d6 + 279936 * d7 + 1679616 * d8 + 10077696 * d9 = 1 * e0 + 6 * e1 + 36 * e2 + 216 * e3 + 1296 * e4 + 7776 * e5 + 46656 * e6 + 279936 * e7 + 1679616 * e8 + 10077696 * e9 := by
+    have hh := congrArg UInt32.toNat h
+    simp only [show ∀ x : Nat, x.toUInt32 = UInt32.ofNat x from fun _ => rfl,
+               UInt32.toNat_ofNat', Nat.reducePow] at hh
+    rwa [Nat.mod_eq_of_lt bp, Nat.mod_eq_of_lt bq] at hh
+  -- Base-6 uniqueness with digits in {0,…,5}, one omega call per digit.
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> omega
+
+/-- If two canonical positions have equal hashes, their pile depth vectors are
+    identical.  The hash is `Σ 6^i · depth[i]` with `depth[i] ∈ {0,…,5}`,
+    i.e., the base-6 representation of the depth vector, which is injective
+    because `6^10 − 1 = 60 466 175 < 2^32` (no overflow). -/
+theorem IsCanonicalPos_hash_inj (g : Globals) (p q : SolverPosType)
+    (hp : IsCanonicalPos g p) (hq : IsCanonicalPos g q)
+    (hhash : p.hash = q.hash) : p.pileDepth = q.pileDepth := by
+  -- Extract hash foldl equality as UInt32.
+  -- Omega (Lean 4.6+) handles UInt32 natively, so no need to take .toNat.
+  have hfoldl :
+      (List.finRange 10).foldl
+        (fun acc i => acc + pileHashes.get i * (p.pileDepth.get i).toNatClampNeg.toUInt32) 0 =
+      (List.finRange 10).foldl
+        (fun acc i => acc + pileHashes.get i * (q.pileDepth.get i).toNatClampNeg.toUInt32) 0 :=
+    hp.hash_def.symm.trans (hhash.trans hq.hash_def)
+  -- Expand the foldl: List.finRange → ofFn → concrete list, then foldl_cons/nil steps.
+  -- Vector.get unfolds v.get ⟨k,h⟩ → v.toArray[...]; getElem_toArray then converts
+  -- v.toArray[k] → v[k] so all depth terms use GetElem ([k]) notation, matching the
+  -- bounds below and the goal produced by Vector.ext.
+  simp only [List.finRange, List.ofFn_succ, List.ofFn_zero, List.foldl_cons, List.foldl_nil,
+             pileHashes, Vector.get, Vector.getElem_toArray, Fin.isValue, Fin.val_cast,
+             Fin.val_zero, Fin.val_succ, Nat.reduceAdd, List.getElem_toArray,
+             List.getElem_cons_succ, List.getElem_cons_zero, Int8.toNatClampNeg] at hfoldl
+  -- Bounds stated with [k] getElem notation (definitionally equal to .get ⟨k,_⟩ via the
+  -- GetElem instance), so omega sees the same atoms as in hfoldl and the Vector.ext goal.
+  have hpb0 : (p.pileDepth[0] : Int8).toNatClampNeg ≤ 5 := hp.pileDepth_bound ⟨0, by omega⟩
+  have hpb1 : (p.pileDepth[1] : Int8).toNatClampNeg ≤ 5 := hp.pileDepth_bound ⟨1, by omega⟩
+  have hpb2 : (p.pileDepth[2] : Int8).toNatClampNeg ≤ 5 := hp.pileDepth_bound ⟨2, by omega⟩
+  have hpb3 : (p.pileDepth[3] : Int8).toNatClampNeg ≤ 5 := hp.pileDepth_bound ⟨3, by omega⟩
+  have hpb4 : (p.pileDepth[4] : Int8).toNatClampNeg ≤ 5 := hp.pileDepth_bound ⟨4, by omega⟩
+  have hpb5 : (p.pileDepth[5] : Int8).toNatClampNeg ≤ 5 := hp.pileDepth_bound ⟨5, by omega⟩
+  have hpb6 : (p.pileDepth[6] : Int8).toNatClampNeg ≤ 5 := hp.pileDepth_bound ⟨6, by omega⟩
+  have hpb7 : (p.pileDepth[7] : Int8).toNatClampNeg ≤ 5 := hp.pileDepth_bound ⟨7, by omega⟩
+  have hpb8 : (p.pileDepth[8] : Int8).toNatClampNeg ≤ 5 := hp.pileDepth_bound ⟨8, by omega⟩
+  have hpb9 : (p.pileDepth[9] : Int8).toNatClampNeg ≤ 5 := hp.pileDepth_bound ⟨9, by omega⟩
+  have hqb0 : (q.pileDepth[0] : Int8).toNatClampNeg ≤ 5 := hq.pileDepth_bound ⟨0, by omega⟩
+  have hqb1 : (q.pileDepth[1] : Int8).toNatClampNeg ≤ 5 := hq.pileDepth_bound ⟨1, by omega⟩
+  have hqb2 : (q.pileDepth[2] : Int8).toNatClampNeg ≤ 5 := hq.pileDepth_bound ⟨2, by omega⟩
+  have hqb3 : (q.pileDepth[3] : Int8).toNatClampNeg ≤ 5 := hq.pileDepth_bound ⟨3, by omega⟩
+  have hqb4 : (q.pileDepth[4] : Int8).toNatClampNeg ≤ 5 := hq.pileDepth_bound ⟨4, by omega⟩
+  have hqb5 : (q.pileDepth[5] : Int8).toNatClampNeg ≤ 5 := hq.pileDepth_bound ⟨5, by omega⟩
+  have hqb6 : (q.pileDepth[6] : Int8).toNatClampNeg ≤ 5 := hq.pileDepth_bound ⟨6, by omega⟩
+  have hqb7 : (q.pileDepth[7] : Int8).toNatClampNeg ≤ 5 := hq.pileDepth_bound ⟨7, by omega⟩
+  have hqb8 : (q.pileDepth[8] : Int8).toNatClampNeg ≤ 5 := hq.pileDepth_bound ⟨8, by omega⟩
+  have hqb9 : (q.pileDepth[9] : Int8).toNatClampNeg ≤ 5 := hq.pileDepth_bound ⟨9, by omega⟩
+  -- Normalize toNatClampNeg → toInt.toNat everywhere.
+  simp only [Int8.toNatClampNeg] at *
+  -- Reduce the `UInt32` hash equation to the ten pointwise digit equalities via the
+  -- arithmetic core.  The bounds fix each abstract digit to the corresponding depth, so
+  -- `hfoldl` matches by first-order unification (no expensive `getElem` reduction).
+  have key := hash_dot_inj _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+    hpb0 hpb1 hpb2 hpb3 hpb4 hpb5 hpb6 hpb7 hpb8 hpb9
+    hqb0 hqb1 hqb2 hqb3 hqb4 hqb5 hqb6 hqb7 hqb8 hqb9 hfoldl
+  -- Drop the (large) `UInt32` hash equation so the tactics below do not choke on it.
+  clear hfoldl
+  obtain ⟨k0, k1, k2, k3, k4, k5, k6, k7, k8, k9⟩ := key
+  -- Each component follows from its digit equality (`k0 … k9`, found by `assumption` once
+  -- `interval_cases` has fixed the index) plus nonnegativity.  `Int8_eq_of_toNat_eq` does
+  -- the `.toInt.toNat → .toInt → Int8` bridge that `omega` cannot do on `Int8` directly.
+  apply Vector.ext
+  intro i hi
+  interval_cases i <;>
+    exact Int8_eq_of_toNat_eq (hp.pileDepth_nonneg ⟨_, by omega⟩)
+      (hq.pileDepth_nonneg ⟨_, by omega⟩) (by assumption)
