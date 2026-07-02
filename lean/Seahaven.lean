@@ -4,3 +4,6 @@ import Seahaven.Basic
 import Seahaven.Solver
 import Seahaven.BitmapProofs
 import Seahaven.CountProofs
+import Seahaven.SolverInvariant
+import Seahaven.SolverModel
+import Seahaven.SolverSpec

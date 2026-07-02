@@ -10,14 +10,61 @@ def isFreeCard (g : Globals) (p : SolverPosType) (c : UInt8) : Prop :=
     if h : pile.toNat < 10 then p.pileDepth.get ⟨pile.toNat, h⟩ else 0
   origDepth.toNat ≥ pileDepth.toNatClampNeg
 
-/-- A `SolverPosType` is in **canonical form** — the form produced by
-    `SolverConvertFromPilesKings` followed by `SolverCleanupPile` and
-    `SolverMoveAces` — when all seven conditions below hold.
+-- ---------------------------------------------------------------------------
+-- Layout well-formedness
+--
+-- The three global arrays `pos2card` / `card2pile` / `card2depth` encode a fixed
+-- deal.  `WellFormedLayout` states that they are mutually consistent — this is
+-- what `initcard` establishes and what the `isFreeCard`-based invariants need.
+-- ---------------------------------------------------------------------------
 
-    Key consequence: two canonical positions with equal `pileDepth` vectors
-    are necessarily equal (see `IsCanonicalPos_unique`), because every other
-    field is uniquely determined by the pile depths. -/
-structure IsCanonicalPos (g : Globals) (p : SolverPosType) : Prop where
+/-- The original pile index of card `c` (mirrors `isFreeCard`'s indexing). -/
+def cardPile (g : Globals) (c : UInt8) : UInt8 :=
+  if h : c.toNat < 64 then g.card2pile.get ⟨c.toNat, h⟩ else 0
+
+/-- The original within-pile depth of card `c` (mirrors `isFreeCard`). -/
+def cardDepth (g : Globals) (c : UInt8) : UInt8 :=
+  if h : c.toNat < 64 then g.card2depth.get ⟨c.toNat, h⟩ else 0
+
+/-- `c` is a **real card**: suit in `0..3`, value in `1..13`.  (Consequently
+    `c.toNat ≤ 3*16+13 = 61 < 64`, so it is a valid `card2*` index.) -/
+def IsRealCard (c : UInt8) : Prop :=
+  (SUIT c).toNat < 4 ∧ 1 ≤ (VALUE c).toNat ∧ (VALUE c).toNat ≤ 13
+
+/-- **Well-formed layout** (cf. `VerificationPlan.md §1`).  The deal arrays are
+    mutually consistent: `card2pile`/`card2depth` locate each real card, the two
+    extra cards (deal positions 50–51) carry the sentinel depth `5`, `pos2card`
+    inverts them, and `pos2card` is injective within each pile.  This is the
+    hypothesis under which `SolverConvertFromPilesKings` produces a canonical
+    state; proving `initcard` establishes it is future work. -/
+structure WellFormedLayout (g : Globals) : Prop where
+  /-- Every real card is assigned to one of the ten piles. -/
+  pile_lt : ∀ c : UInt8, IsRealCard c → (cardPile g c).toNat < 10
+  /-- Depths are `0..4` for pile cards and the sentinel `5` for the two extra
+      cards; in all cases `≤ 5` (so `≥` any live pile depth means "freed"). -/
+  depth_le : ∀ c : UInt8, IsRealCard c → (cardDepth g c).toNat ≤ 5
+  /-- `pos2card` inverts `card2pile`/`card2depth` for cards sitting in a pile. -/
+  round_trip : ∀ c : UInt8, ∀ hc : IsRealCard c, ∀ hd : (cardDepth g c).toNat < 5,
+    (g.pos2card.get ⟨(cardPile g c).toNat, pile_lt c hc⟩).get
+      ⟨(cardDepth g c).toNat, hd⟩ = c
+  /-- Within a pile, distinct slots hold distinct cards (the deal is injective). -/
+  pos2card_inj : ∀ (pile : Fin 10) (d₁ d₂ : Fin 5),
+    (g.pos2card.get pile).get d₁ = (g.pos2card.get pile).get d₂ → d₁ = d₂
+  /-- Cards stored in `pos2card` are real cards. -/
+  pos2card_real : ∀ (pile : Fin 10) (d : Fin 5), IsRealCard ((g.pos2card.get pile).get d)
+
+/-- **Base layer of the canonical-form tower.**  These are the invariants that
+    hold throughout the solver once the initial state has been set up, *before*
+    per-pile cleanup and foundation draining have run.  They deliberately omit:
+
+    - (2) `merge_complete` and (3b) `flute_maximal` — established pile-by-pile by
+      `SolverCleanupPile` (a raw pile with `pileFlute = 1` need not satisfy them);
+    - (6) `busyAces_complete` — likewise established per pile by cleanup (a pile
+      top may equal `aces[s]+1` while `busyAces = 0` at entry);
+    - (7) `busyAces_zero` — established only after the `SolverMoveAces` drain.
+
+    See `SolverInvMerged` and `IsCanonicalPos` for the layers that add these. -/
+structure SolverInvBase (g : Globals) (p : SolverPosType) : Prop where
 
   /-- **(0) Pile depth bound.** All pile depths are at most 5 (the initial
       deal size), expressed as a `Nat` bound so it is directly usable by
@@ -41,16 +88,6 @@ structure IsCanonicalPos (g : Globals) (p : SolverPosType) : Prop where
     1 ≤ (VALUE (p.kings.get s).toUInt8).toNat ∧
     (VALUE (p.kings.get s).toUInt8).toNat ≤ 13 ∧
     p.aces.get s ≤ p.kings.get s
-
-  /-- **(2) Merge complete.** For every non-trivial pile, the card just below
-      the boundary is not the same-suit predecessor of the boundary card.
-      (The merge loop in `SolverCleanupPile` has terminated.) -/
-  merge_complete : ∀ i : Fin 10,
-    p.pileDepth.get i ≤ 1 ∨
-    (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 2,
-        by have := pileDepth_bound i; omega⟩ ≠
-    (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
-        by have := pileDepth_bound i; omega⟩ + 1
 
   /-- **(3) Flute length.** `pileFlute[i] ≥ 1` always.  The boundary card is
       the "start" of the flute and is not free (it is still in the pile), so
@@ -87,19 +124,6 @@ structure IsCanonicalPos (g : Globals) (p : SolverPosType) : Prop where
     ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
         by have := pileDepth_bound i; omega⟩ - j).toInt8
 
-  /-- **(3b) Flute maximal.** For every non-empty pile, the card that would
-      further extend the flute downward (`prevCard = boundary - pileFlute`) is
-      either at or below the foundation level for that suit, or is not free.
-      (The freed-predecessor loop in `SolverCleanupPile` has terminated.) -/
-  flute_maximal : ∀ i : Fin 10,
-    p.pileDepth.get i = 0 ∨
-    let boundary := (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
-        by have := pileDepth_bound i; omega⟩
-    let prevCard := boundary - p.pileFlute.get i
-    (∃ hs : (SUIT boundary).toNat < 4,
-      p.aces.get ⟨(SUIT boundary).toNat, hs⟩ ≥ prevCard.toInt8) ∨
-    ¬ isFreeCard g p prevCard
-
   /-- **(4a) Foundation cards are free.** Every card of suit `s` with value
       between 1 and `VALUE(aces[s])` (inclusive) has been freed. -/
   foundation_cards_free : ∀ s : Fin 4, ∀ c : UInt8,
@@ -108,11 +132,33 @@ structure IsCanonicalPos (g : Globals) (p : SolverPosType) : Prop where
     (VALUE c).toNat ≤ (VALUE (p.aces.get s).toUInt8).toNat →
     isFreeCard g p c
 
-  /-- **(4b) Foundation maximal.** The card just above `aces[s]` is not free
-      (or the suit is already complete with `ace = 13`). -/
-  foundation_maximal : ∀ s : Fin 4,
+  /-- **(4b-weak) Foundation maximal (intermediate form).**  The strong claim
+      "`aces[s]+1` is not free" is *false* in the intermediate states produced by
+      `SolverCleanupPile` and mid-way through `SolverMoveAces`, because a movable
+      run can be merged (freeing its shallower cards) before the foundation drain
+      catches up.  So we only require that `aces[s]+1` is one of:
+
+      1. the completed-suit sentinel (`VALUE(aces[s]) = 13`);
+      2. not free;
+      3. the **most accessible card of some pile's flute** — the physically
+         topmost (smallest-value) card of a non-empty pile, i.e.
+         `boundary_i − (pileFlute[i] − 1) = aces[s]+1` (the case `SolverCleanupPile`
+         creates by merging);
+      4. a card on the **king pile** of its suit — `VALUE(aces[s]+1) > VALUE(kings[s])`
+         (the case that arises mid-scan in `SolverMoveAces`, where `aces` has been
+         advanced into the freed king suffix while `kings[s]` still holds its old
+         value).  This predicate doubles as the inner-loop invariant of `moveAcesLoop`.
+
+      The strong form (`IsCanonicalPos.foundation_maximal`) is recovered once the
+      drain has run (`busyAces_zero`), which rules out disjuncts 3 and 4. -/
+  foundation_maximal_weak : ∀ s : Fin 4,
     (VALUE (p.aces.get s).toUInt8).toNat = 13 ∨
-    ¬ isFreeCard g p ((p.aces.get s).toUInt8 + 1)
+    ¬ isFreeCard g p ((p.aces.get s).toUInt8 + 1) ∨
+    (∃ i : Fin 10, (p.pileDepth.get i).toNatClampNeg > 0 ∧
+      (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+          by have := pileDepth_bound i; omega⟩ - (p.pileFlute.get i - 1)
+        = (p.aces.get s).toUInt8 + 1) ∨
+    (VALUE (p.kings.get s).toUInt8).toNat < (VALUE ((p.aces.get s).toUInt8 + 1)).toNat
 
   /-- **(5) King frontier.** Either the suit is complete — all 13 cards are in
       the foundation and `kings[s] = aces[s]` — or `kings[s]` is the
@@ -126,21 +172,6 @@ structure IsCanonicalPos (g : Globals) (p : SolverPosType) : Prop where
        (VALUE c).toNat > (VALUE (p.kings.get s).toUInt8).toNat →
        (VALUE c).toNat ≤ 13 →
        isFreeCard g p c)
-
-  /-- **(6) busyAces complete.** For each suit `s`, if the next foundation
-      card `aces[s] + 1` is exactly the boundary card of some pile, then
-      bit `s` is set in `busyAces`.  This is the invariant maintained by
-      `SolverCleanupPile` (and preserved by `SolverMoveAces`). -/
-  busyAces_complete : ∀ s : Fin 4, ∀ i : Fin 10,
-    (p.pileDepth.get i).toNatClampNeg > 0 →
-    (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
-        by have := pileDepth_bound i; omega⟩ =
-    (p.aces.get s).toUInt8 + 1 →
-    p.busyAces &&& ((1 : UInt8) <<< s.val.toUInt8) ≠ 0
-
-  /-- **(7) busyAces zero.** No foundation advancement is pending:
-      `SolverMoveAces` has run to quiescence and all bits are clear. -/
-  busyAces_zero : p.busyAces = 0
 
   /-- **(8) Hash formula.** The hash is the dot product of `pileHashes` and
       `pileDepth` (mod 2^32), so it is uniquely determined by `pileDepth`. -/
@@ -161,6 +192,255 @@ structure IsCanonicalPos (g : Globals) (p : SolverPosType) : Prop where
     - (p.aces.toList.foldl (fun acc a => acc + (VALUE a.toUInt8).toNat) 0 : Nat)
     - (List.zipWith (fun d f => if d ≠ (0 : Int8) then f.toNat - 1 else 0)
         p.pileDepth.toList p.pileFlute.toList |>.foldl (· + ·) 0 : Nat)
+
+/-- **Middle layer of the tower.**  Extends `SolverInvBase` with the invariants
+    that `SolverCleanupPile` establishes pile-by-pile: (2) `merge_complete`,
+    (3b) `flute_maximal`, and (6) `busyAces_complete` (rephrased per pile).
+
+    A `SolverInvMerged` state is "canonical except the foundation drain has not
+    run": every pile is clean, but `busyAces` may still be non-zero.  This is the
+    state after `SolverConvertFromPilesKings`'s cleanup loop and the state between
+    successive `SolverMoveAces` calls. -/
+structure SolverInvMerged (g : Globals) (p : SolverPosType) : Prop extends SolverInvBase g p where
+
+  /-- **(2) Merge complete.** For every non-trivial pile, the card just below
+      the boundary is not the same-suit predecessor of the boundary card.
+      (The merge loop in `SolverCleanupPile` has terminated.) -/
+  merge_complete : ∀ i : Fin 10,
+    p.pileDepth.get i ≤ 1 ∨
+    (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 2,
+        by have := pileDepth_bound i; omega⟩ ≠
+    (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound i; omega⟩ + 1
+
+  /-- **(3b) Flute maximal.** For every non-empty pile, the card that would
+      further extend the flute downward (`prevCard = boundary - pileFlute`) is
+      either at or below the foundation level for that suit, or is not free.
+      (The freed-predecessor loop in `SolverCleanupPile` has terminated.) -/
+  flute_maximal : ∀ i : Fin 10,
+    p.pileDepth.get i = 0 ∨
+    let boundary := (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound i; omega⟩
+    let prevCard := boundary - p.pileFlute.get i
+    (∃ hs : (SUIT boundary).toNat < 4,
+      p.aces.get ⟨(SUIT boundary).toNat, hs⟩ ≥ prevCard.toInt8) ∨
+    ¬ isFreeCard g p prevCard
+
+  /-- **(6) busyAces complete (per pile).**  If the boundary card of a non-empty
+      pile is the next foundation card of *its own* suit (`= aces[suit] + 1`,
+      suit taken from the boundary card), then that suit's bit is set in
+      `busyAces`.  Established pile-by-pile by `SolverCleanupPile` (which sets the
+      bit) and preserved by `SolverMoveAces`. -/
+  busyAces_complete : ∀ i : Fin 10,
+    (p.pileDepth.get i).toNatClampNeg > 0 →
+    ∀ hs : (SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound i; omega⟩)).toNat < 4,
+    (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound i; omega⟩ =
+    (p.aces.get ⟨(SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound i; omega⟩)).toNat, hs⟩).toUInt8 + 1 →
+    p.busyAces &&& ((1 : UInt8) <<< (SUIT ((g.pos2card.get i).get
+        ⟨(p.pileDepth.get i).toNatClampNeg - 1, by have := pileDepth_bound i; omega⟩))) ≠ 0
+
+/-- A `SolverPosType` is in **canonical form** — the form produced by
+    `SolverConvertFromPilesKings` followed by `SolverCleanupPile` and
+    `SolverMoveAces` — when it is `SolverInvMerged` and additionally the
+    foundation drain has completed, i.e. (7) `busyAces_zero` holds.
+
+    Key consequence: two canonical positions with equal `pileDepth` vectors
+    are necessarily equal (see `IsCanonicalPos_unique`), because every other
+    field is uniquely determined by the pile depths. -/
+structure IsCanonicalPos (g : Globals) (p : SolverPosType) : Prop extends SolverInvMerged g p where
+
+  /-- **(7) busyAces zero.** No foundation advancement is pending:
+      `SolverMoveAces` has run to quiescence and all bits are clear. -/
+  busyAces_zero : p.busyAces = 0
+
+  /-- **(4b) Foundation maximal (strong form).** In the fully drained canonical
+      state the card just above `aces[s]` is not free (or the suit is complete).
+      This is the strong form of `foundation_maximal_weak`: with `busyAces_zero`
+      no foundation advance is pending, so disjuncts 3 (flute top) and 4 (king
+      pile) of the weak form cannot hold and it collapses to this. -/
+  foundation_maximal : ∀ s : Fin 4,
+    (VALUE (p.aces.get s).toUInt8).toNat = 13 ∨
+    ¬ isFreeCard g p ((p.aces.get s).toUInt8 + 1)
+
+-- ---------------------------------------------------------------------------
+-- Modular component predicates
+--
+-- These give per-pile / per-suit / per-phase views of the tower above, so that
+-- specs about the individual solver functions can talk about exactly the
+-- conditions they establish or preserve.  The bridge lemmas at the end connect
+-- them back to `SolverInvBase` / `SolverInvMerged` / `IsCanonicalPos`.
+-- ---------------------------------------------------------------------------
+
+/-- **All per-pile conditions for one pile `i`.**  Fixing the pile index, this
+    bundles every pile-local conjunct of the tower (base + merged).  A pile is
+    "clean" exactly when `SolverCleanupPile` has finished with it. -/
+structure PileClean (g : Globals) (p : SolverPosType) (i : Fin 10) : Prop where
+  pileDepth_bound : (p.pileDepth.get i).toNatClampNeg ≤ 5
+  pileDepth_nonneg : 0 ≤ p.pileDepth.get i
+  merge_complete :
+    p.pileDepth.get i ≤ 1 ∨
+    (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 2,
+        by have := pileDepth_bound; omega⟩ ≠
+    (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound; omega⟩ + 1
+  flute_pos : 1 ≤ (p.pileFlute.get i).toNat
+  flute_empty : p.pileDepth.get i = 0 → p.pileFlute.get i = 1
+  flute_cards_free : ∀ j : UInt8,
+    (p.pileDepth.get i).toNatClampNeg > 0 →
+    0 < j.toNat → j.toNat < (p.pileFlute.get i).toNat →
+    isFreeCard g p
+      ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+          by have := pileDepth_bound; omega⟩ - j)
+  flute_not_aces : ∀ j : UInt8,
+    (p.pileDepth.get i).toNatClampNeg > 0 →
+    0 < j.toNat → j.toNat < (p.pileFlute.get i).toNat →
+    ∀ hs : (SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound; omega⟩)).toNat < 4,
+    p.aces.get ⟨(SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound; omega⟩)).toNat, hs⟩ <
+    ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound; omega⟩ - j).toInt8
+  flute_maximal :
+    p.pileDepth.get i = 0 ∨
+    let boundary := (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound; omega⟩
+    let prevCard := boundary - p.pileFlute.get i
+    (∃ hs : (SUIT boundary).toNat < 4,
+      p.aces.get ⟨(SUIT boundary).toNat, hs⟩ ≥ prevCard.toInt8) ∨
+    ¬ isFreeCard g p prevCard
+  busyAces_complete :
+    (p.pileDepth.get i).toNatClampNeg > 0 →
+    ∀ hs : (SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound; omega⟩)).toNat < 4,
+    (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound; omega⟩ =
+    (p.aces.get ⟨(SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound; omega⟩)).toNat, hs⟩).toUInt8 + 1 →
+    p.busyAces &&& ((1 : UInt8) <<< (SUIT ((g.pos2card.get i).get
+        ⟨(p.pileDepth.get i).toNatClampNeg - 1, by have := pileDepth_bound; omega⟩))) ≠ 0
+
+/-- **The cleanup-established conditions for one pile `i`** — the (2)/(3b)/(6)
+    subset that `SolverCleanupPile` adds on top of `SolverInvBase`.  Used as the
+    per-pile part of the cleanup-loop invariant `MergedUpTo`. -/
+structure PileMerged (g : Globals) (p : SolverPosType) (i : Fin 10) : Prop where
+  pileDepth_bound : (p.pileDepth.get i).toNatClampNeg ≤ 5
+  merge_complete :
+    p.pileDepth.get i ≤ 1 ∨
+    (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 2,
+        by have := pileDepth_bound; omega⟩ ≠
+    (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound; omega⟩ + 1
+  flute_maximal :
+    p.pileDepth.get i = 0 ∨
+    let boundary := (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound; omega⟩
+    let prevCard := boundary - p.pileFlute.get i
+    (∃ hs : (SUIT boundary).toNat < 4,
+      p.aces.get ⟨(SUIT boundary).toNat, hs⟩ ≥ prevCard.toInt8) ∨
+    ¬ isFreeCard g p prevCard
+  busyAces_complete :
+    (p.pileDepth.get i).toNatClampNeg > 0 →
+    ∀ hs : (SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound; omega⟩)).toNat < 4,
+    (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound; omega⟩ =
+    (p.aces.get ⟨(SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNatClampNeg - 1,
+        by have := pileDepth_bound; omega⟩)).toNat, hs⟩).toUInt8 + 1 →
+    p.busyAces &&& ((1 : UInt8) <<< (SUIT ((g.pos2card.get i).get
+        ⟨(p.pileDepth.get i).toNatClampNeg - 1, by have := pileDepth_bound; omega⟩))) ≠ 0
+
+/-- **All per-suit conditions for one suit `s`** — the foundation/king conjuncts
+    of the tower, fixing the suit index. -/
+structure SuitClean (g : Globals) (p : SolverPosType) (s : Fin 4) : Prop where
+  aces_kings_valid :
+    SUIT (p.aces.get s).toUInt8 = s.val.toUInt8 ∧
+    (VALUE (p.aces.get s).toUInt8).toNat ≤ 13 ∧
+    SUIT (p.kings.get s).toUInt8 = s.val.toUInt8 ∧
+    1 ≤ (VALUE (p.kings.get s).toUInt8).toNat ∧
+    (VALUE (p.kings.get s).toUInt8).toNat ≤ 13 ∧
+    p.aces.get s ≤ p.kings.get s
+  foundation_cards_free : ∀ c : UInt8,
+    SUIT c = s.val.toUInt8 →
+    1 ≤ (VALUE c).toNat →
+    (VALUE c).toNat ≤ (VALUE (p.aces.get s).toUInt8).toNat →
+    isFreeCard g p c
+  foundation_maximal :
+    (VALUE (p.aces.get s).toUInt8).toNat = 13 ∨
+    ¬ isFreeCard g p ((p.aces.get s).toUInt8 + 1)
+  king_frontier :
+    ((VALUE (p.aces.get s).toUInt8).toNat = 13 ∧ p.kings.get s = p.aces.get s) ∨
+    (¬ isFreeCard g p (p.kings.get s).toUInt8 ∧
+     ∀ c : UInt8,
+       SUIT c = s.val.toUInt8 →
+       (VALUE c).toNat > (VALUE (p.kings.get s).toUInt8).toNat →
+       (VALUE c).toNat ≤ 13 →
+       isFreeCard g p c)
+
+/-- **Cleanup-loop invariant.**  `SolverInvBase` holds globally, and the first
+    `k` piles have additionally been cleaned (`PileMerged`).  This is the loop
+    invariant of `SolverConvertFromPilesKings`'s per-pile cleanup loop:
+    `MergedUpTo … 0` is the state right after setup, and `MergedUpTo … 10` is
+    exactly `SolverInvMerged` (see `mergedUpTo_ten_iff`). -/
+def MergedUpTo (g : Globals) (p : SolverPosType) (k : Nat) : Prop :=
+  SolverInvBase g p ∧ ∀ i : Fin 10, i.val < k → PileMerged g p i
+
+-- ---------------------------------------------------------------------------
+-- Bridge lemmas between the components and the tower
+-- ---------------------------------------------------------------------------
+
+/-- Every pile of a canonical position is clean. -/
+theorem IsCanonicalPos.pileClean {g : Globals} {p : SolverPosType}
+    (h : IsCanonicalPos g p) (i : Fin 10) : PileClean g p i :=
+  ⟨h.pileDepth_bound i, h.pileDepth_nonneg i, h.merge_complete i, h.flute_pos i,
+   h.flute_empty i, h.flute_cards_free i, h.flute_not_aces i, h.flute_maximal i,
+   h.busyAces_complete i⟩
+
+/-- Every suit of a canonical position is clean. -/
+theorem IsCanonicalPos.suitClean {g : Globals} {p : SolverPosType}
+    (h : IsCanonicalPos g p) (s : Fin 4) : SuitClean g p s :=
+  ⟨h.aces_kings_valid s, h.foundation_cards_free s, h.foundation_maximal s, h.king_frontier s⟩
+
+/-- The merged (2)/(3b)/(6) conditions of a canonical position, per pile. -/
+theorem IsCanonicalPos.pileMerged {g : Globals} {p : SolverPosType}
+    (h : IsCanonicalPos g p) (i : Fin 10) : PileMerged g p i :=
+  ⟨h.pileDepth_bound i, h.merge_complete i, h.flute_maximal i, h.busyAces_complete i⟩
+
+/-- `MergedUpTo … 10` is exactly the middle layer of the tower. -/
+theorem mergedUpTo_ten_iff {g : Globals} {p : SolverPosType} :
+    MergedUpTo g p 10 ↔ SolverInvMerged g p := by
+  constructor
+  · rintro ⟨hbase, hpm⟩
+    exact ⟨hbase, fun i => (hpm i i.isLt).merge_complete,
+      fun i => (hpm i i.isLt).flute_maximal, fun i => (hpm i i.isLt).busyAces_complete⟩
+  · intro h
+    exact ⟨h.toSolverInvBase, fun i _ =>
+      ⟨h.pileDepth_bound i, h.merge_complete i, h.flute_maximal i, h.busyAces_complete i⟩⟩
+
+/-- Canonical projects to merged + drained.  (The converse additionally needs the
+    strong `foundation_maximal` — see `IsCanonicalPos.of_merged_drained` — which is
+    recovered from the drain, not from the middle layer alone.) -/
+theorem IsCanonicalPos.toMergedBusyZero {g : Globals} {p : SolverPosType}
+    (h : IsCanonicalPos g p) : SolverInvMerged g p ∧ p.busyAces = 0 :=
+  ⟨h.toSolverInvMerged, h.busyAces_zero⟩
+
+/-- Build a canonical state from the middle layer, the drained flag, and the
+    strong foundation-maximal fact.  The final `while busyAces ≠ 0` drain supplies
+    all three: it reaches `busyAces = 0` and, having scanned each suit up to a
+    buried card, the strong `foundation_maximal`. -/
+theorem IsCanonicalPos.of_merged_drained {g : Globals} {p : SolverPosType}
+    (h : SolverInvMerged g p) (hb : p.busyAces = 0)
+    (hfm : ∀ s : Fin 4, (VALUE (p.aces.get s).toUInt8).toNat = 13 ∨
+      ¬ isFreeCard g p ((p.aces.get s).toUInt8 + 1)) : IsCanonicalPos g p :=
+  ⟨h, hb, hfm⟩
+
+/-- Build the middle layer from the base layer plus per-pile cleanup facts. -/
+theorem SolverInvMerged.of_base {g : Globals} {p : SolverPosType}
+    (hbase : SolverInvBase g p) (hpm : ∀ i, PileMerged g p i) : SolverInvMerged g p :=
+  ⟨hbase, fun i => (hpm i).merge_complete, fun i => (hpm i).flute_maximal,
+   fun i => (hpm i).busyAces_complete⟩
 
 -- ---------------------------------------------------------------------------
 -- Arithmetic helpers for SUIT / VALUE
