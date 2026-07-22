@@ -214,15 +214,18 @@ def SolverCleanupPile (pile : UInt32) : EStateM Error (Globals × SolverPosType)
     let suit := SUIT card
     let mut prevCard := card - 1
     -- Merge consecutive same-suit cards below the new top into the flute.
-    while depth > 1 && (← (← globals.pos2card.getE pile).getE (depth - 2).toUInt32) == card + 1 do
+    -- `<&&>` (monadic `andM`) short-circuits: the `pos2card[depth-2]` read runs
+    -- only when `depth > 1`.
+    while (← (do return decide (depth > 1)) <&&>
+        (do return (← (← globals.pos2card.getE pile).getE (depth - 2).toUInt32) == card + 1)) do
       depth := depth - 1
       game := { game with hash := game.hash - pilehash }
       flute := flute + 1
       card := card + 1
     -- Extend flute with predecessor cards already freed from their piles.
-    while (← game.aces.getE suit.toUInt32) < prevCard.toInt8 &&
-          (← globals.card2depth.getE prevCard.toUInt32).toNat >=
-            (← game.pileDepth.getE (← globals.card2pile.getE prevCard.toUInt32).toUInt32).toInt32.toNatClampNeg do
+    while (← ((do return decide ((← game.aces.getE suit.toUInt32) < prevCard.toInt8)) <&&>
+        (do return ((← globals.card2depth.getE prevCard.toUInt32).toNat >=
+            (← game.pileDepth.getE (← globals.card2pile.getE prevCard.toUInt32).toUInt32).toInt32.toNatClampNeg)))) do
       flute := flute + 1
       prevCard := prevCard - 1
       game := { game with usedSpace := game.usedSpace - 1 }
@@ -421,9 +424,9 @@ def SolverConvertFromPilesKings (pilesking : Vector UInt8 11) :
     let suitU32 := UInt32.ofNat suit
     let mut card : UInt8 := CARD (UInt8.ofNat suit) 13
     let mut ace  : UInt8 := CARD (UInt8.ofNat suit) 1
-    while ace <= card &&
-          (← globals.card2depth.getE ace.toUInt32).toNat >=
-            (← game.pileDepth.getE (← globals.card2pile.getE ace.toUInt32).toUInt32).toInt32.toNatClampNeg do
+    while (← (do return decide (ace <= card)) <&&>
+          (do return ((← globals.card2depth.getE ace.toUInt32).toNat >=
+            (← game.pileDepth.getE (← globals.card2pile.getE ace.toUInt32).toUInt32).toInt32.toNatClampNeg))) do
       ace := ace + 1
     ace := ace - 1
     game := { game with aces := ← game.aces.setE suitU32 ace.toInt8 }

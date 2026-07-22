@@ -37,7 +37,8 @@ def mergeLoop (fuel : Nat) (pile pilehash : UInt32) (depth flute : Int32) (card 
   | 0 => return (depth, flute, card)
   | fuel + 1 =>
     let ⟨globals, game⟩ ← get
-    if depth > 1 && (← (← globals.pos2card.getE pile).getE (depth - 2).toUInt32) == card + 1 then
+    if (← (do return decide (depth > 1)) <&&>
+      (do return (← (← globals.pos2card.getE pile).getE (depth - 2).toUInt32) == card + 1)) then
       set (⟨globals, { game with hash := game.hash - pilehash }⟩ : Globals × SolverPosType)
       mergeLoop fuel pile pilehash (depth - 1) (flute + 1) (card + 1)
     else
@@ -52,9 +53,9 @@ def freedLoop (fuel : Nat) (suit : UInt8) (flute : Int32) (prevCard : UInt8) :
   | 0 => return (flute, prevCard)
   | fuel + 1 =>
     let ⟨globals, game⟩ ← get
-    if (← game.aces.getE suit.toUInt32) < prevCard.toInt8 &&
-        (← globals.card2depth.getE prevCard.toUInt32).toNat >=
-          (← game.pileDepth.getE (← globals.card2pile.getE prevCard.toUInt32).toUInt32).toInt32.toNatClampNeg then
+    if (← (do return decide ((← game.aces.getE suit.toUInt32) < prevCard.toInt8)) <&&>
+      do return (← globals.card2depth.getE prevCard.toUInt32).toNat >=
+          (← game.pileDepth.getE (← globals.card2pile.getE prevCard.toUInt32).toUInt32).toInt32.toNatClampNeg) then
       set (⟨globals, { game with usedSpace := game.usedSpace - 1 }⟩ : Globals × SolverPosType)
       freedLoop fuel suit (flute + 1) (prevCard - 1)
     else
