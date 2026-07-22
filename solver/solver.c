@@ -534,24 +534,6 @@ static uint8_t solverGetDestination(SolverPosType *game, int pile) {
 }
 
 /*
- * After moving the current flute off pile, recomputes the pile's new flute.
- *
- * Decrements pileDepth by 1 (removing the old flute boundary card).  If the
- * newly exposed above-flute card continues a consecutive same-suit sequence
- * with the card below it, those cards are merged into the new flute
- * (pileDepth decrements further, pileFlute grows).
- *
- * Also checks if predecessor cards that were freed (in extra) can be appended
- * to the new flute, and whether the new flute can move to aces (sets busyAces).
- *
- * Special case: if the new single-card flute is a king, the pile becomes empty
- * (freePiles++) and the king moves to the king-pile tracking in kings[suit].
- *
- * Returns the king configurations that are forced by this move:  If the move
- * uncovers a new king pile that was initially dealt as the first card in the
- * pile, we must only consider configuration where this king is dedicated.
- */
-/*
  * Given that game->pileDepth[pile] and game->hash already reflect the removal
  * of the old flute boundary, recomputes the pile's new flute: merges
  * consecutive same-suit pile cards, absorbs freed predecessor cards
@@ -615,6 +597,24 @@ static uint16_t SolverCleanupPile(int pile, SolverPosType *game)
     return forcedKings;
 }
 
+/*
+ * After moving the current flute off pile, recomputes the pile's new flute.
+ *
+ * Decrements pileDepth by 1 (removing the old flute boundary card).  If the
+ * newly exposed above-flute card continues a consecutive same-suit sequence
+ * with the card below it, those cards are merged into the new flute
+ * (pileDepth decrements further, pileFlute grows).
+ *
+ * Also checks if predecessor cards that were freed (in extra) can be appended
+ * to the new flute, and whether the new flute can move to aces (sets busyAces).
+ *
+ * Special case: if the new single-card flute is a king, the pile becomes empty
+ * (freePiles++) and the king moves to the king-pile tracking in kings[suit].
+ *
+ * Returns the king configurations that are forced by this move:  If the move
+ * uncovers a new king pile that was initially dealt as the first card in the
+ * pile, we must only consider configuration where this king is dedicated.
+ */
 static uint16_t SolverRemoveFlute(int pile, SolverPosType *game)
 {
     assert(pile >= 0 && pile < 10);
