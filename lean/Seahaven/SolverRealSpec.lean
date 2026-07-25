@@ -272,7 +272,7 @@ def freedBody (g : Globals) (suit : UInt8) :
     if (← ((do return decide ((← r.snd.fst.aces.getE suit.toUInt32) < r.snd.snd.toInt8)) <&&>
       (do return ((← g.card2depth.getE r.snd.snd.toUInt32).toNat >=
           (← r.snd.fst.pileDepth.getE
-            (← g.card2pile.getE r.snd.snd.toUInt32).toUInt32).toInt32.toNatClampNeg)))) then
+            (← g.card2pile.getE r.snd.snd.toUInt32).toUInt32).toInt32.toInt.toNat)))) then
       return .yield ⟨r.fst + 1, { r.snd.fst with usedSpace := r.snd.fst.usedSpace - 1 }, r.snd.snd - 1⟩
     else return .done r
 
@@ -302,7 +302,7 @@ theorem freedLoop_ok (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat <
         rw [UInt8.toNat_toUInt32]; exact hpiles _ hc64
       by_cases hg2 : (g.card2depth[r.snd.snd.toUInt32.toNat]'hc64).toNat ≥
           (r.snd.fst.pileDepth[(g.card2pile[r.snd.snd.toUInt32.toNat]'hc64).toUInt32.toNat]'hp10
-            ).toInt32.toNatClampNeg
+            ).toInt32.toInt.toNat
       · -- both conjuncts true: the body yields; `prevCard` strictly decreases.
         have hposI : 0 < r.snd.snd.toInt8.toInt := by
           have ha := Int8.le_iff_toInt_le.mp haces
@@ -347,7 +347,6 @@ lambdas, `pure`-`bind` sequencing) are definitional, so the equality is `rfl` �
 this gives spec proofs a syntactic handle on the loops without matching against
 the `while` elaboration.
 -/
-
 def cleanupPileExplicit (pile : UInt32) : EStateM Error (Globals × SolverPosType) UInt16 := do
   let ⟨globals, game⟩ ← get
   let forcedKings : UInt16 := 0xffff
@@ -416,7 +415,7 @@ def freedGuard (g : Globals) (suit : UInt8) (r : FreedAcc) : Prop :=
     (h10 : (g.card2pile[r.snd.snd.toUInt32.toNat]'h64).toUInt32.toNat < 10),
     (g.card2depth[r.snd.snd.toUInt32.toNat]'h64).toNat ≥
     (r.snd.fst.pileDepth[(g.card2pile[r.snd.snd.toUInt32.toNat]'h64).toUInt32.toNat]'h10
-      ).toInt32.toNatClampNeg
+      ).toInt32.toInt.toNat
 
 /-- `a - b - c = a - (b + c)` for `UInt8` (missing from core, unlike `Int8.sub_sub`). -/
 private theorem uint8_sub_sub (a b c : UInt8) : a - b - c = a - (b + c) := by
@@ -482,6 +481,83 @@ def cleanupRunResult (pile : UInt32) (hpile : pile.toNat < 10)
        pileDepth := game3.pileDepth.set pile.toNat depth1.toInt8 hpile,
        pileFlute := game3.pileFlute.set pile.toNat flute2.toUInt32.toUInt8 hpile })
 
+/-- **`SolverCleanupPile`'s non-empty tail, always taking the "ordinary" (no
+    lone-king) branch** — i.e. `cleanupRunResult`'s `else` branch, unconditionally,
+    returning just the position (the `UInt16` result is only meaningful in the
+    lone-king branch, where it reports the merge-forced kings).
+
+    Splitting this out lets "merge/free the pile" and "drain a finished
+    lone-king pile into `kings`" (`kingMove`) be reasoned about independently:
+    the pile ends up `PileClean` after `preCleanupPile` regardless of whether
+    its new boundary happens to be a king, and `kingMove` is a *generic* "drain
+    a clean, depth-1, king-boundary pile" operation that doesn't need to know
+    about `m`/`f`/the loops at all — see `cleanupRunResult_eq`. -/
+def preCleanupPile (pile : UInt32) (hpile : pile.toNat < 10)
+    (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
+    (d32 : Int32) (m f : Nat) (p : SolverPosType) : SolverPosType :=
+  let depth1 := d32 - Int32.ofNat m
+  let flute2 := 1 + Int32.ofNat m + Int32.ofNat f
+  let prev2 := B - 1 - UInt8.ofNat f
+  { p with
+    hash := p.hash - UInt32.ofNat m * ph,
+    usedSpace := p.usedSpace - Int8.ofNat f
+    busyAces := if p.aces[(SUIT B).toUInt32.toNat]'hs4 == prev2.toInt8 then p.busyAces ||| (1 : UInt8) <<< SUIT B else p.busyAces
+    pileDepth := p.pileDepth.set pile.toNat depth1.toInt8 hpile,
+    pileFlute := p.pileFlute.set pile.toNat flute2.toUInt32.toUInt8 hpile }
+
+/-- **Drain a depth-1, king-boundary pile into `kings`.**  Given any position
+    where pile `pile` currently holds nothing but a `pileFlute[pile]`-long run
+    ending in the king of `suit` (so `pileDepth[pile] = 1`), replay
+    `cleanupRunResult`'s lone-king tail: empty the pile (`pileDepth := 0`,
+    `pileFlute := 1`), bump `freePiles`/`usedSpace`, and move the flute's worth
+    of cards out of `kings[suit]` (which sits just above the drained run) down
+    past them.  Reads the amount to drain directly off `pileFlute[pile]`
+    rather than threading `m`/`f` through, so it applies to any clean position,
+    not just a fresh `preCleanupPile` result. -/
+def kingMove (pile : UInt32) (hpile : pile.toNat < 10) (suit : UInt8)
+    (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : SolverPosType) : SolverPosType :=
+  { p with
+    freePiles := p.freePiles + 1,
+    usedSpace := p.usedSpace + (p.pileFlute[pile.toNat]'hpile).toInt8,
+    kings := p.kings.set suit.toUInt32.toNat
+      (p.kings[suit.toUInt32.toNat]'hs4 - (p.pileFlute[pile.toNat]'hpile).toInt8) hs4,
+    hash := p.hash - ph,
+    pileDepth := p.pileDepth.set pile.toNat (0 : Int32).toInt8 hpile,
+    pileFlute := p.pileFlute.set pile.toNat (1 : Int32).toUInt32.toUInt8 hpile }
+
+/-- The `UInt8`-roundtrip bridge needed to connect `kingMove` (which reads the
+    drained amount back off the `UInt8` flute that `preCleanupPile` wrote) to
+    `cleanupRunResult`'s king branch (which casts the `Int32` flute count
+    straight to `Int8`): for `x` in (non-negative, `Int8`-representable) range,
+    both routes agree.
+
+    TODO: proof deferred (not needed yet for the `PileClean`/`SuitClean`
+    preservation work on `preCleanupPile`/`kingMove` themselves — only for
+    reconnecting to the real `cleanupRunResult` afterwards). -/
+private theorem int32_toUInt32_toUInt8_toInt8_eq {x : Int32}
+    (h0 : (0 : Int) ≤ x.toInt) (h128 : x.toInt < 128) :
+    (x.toUInt32.toUInt8).toInt8 = x.toInt8 := by
+  sorry
+
+/-- **`cleanupRunResult` factors as `preCleanupPile`, followed — in the
+    lone-king case only — by `kingMove`.**  `kingMove` re-derives the drained
+    amount from the flute `preCleanupPile` just wrote, which is exactly `1+m+f`
+    (bridged back to `cleanupRunResult`'s own `Int32`-cast computation via
+    `int32_toUInt32_toUInt8_toInt8_eq`, using `hmf128` to stay in range).
+
+    TODO: proof deferred, same reason as `int32_toUInt32_toUInt8_toInt8_eq`. -/
+theorem cleanupRunResult_eq (pile : UInt32) (hpile : pile.toNat < 10)
+    (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
+    (d32 : Int32) (m f : Nat) (p : SolverPosType)
+    (hmf128 : (1 + (m : Int) + f) < 128) :
+    cleanupRunResult pile hpile B ph hs4 d32 m f p =
+      if d32 - Int32.ofNat m == 1 && VALUE (B + UInt8.ofNat m) == 13 then
+        (0xffff &&& kingOnPileMap[(SUIT B).toUInt32.toNat]'hs4,
+          kingMove pile hpile (SUIT B) hs4 ph (preCleanupPile pile hpile B ph hs4 d32 m f p))
+      else
+        (0xffff, preCleanupPile pile hpile B ph hs4 d32 m f p) := by
+  sorry
+
 /-- **Exact run of the freed loop**: some number `f` of `freedStep`s, guard true
     before each and false after, state untouched. -/
 theorem freedLoop_run (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat < 4)
@@ -506,7 +582,7 @@ theorem freedLoop_run (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat 
         rw [UInt8.toNat_toUInt32]; exact hpiles _ hc64
       by_cases hg2 : (g.card2depth[r.snd.snd.toUInt32.toNat]'hc64).toNat ≥
           (r.snd.fst.pileDepth[(g.card2pile[r.snd.snd.toUInt32.toNat]'hc64).toUInt32.toNat]'hp10
-            ).toInt32.toNatClampNeg
+            ).toInt32.toInt.toNat
       · -- guard true: one `freedStep`, then the IH characterizes the rest.
         have hposI : 0 < r.snd.snd.toInt8.toInt := by
           have ha := Int8.le_iff_toInt_le.mp haces
