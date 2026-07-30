@@ -5267,6 +5267,91 @@ theorem cleanupPile_base (pile : UInt32) (g : Globals) (p : SolverPosType)
           (preCleanupPile_pileBase_ne pile g hpile B (pileHashes[pile.toNat]'hpile) hs4 p m f
             hd5 (by omega) i hij (hnfp i hij))
 
+/-- Pure combinatorics: splitting a `List.finRange n`-indexed count at one
+    excluded index `k` into the filtered count (over `j ≠ k`) plus the
+    indicator of `k` itself.  Proved by induction on `n`, peeling the front
+    element via `List.finRange_succ` and case-splitting on whether `k` is that
+    front element (`k = 0`) or lies in the tail (`k = k' + 1`). -/
+private theorem finRange_countP_ite_split : ∀ (n k : Nat) (hk : k < n) (f : Fin n → Bool),
+    (List.finRange n).countP (fun j => (j.val != k) && f j) +
+      (if f ⟨k, hk⟩ then 1 else 0) = (List.finRange n).countP f
+  | 0, k, hk, _f => absurd hk (by omega)
+  | (n+1), k, hk, f => by
+      rcases Nat.eq_zero_or_pos k with hk0 | hkpos
+      · subst hk0
+        rw [List.finRange_succ, List.countP_cons_of_neg (by simp), List.countP_cons,
+          List.countP_map, List.countP_map, Function.comp_def, Function.comp_def]
+        have h3 : (List.finRange n).countP (fun j : Fin n => (Fin.succ j).val != 0 &&
+            f (Fin.succ j)) = (List.finRange n).countP (fun j : Fin n => f (Fin.succ j)) := by
+          apply List.countP_congr
+          intro j' _
+          simp
+        have h0eq : f ⟨0, hk⟩ = f (0 : Fin (n+1)) := by congr 1
+        rw [h0eq]
+        omega
+      · obtain ⟨k', hkval⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : k ≠ 0)
+        have hkeq1 : k = k' + 1 := by omega
+        subst hkeq1
+        have hk' : k' < n := by omega
+        rw [List.finRange_succ, List.countP_cons, List.countP_cons, List.countP_map,
+          List.countP_map, Function.comp_def, Function.comp_def]
+        have hpred0 : ((0:Fin (n+1)).val != k'+1 && f 0) = f 0 := by simp
+        rw [hpred0]
+        have hkeq : (⟨k'+1, hk⟩ : Fin (n+1)) = Fin.succ ⟨k', hk'⟩ := by
+          apply Fin.ext; simp
+        rw [hkeq]
+        have hcomp : (List.finRange n).countP (fun j : Fin n => (Fin.succ j).val != k'+1 &&
+            f (Fin.succ j)) =
+            (List.finRange n).countP (fun j : Fin n => j.val != k' && f (Fin.succ j)) := by
+          apply List.countP_congr
+          intro j' _
+          have heqv : ((Fin.succ j').val != k' + 1) = (j'.val != k') := by
+            simp only [Fin.val_succ]
+            by_cases h : j'.val = k'
+            · simp [h]
+            · have hne : j'.val + 1 ≠ k' + 1 := by omega
+              simp [h, hne]
+          rw [heqv]
+        rw [hcomp]
+        have hstep := finRange_countP_ite_split n k' hk' (fun j => f (Fin.succ j))
+        omega
+
+/-- `CleanupReady`'s `freePiles` formula (which excludes `pile`) plus the
+    indicator of `pile`'s own current emptiness equals `SolverInvMerged`'s
+    formula (over all 10 piles) — the arithmetic bridge the plan calls for.
+    Combines `finRange_countP_ite_split` with the fact that `Vector.toList`'s
+    `countP` agrees with the `List.finRange`-indexed `countP` via `Vector.get`. -/
+private theorem cleanupReady_freePiles_split (pile : UInt32) (hpile : pile.toNat < 10)
+    (q : SolverPosType) (fpCount : Nat)
+    (hcount : fpCount = ((List.finRange 10).countP
+        (fun j => j.val != pile.toNat && (q.pileDepth.get j == 0)) : Nat)) :
+    q.pileDepth.toList.countP (· == 0) =
+      fpCount + (if q.pileDepth.get (⟨pile.toNat, hpile⟩ : Fin 10) == 0 then 1 else 0) := by
+  have hlistEq : q.pileDepth.toList = (List.finRange 10).map (fun j => q.pileDepth.get j) := by
+    apply List.ext_getElem
+    · simp
+    · intro i h1 h2
+      rw [Vector.getElem_toList, List.getElem_map, List.getElem_finRange]
+      rfl
+  rw [hlistEq, List.countP_map, Function.comp_def, hcount]
+  have hsplit := finRange_countP_ite_split 10 pile.toNat hpile
+    (fun j => q.pileDepth.get j == 0)
+  omega
+
+/-- The `j ≠ pile` part of `CleanupReady`'s `freePiles` formula only reads
+    `q.pileDepth.get j` for `j ≠ pile` (the `&&` short-circuits to `false` at
+    `j = pile` regardless), so it transfers unchanged across any frame
+    condition agreeing with a reference position outside `pile`. -/
+private theorem cleanupReady_freePiles_frame_eq (pile : UInt32) (p q : SolverPosType)
+    (hframe : ∀ j : Fin 10, j.val ≠ pile.toNat → q.pileDepth.get j = p.pileDepth.get j) :
+    (List.finRange 10).countP (fun j => j.val != pile.toNat && (q.pileDepth.get j == 0)) =
+    (List.finRange 10).countP (fun j => j.val != pile.toNat && (p.pileDepth.get j == 0)) := by
+  apply List.countP_congr
+  intro j _
+  by_cases hij : j.val = pile.toNat
+  · simp [hij]
+  · rw [hframe j hij]
+
 /-- **`SolverCleanupPile` re-establishes the Merged layer** from the midpoint
     predicate.  On top of `cleanupPile_baseNF`'s clause discharge this adds, at
     the same discharge site:
@@ -5286,7 +5371,225 @@ theorem cleanupPile_merged (pile : UInt32) (g : Globals) (p : SolverPosType)
     (hready : CleanupReady g (fluteNorm pile hpile p) pile) :
     ∃ fk p', EStateM.run (_root_.SolverCleanupPile pile) (g, p) = .ok fk (g, p') ∧
       SolverInvMerged g p' := by
-  sorry
+  obtain ⟨hnf, hpmOther, hfpCount⟩ := hready
+  -- Restate `hfpCount` in terms of `p` directly (rather than
+  -- `fluteNorm pile hpile p`): a `have`-with-explicit-type cast needing only
+  -- the two sides' *defeq* (fluteNorm doesn't touch `pileDepth`/`freePiles`),
+  -- not syntactic equality — needed because plain `rw`/`omega` match atoms
+  -- syntactically and would otherwise treat the two spellings as unrelated.
+  have hfpCount' : p.freePiles.toInt = ((List.finRange 10).countP
+      (fun j => j.val != pile.toNat && (p.pileDepth.get j == 0)) : Nat) := hfpCount
+  -- Reusable overflow-safety bound: `CleanupReady`'s prefix count is a `countP`
+  -- over the 10-element `List.finRange 10`, hence trivially ≤ 10 — enough
+  -- headroom for the `Int8` `+1` arithmetic in the empty/king branches below.
+  have hfp_le' : ((List.finRange 10).countP
+      (fun j => j.val != pile.toNat && (p.pileDepth.get j == 0)) : Nat) ≤ 10 :=
+    le_trans List.countP_le_length (by simp)
+  -- Bridge `hpmOther` (about `fluteNorm pile hpile p`) down to a fact about
+  -- `p` itself — exactly the same idea as `cleanupPile_eq`'s own `hnfp`
+  -- bridges `PileBase`, needed because `preCleanupPile_pileMerged_ne`/
+  -- `kingMove_pileMerged_ne` are stated about `p` directly.
+  have hpmOtherP : ∀ j : Fin 10, j.val ≠ pile.toNat →
+      PileMerged g p j (hnf.pileDepth_bound j) := by
+    intro j hij
+    have hfeq : (fluteNorm pile hpile p).pileFlute.get j = p.pileFlute.get j := by
+      show (fluteNorm pile hpile p).pileFlute[j.val]'j.isLt = p.pileFlute[j.val]'j.isLt
+      simp only [fluteNorm]
+      exact Vector.getElem_set_ne hpile j.isLt (Ne.symm hij)
+    have hb := hpmOther j hij
+    refine ⟨hb.merge_complete, ?_, ?_⟩
+    · have h2 := hb.flute_maximal
+      rwa [hfeq] at h2
+    · -- `busyAces_complete`'s field type has a `let boundary := …` before the
+      -- real `∀ hs, …` binder; `intro` consumes one name PER binder including
+      -- that `let`, so naming just `hpos hs heq` would bind `hs` to the *let*
+      -- (a card, not a proof) and shift everything else — avoid the whole
+      -- naming hazard by rewriting the goal (via `hfeq`) down to `hb`'s own
+      -- shape instead of introducing further.
+      intro hpos
+      rw [show p.pileFlute.get j = (fluteNorm pile hpile p).pileFlute.get j from hfeq.symm]
+      exact hb.busyAces_complete hpos
+  rcases cleanupPile_eq pile g p hpile hwf hnf with
+    ⟨hd, hsd, hrun⟩ | ⟨B, hs4, hd, hd1, hd5, hidx, hBdef, hBrange, hnfp, m, f,
+      hm_le, hmcards, hmstop, hf_le, hf_le_tight, hffree, hfstop, hak, hbranch⟩
+  · -- Empty pile.
+    refine ⟨0xffff, _, hrun, ?_⟩
+    have hbase' : SolverInvBase g { p with freePiles := p.freePiles + 1, pileDepth := p.pileDepth.set pile.toNat 0 hpile, pileFlute := p.pileFlute.set pile.toNat 1 hpile } := by
+      simp only [hsd]; exact nf_setFreePiles hnf _
+    refine SolverInvMerged.of_base hbase' (fun i => ?_) ?_
+    · -- (2)/(3b)/(6) `PileMerged` for every pile.
+      by_cases hij : i.val = pile.toNat
+      · have hii : i = ⟨pile.toNat, hpile⟩ := Fin.ext hij
+        subst hii
+        have hp'd0 : (p.pileDepth.set pile.toNat 0 hpile).get (⟨pile.toNat, hpile⟩ : Fin 10) = 0 := by
+          rw [hsd]; exact hd
+        exact ⟨Or.inl (by rw [hp'd0]; decide), Or.inl hp'd0,
+          fun h => absurd h (by rw [hp'd0]; decide)⟩
+      · simp only [hsd]
+        exact pm_setFreePiles (hpmOther i hij) _
+    · -- (9) `freePiles_def`: `pileDepth` is unchanged (`hsd`), and `pile` itself
+      -- (already empty, `hd`) newly contributes to the count, matching the `+1`.
+      show (p.freePiles + 1).toInt =
+        ((p.pileDepth.set pile.toNat 0 hpile).toList.countP (· == 0) : Nat)
+      rw [hsd]
+      have hsplit := cleanupReady_freePiles_split pile hpile p
+        ((List.finRange 10).countP (fun j => j.val != pile.toNat && (p.pileDepth.get j == 0)))
+        rfl
+      have hd' : p.pileDepth.get (⟨pile.toNat, hpile⟩ : Fin 10) = 0 := hd
+      have hind : (if p.pileDepth.get (⟨pile.toNat, hpile⟩ : Fin 10) == (0 : Int8) then
+          (1 : Nat) else 0) = 1 := by simp [hd']
+      rw [hind] at hsplit
+      have hadd : (p.freePiles + 1).toInt = p.freePiles.toInt + 1 := by
+        rw [Int8.toInt_add, Int8.toInt_one]
+        exact Int.bmod_eq_of_le (by norm_num; omega) (by norm_num; omega)
+      omega
+  · -- Loop-bearing case: reassemble `SolverInvMerged` from `cleanupPile_eq`'s
+    -- non-king/king bundle — `hsuit`/`hhash`/`hused` are already the shape
+    -- `SolverInvBase` needs; `pileBase`/`pileMerged` come from `hpc` (for
+    -- `pile` itself) chained with the modular `_ne` lemmas through `hnfp`/
+    -- `hpmOtherP` (for the others); `freePiles_def` from the two helper
+    -- lemmas above plus the branch's own frame/depth facts.
+    rcases hbranch with
+      ⟨hframe, hpc, hsuit, hhash, hused, hrun⟩ |
+      ⟨hd1', K, hKdef, hVK13, hsuiteq, hKeq, hframe, hpc, hsuit, hhash, hused, hrun⟩
+    · -- NON-KING sub-branch.
+      have hbase' : SolverInvBase g (preCleanupPile pile hpile B
+          (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile).toInt32 m f p) := by
+        refine ⟨fun i => ?_, hsuit, hhash, hused⟩
+        by_cases hij : i.val = pile.toNat
+        · have hii : i = ⟨pile.toNat, hpile⟩ := Fin.ext hij
+          subst hii
+          exact hpc.toPileBase
+        · exact preCleanupPile_pileBase_ne pile g hpile B (pileHashes[pile.toNat]'hpile) hs4 p
+            m f hd5 (by omega) i hij (hnfp i hij)
+      have hpmAll : ∀ i : Fin 10, PileMerged g (preCleanupPile pile hpile B
+          (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile).toInt32 m f p) i
+          (hbase'.pileDepth_bound i) := by
+        intro i
+        by_cases hij : i.val = pile.toNat
+        · have hii : i = ⟨pile.toNat, hpile⟩ := Fin.ext hij
+          subst hii
+          exact hpc.toPileMerged
+        · exact preCleanupPile_pileMerged_ne pile g hpile hwf B (pileHashes[pile.toNat]'hpile) hs4
+            p m f hd5 hm_le hmcards hak i hij (hnfp i hij) (hpmOtherP i hij)
+      have hpdEqNK : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+          (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth[pile.toNat]'hpile =
+          ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m).toInt8 := by
+        simp only [preCleanupPile]
+        rw [Vector.getElem_set_self]
+      have hpdNeNK : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+          (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth.get
+            (⟨pile.toNat, hpile⟩ : Fin 10) ≠ 0 := by
+        show (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth[pile.toNat]'hpile ≠ 0
+        rw [hpdEqNK]
+        intro heq
+        have h' := congrArg Int8.toInt heq
+        have hmofI : (Int32.ofNat m).toInt = (m : Int) := by
+          rw [Int32.toInt_ofNat', show Int32.size = 4294967296 from rfl]
+          exact Int.bmod_eq_of_le (by omega) (by omega)
+        have hdepth1I : ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m).toInt =
+            (p.pileDepth[pile.toNat]'hpile).toInt - m := by
+          rw [Int32.toInt_sub_of_le _ _
+            (by rw [Int32.le_iff_toInt_le, hmofI, show ((0 : Int32).toInt = 0) from by decide]
+                omega)
+            (by rw [Int32.le_iff_toInt_le, hmofI, Int8.toInt_toInt32]; omega),
+            hmofI, Int8.toInt_toInt32]
+        rw [Int32.toInt_toInt8, hdepth1I, Int.bmod_eq_of_le (by omega) (by omega),
+          show ((0 : Int8).toInt = 0) from rfl] at h'
+        omega
+      have hfp : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+          (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).freePiles.toInt =
+          ((preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth.toList.countP (· == 0) :
+            Nat) := by
+        have hfeq2 : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).freePiles = p.freePiles := by
+          simp only [preCleanupPile]
+        have hframeEq := cleanupReady_freePiles_frame_eq pile p
+          (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p) hframe
+        have hsplit := cleanupReady_freePiles_split pile hpile
+          (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)
+          ((List.finRange 10).countP (fun j => j.val != pile.toNat && (p.pileDepth.get j == 0)))
+          hframeEq.symm
+        have hind : (if (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth.get
+            (⟨pile.toNat, hpile⟩ : Fin 10) == (0 : Int8) then (1 : Nat) else 0) = 0 := by
+          simp [beq_eq_false_iff_ne.mpr hpdNeNK]
+        rw [hind] at hsplit
+        rw [hfeq2]
+        omega
+      exact ⟨0xffff, _, hrun, SolverInvMerged.of_base hbase' hpmAll hfp⟩
+    · -- KING sub-branch.
+      have hbase' : SolverInvBase g (kingMove pile hpile (SUIT B) hs4
+          (pileHashes[pile.toNat]'hpile) (preCleanupPile pile hpile B
+            (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)) := by
+        refine ⟨fun i => ?_, hsuit, hhash, hused⟩
+        by_cases hij : i.val = pile.toNat
+        · have hii : i = ⟨pile.toNat, hpile⟩ := Fin.ext hij
+          subst hii
+          exact hpc.toPileBase
+        · exact kingMove_pileBase_ne pile g hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile) _ i
+            hij (preCleanupPile_pileBase_ne pile g hpile B (pileHashes[pile.toNat]'hpile) hs4 p m f
+              hd5 (by omega) i hij (hnfp i hij))
+      have hpmAll : ∀ i : Fin 10, PileMerged g (kingMove pile hpile (SUIT B) hs4
+          (pileHashes[pile.toNat]'hpile) (preCleanupPile pile hpile B
+            (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)) i
+          (hbase'.pileDepth_bound i) := by
+        intro i
+        by_cases hij : i.val = pile.toNat
+        · have hii : i = ⟨pile.toNat, hpile⟩ := Fin.ext hij
+          subst hii
+          exact hpc.toPileMerged
+        · exact kingMove_pileMerged_ne pile g hpile hwf (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
+              _ hd1' K hKdef hVK13 hak i hij
+              (preCleanupPile_pileBase_ne pile g hpile B (pileHashes[pile.toNat]'hpile) hs4 p m f
+                hd5 (by omega) i hij (hnfp i hij))
+              (preCleanupPile_pileMerged_ne pile g hpile hwf B (pileHashes[pile.toNat]'hpile) hs4
+                p m f hd5 hm_le hmcards hak i hij (hnfp i hij) (hpmOtherP i hij))
+      have hkmfp : (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
+          (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).freePiles = p.freePiles + 1 := by
+        simp only [kingMove, preCleanupPile]
+      have hkd0 : (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
+          (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileDepth.get
+            (⟨pile.toNat, hpile⟩ : Fin 10) = 0 :=
+        kingMove_pileDepth_self pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
+          (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)
+      have hfp : (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
+          (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).freePiles.toInt =
+          ((kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
+            (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileDepth.toList.countP (· == 0) :
+            Nat) := by
+        have hframeEq := cleanupReady_freePiles_frame_eq pile p
+          (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
+            (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)) hframe
+        have hsplit := cleanupReady_freePiles_split pile hpile
+          (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
+            (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p))
+          ((List.finRange 10).countP (fun j => j.val != pile.toNat && (p.pileDepth.get j == 0)))
+          hframeEq.symm
+        have hind : (if (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
+            (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileDepth.get
+            (⟨pile.toNat, hpile⟩ : Fin 10) == (0 : Int8) then (1 : Nat) else 0) = 1 := by
+          simp [hkd0]
+        rw [hind] at hsplit
+        rw [hkmfp]
+        have hadd : (p.freePiles + 1).toInt = p.freePiles.toInt + 1 := by
+          rw [Int8.toInt_add, Int8.toInt_one]
+          exact Int.bmod_eq_of_le (by norm_num; omega) (by norm_num; omega)
+        omega
+      exact ⟨0xffff &&& kingOnPileMap[(SUIT B).toUInt32.toNat]'hs4, _, hrun,
+        SolverInvMerged.of_base hbase' hpmAll hfp⟩
 
 /-- **`SolverRemoveFlute` preserves the base layer.**  Direct corollary of
     `cleanupPile_baseNF` via the exact reduction `removeFlute_eq`: the
