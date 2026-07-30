@@ -91,15 +91,13 @@ structure PileBase (g : Globals) (p : SolverPosType) (i : Fin 10) : Prop where
     isFreeCard g p
       ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
           by have := pileDepth_bound; omega⟩ - j)
-  flute_not_aces : ∀ j : UInt8,
+  flute_not_aces :
     (p.pileDepth.get i).toInt.toNat > 0 →
-    0 < j.toNat → j.toNat < (p.pileFlute.get i).toNat →
-    ∀ hs : (SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
-        by have := pileDepth_bound; omega⟩)).toNat < 4,
-    p.aces.get ⟨(SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
-        by have := pileDepth_bound; omega⟩)).toNat, hs⟩ <
-    ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
-        by have := pileDepth_bound; omega⟩ - j).toInt8
+    let boundary := (g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
+        by have := pileDepth_bound; omega⟩
+    ∀ hs : (SUIT boundary).toNat < 4,
+    (p.aces.get ⟨(SUIT boundary).toNat, hs⟩).toUInt8.toNat + (p.pileFlute.get i).toNat ≤
+      boundary.toNat
 
 /-- **The cleanup-established conditions for one pile `i`** — the (2)/(3b)/(6)
     subset that `SolverCleanupPile` adds on top of `SolverInvBase`.  Used as the
@@ -121,7 +119,7 @@ structure PileMerged (g : Globals) (p : SolverPosType) (i : Fin 10)
         by have := pileDepth_bound; omega⟩
     let prevCard := boundary - p.pileFlute.get i
     (∃ hs : (SUIT boundary).toNat < 4,
-      p.aces.get ⟨(SUIT boundary).toNat, hs⟩ ≥ prevCard.toInt8) ∨
+      p.aces.get ⟨(SUIT boundary).toNat, hs⟩ = prevCard.toInt8) ∨
     ¬ isFreeCard g p prevCard
   busyAces_complete :
     (p.pileDepth.get i).toInt.toNat > 0 →
@@ -260,17 +258,10 @@ theorem SolverInvBase.flute_cards_free {g : Globals} {p : SolverPosType}
           by have := h.pileDepth_bound i; omega⟩ - j) :=
   (h.pileBase i).flute_cards_free j
 
-theorem SolverInvBase.flute_not_aces {g : Globals} {p : SolverPosType}
-    (h : SolverInvBase g p) (i : Fin 10) (j : UInt8) :
-    (p.pileDepth.get i).toInt.toNat > 0 →
-    0 < j.toNat → j.toNat < (p.pileFlute.get i).toNat →
-    ∀ hs : (SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
-        by have := h.pileDepth_bound i; omega⟩)).toNat < 4,
-    p.aces.get ⟨(SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
-        by have := h.pileDepth_bound i; omega⟩)).toNat, hs⟩ <
-    ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
-        by have := h.pileDepth_bound i; omega⟩ - j).toInt8 :=
-  (h.pileBase i).flute_not_aces j
+-- `SolverInvBase.flute_not_aces` (the per-offset Int8-comparison shim derived from the
+-- new Nat-based `PileBase.flute_not_aces` field) is defined further below, after
+-- `int8_nonneg_of_suit`/`SUIT_toNat`/`VALUE_toNat` (its proof needs them) — see the
+-- theorem of the same name just before `PileBase.flute_le_value`.
 
 theorem SolverInvBase.aces_kings_valid {g p}
     (h : SolverInvBase g p) (s : Fin 4) :
@@ -426,7 +417,7 @@ theorem SolverInvMerged.flute_maximal {g : Globals} {p : SolverPosType}
         by have := h.pileDepth_bound i; omega⟩
     let prevCard := boundary - p.pileFlute.get i
     (∃ hs : (SUIT boundary).toNat < 4,
-      p.aces.get ⟨(SUIT boundary).toNat, hs⟩ ≥ prevCard.toInt8) ∨
+      p.aces.get ⟨(SUIT boundary).toNat, hs⟩ = prevCard.toInt8) ∨
     ¬ isFreeCard g p prevCard :=
   (h.pileMerged i).flute_maximal
 
@@ -508,6 +499,72 @@ theorem int8_nonneg_of_suit {x : Int8} {s : Fin 4}
   rw [hti, Int.bmod_eq_of_le (by omega) (by omega)]
   omega
 
+/-- **Per-offset `Int8` shim, derived from the Nat-based `PileBase.flute_not_aces`
+    field.**  Preserves the pre-refactor call shape (`h.flute_not_aces i j hdi hj0
+    hjlt hs : aces < (boundary - j).toInt8`) used throughout this file, now proved
+    from the new field `aces.toUInt8.toNat + pileFlute.toNat ≤ boundary.toNat`
+    (wraparound-safe: `aces` is nonnegative via `aces_kings_valid`/`int8_nonneg_of_suit`,
+    and `boundary` is `< 64` via `WellFormedLayout`/`IsRealCard`, so every UInt8/Int8
+    cast involved stays comfortably below the 128 sign threshold). -/
+theorem SolverInvBase.flute_not_aces {g : Globals} {p : SolverPosType}
+    (h : SolverInvBase g p) (hwf : WellFormedLayout g) (i : Fin 10) (j : UInt8) :
+    (p.pileDepth.get i).toInt.toNat > 0 →
+    0 < j.toNat → j.toNat < (p.pileFlute.get i).toNat →
+    ∀ hs : (SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
+        by have := h.pileDepth_bound i; omega⟩)).toNat < 4,
+    p.aces.get ⟨(SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
+        by have := h.pileDepth_bound i; omega⟩)).toNat, hs⟩ <
+    ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
+        by have := h.pileDepth_bound i; omega⟩ - j).toInt8 := by
+  intro hdi hj0 hjlt hs
+  set boundary := (g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
+      by have := h.pileDepth_bound i; omega⟩ with hbdef
+  set aces := p.aces.get ⟨(SUIT boundary).toNat, hs⟩ with hacesdef
+  -- Obtain the new Nat-based field fact with an explicit type ascription (rather
+  -- than relying on `set`'s syntactic rewriting to fold it) — the field's own
+  -- internal `pileDepth_bound` proof term differs syntactically from ours, so we
+  -- let `isDefEq`/proof-irrelevance bridge the two instead of `kabstract`.
+  have hbound : aces.toUInt8.toNat + (p.pileFlute.get i).toNat ≤ boundary.toNat :=
+    (h.pileBase i).flute_not_aces hdi hs
+  -- `aces` carries the same suit as `boundary`, so it's a real (nonnegative) card.
+  have haces_nonneg : (0 : Int8) ≤ aces :=
+    int8_nonneg_of_suit ((h.aces_kings_valid ⟨(SUIT boundary).toNat, hs⟩).1)
+  -- `boundary` itself is a real card (WellFormedLayout), hence < 64.
+  have hreal : IsRealCard boundary := hwf.pos2card_real i _
+  have hb64 : boundary.toNat < 64 := by
+    have h1 := hreal.1
+    have h2 := hreal.2.2
+    have h3 := SUIT_toNat boundary
+    have h4 := VALUE_toNat boundary
+    omega
+  -- No underflow: j.toNat < pileFlute.toNat ≤ boundary.toNat (from hbound, since
+  -- aces.toUInt8.toNat ≥ 0), so the `UInt8` subtraction is a plain Nat subtraction.
+  have hjleU : j ≤ boundary := by
+    rw [UInt8.le_iff_toNat_le]
+    omega
+  have hsub : (boundary - j).toNat = boundary.toNat - j.toNat :=
+    UInt8.toNat_sub_of_le _ _ hjleU
+  -- Pure Nat arithmetic, no wraparound concern: both sides stay well below 128.
+  have haces_lt : aces.toUInt8.toNat < (boundary - j).toNat := by
+    rw [hsub]; omega
+  rw [Int8.lt_iff_toInt_lt]
+  have hLHS : aces.toInt = (aces.toUInt8.toNat : Int) := by
+    have hti : aces.toInt = ((aces.toUInt8.toNat : Int)).bmod (2 ^ 8) := by
+      show aces.toBitVec.toInt = _
+      rw [BitVec.toInt_eq_toNat_bmod]
+      rfl
+    rw [hti, Int.bmod_eq_of_le (by omega) (by omega)]
+  have hRHS : ((boundary - j).toInt8).toInt = ((boundary - j).toNat : Int) := by
+    have hti : ((boundary - j).toInt8).toInt =
+        (((boundary - j).toInt8.toUInt8.toNat : Int)).bmod (2 ^ 8) := by
+      show ((boundary - j).toInt8).toBitVec.toInt = _
+      rw [BitVec.toInt_eq_toNat_bmod]
+      rfl
+    rw [UInt8.toUInt8_toInt8] at hti
+    rw [hti, Int.bmod_eq_of_le (by omega) (by omega)]
+  rw [hLHS, hRHS]
+  exact_mod_cast haces_lt
+
 /-- **Per-pile counterpart of `SolverInvBase.flute_le_value`.**  `PileClean`
     bundles only per-pile facts, so it has no `aces_kings_valid` of its own —
     the one extra ingredient needed (the ace's own suit matches, so it can't
@@ -521,49 +578,34 @@ theorem PileBase.flute_le_value {g : Globals} {p : SolverPosType} {i : Fin 10}
     (p.pileFlute.get i).toNat ≤
       (VALUE ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
           by have := hc.pileDepth_bound; omega⟩)).toNat := by
-  by_contra hlt
-  push Not at hlt
   set B := (g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
       by have := hc.pileDepth_bound; omega⟩ with hBdef
   have hreal : IsRealCard B := hwf.pos2card_real i _
   have hs4 : (SUIT B).toNat < 4 := hreal.1
-  have hv1 : 1 ≤ (VALUE B).toNat := hreal.2.1
-  have hna := hc.flute_not_aces (VALUE B) hdi hv1 hlt hs4
   set S := (SUIT B).toNat with hSdef
-  have haces_nonneg : (0 : Int8) ≤ p.aces.get ⟨S, hs4⟩ := int8_nonneg_of_suit (hak ⟨S, hs4⟩)
-  have hle : VALUE B ≤ B := by rw [UInt8.le_iff_toNat_le, VALUE_toNat]; omega
-  have hBVeq : (B - VALUE B).toNat = 16 * S := by
-    rw [UInt8.toNat_sub_of_le _ _ hle, VALUE_toNat, hSdef, SUIT_toNat]
-    omega
-  have hti : ((B - VALUE B).toInt8).toInt = ((B - VALUE B).toNat : Int) := by
-    have hti' : ((B - VALUE B).toInt8).toInt =
-        (((B - VALUE B).toInt8.toUInt8.toNat : Int)).bmod (2 ^ 8) := by
-      show ((B - VALUE B).toInt8).toBitVec.toInt = _
-      rw [BitVec.toInt_eq_toNat_bmod]
-      rfl
-    rw [UInt8.toUInt8_toInt8] at hti'
-    rw [hti', Int.bmod_eq_of_le (by omega) (by omega)]
-  have hlt_int : (p.aces.get ⟨S, hs4⟩).toInt < ((B - VALUE B).toNat : Int) := by
-    have h1 := Int8.lt_iff_toInt_lt.mp hna
-    rwa [hti] at h1
-  have haces_nonneg' : (0 : Int) ≤ (p.aces.get ⟨S, hs4⟩).toInt := by
-    rw [← show ((0 : Int8).toInt = 0) from rfl]
-    exact Int8.le_iff_toInt_le.mp haces_nonneg
-  have hacesUInt8 : (p.aces.get ⟨S, hs4⟩).toUInt8.toNat < (B - VALUE B).toNat := by
-    rw [Int8.toNat_toUInt8_of_le haces_nonneg]
-    show (p.aces.get ⟨S, hs4⟩).toInt.toNat < (B - VALUE B).toNat
-    omega
-  rw [hBVeq] at hacesUInt8
-  have hSuitEqNat : (SUIT ((p.aces.get ⟨S, hs4⟩).toUInt8)).toNat = S := by
+  -- Explicit type ascription (rather than relying on syntactic folding): the new
+  -- Nat-based field, directly giving the bound with no offset/case-split needed.
+  have hna : (p.aces.get ⟨S, hs4⟩).toUInt8.toNat + (p.pileFlute.get i).toNat ≤ B.toNat :=
+    hc.flute_not_aces hdi hs4
+  have hSAeq : (SUIT (p.aces.get ⟨S, hs4⟩).toUInt8).toNat = S := by
     have h1 := congrArg UInt8.toNat (hak ⟨S, hs4⟩)
-    rw [SUIT_toNat] at h1
     have h2 : ((⟨S, hs4⟩ : Fin 4).val.toUInt8).toNat = S := by
       show (S.toUInt8).toNat = S
       rw [UInt8.toNat_ofNat']
       omega
     omega
-  have hSuitLt : (SUIT ((p.aces.get ⟨S, hs4⟩).toUInt8)).toNat < S := by
-    rw [SUIT_toNat]; omega
+  have hAdecomp : (p.aces.get ⟨S, hs4⟩).toUInt8.toNat =
+      16 * S + (VALUE (p.aces.get ⟨S, hs4⟩).toUInt8).toNat := by
+    have h1 := SUIT_toNat (p.aces.get ⟨S, hs4⟩).toUInt8
+    have h2 := VALUE_toNat (p.aces.get ⟨S, hs4⟩).toUInt8
+    omega
+  have hBdecomp : B.toNat = 16 * S + (VALUE B).toNat := by
+    have h1 := SUIT_toNat B
+    have h2 := VALUE_toNat B
+    omega
+  -- aces.toUInt8.toNat ≥ 16*S (suit-block lower bound), combined with `hna` and
+  -- the 16*S+VALUE decomposition of `B.toNat`, gives the bound directly — no
+  -- wraparound, no case-split, just Nat arithmetic.
   omega
 
 /-- **(3e) Flute length bounded by card value** — derived, not a base-invariant
@@ -586,7 +628,7 @@ theorem SolverInvBase.flute_le_value {g : Globals} {p : SolverPosType}
 theorem IsCanonicalPos.pileClean {g : Globals} {p : SolverPosType}
     (h : IsCanonicalPos g p) (i : Fin 10) : PileClean g p i :=
   ⟨⟨h.pileDepth_bound i, h.pileDepth_nonneg i, h.flute_pos i,
-    h.flute_empty i, h.flute_cards_free i, h.flute_not_aces i⟩,
+    h.flute_empty i, h.flute_cards_free i, (h.pileBase i).flute_not_aces⟩,
    h.merge_complete i, h.flute_maximal i, h.busyAces_complete i⟩
 
 /-- Canonical positions satisfy foundation maximal in the strong form -/
@@ -1221,7 +1263,7 @@ theorem cardOf_injective {g : Globals} {p : SolverPosType}
     by_cases hBs : SUIT Bj = s.val.toUInt8
     · have hs4 : (SUIT Bj).toNat < 4 := by
         rw [hBs, UInt8.toNat_ofNat']; have := s.isLt; omega
-      have hlt := h.flute_not_aces j' (UInt8.ofNat (k'.val + 1)) hd0'.1
+      have hlt := h.flute_not_aces hwf j' (UInt8.ofNat (k'.val + 1)) hd0'.1
         (by rw [hkof']; omega) (by rw [hkof']; exact hkLt') hs4
       have hidxeq : (⟨(SUIT Bj).toNat, hs4⟩ : Fin 4) = s := by
         apply Fin.ext
@@ -1314,7 +1356,7 @@ theorem cardOf_injective {g : Globals} {p : SolverPosType}
     by_cases hBs : SUIT Bj = s'.val.toUInt8
     · have hs4 : (SUIT Bj).toNat < 4 := by
         rw [hBs, UInt8.toNat_ofNat']; have := s'.isLt; omega
-      have hlt := h.flute_not_aces j (UInt8.ofNat (k.val + 1)) hd0.1
+      have hlt := h.flute_not_aces hwf j (UInt8.ofNat (k.val + 1)) hd0.1
         (by rw [hkof]; omega) (by rw [hkof]; exact hkLt) hs4
       have hidxeq : (⟨(SUIT Bj).toNat, hs4⟩ : Fin 4) = s' := by
         apply Fin.ext
@@ -1682,7 +1724,7 @@ theorem IsCanonicalPos_unique (g : Globals) (p q : SolverPosType)
             congrArg UInt8.toNat (congrArg SUIT hbdy)
           have hs' : (SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
                         by have := hp.pileDepth_bound i; omega⟩)).toNat < 4 := hsuit ▸ hs
-          have hlt_aces := hp.flute_not_aces i (q.pileFlute.get i) hdp_pos hj1 hlt' hs'
+          have hlt_aces := hp.flute_not_aces hwf i (q.pileFlute.get i) hdp_pos hj1 hlt' hs'
           have haces_s : p.aces.get ⟨_, hs'⟩ = q.aces.get ⟨_, hs⟩ :=
             (congrArg (fun v : Vector Int8 4 => v.get ⟨_, hs'⟩) haces).trans
               (congrArg q.aces.get (Fin.ext hsuit))
@@ -1693,7 +1735,7 @@ theorem IsCanonicalPos_unique (g : Globals) (p q : SolverPosType)
                           by have := hq.pileDepth_bound i; omega⟩ -
                         q.pileFlute.get i).toInt8 := by rw [hbdy]
           rw [haces_s, hcard] at hlt_aces
-          exact absurd hge (Int8.not_le.mpr hlt_aces)
+          exact absurd (congrArg Int8.toInt hge) (ne_of_lt (Int8.lt_iff_toInt_lt.mp hlt_aces))
         · exact hnfree (hbdy ▸ hfree_q)
       -- pileFlute_q ≤ pileFlute_p (symmetric)
       have hle2 : (q.pileFlute.get i).toNat ≤ (p.pileFlute.get i).toNat := by
@@ -1711,7 +1753,7 @@ theorem IsCanonicalPos_unique (g : Globals) (p q : SolverPosType)
             congrArg UInt8.toNat (congrArg SUIT hbdy.symm)
           have hs' : (SUIT ((g.pos2card.get i).get ⟨(q.pileDepth.get i).toInt.toNat - 1,
                         by have := hq.pileDepth_bound i; omega⟩)).toNat < 4 := hsuit ▸ hs
-          have hlt_aces := hq.flute_not_aces i (p.pileFlute.get i) hdq_pos hj1 hlt' hs'
+          have hlt_aces := hq.flute_not_aces hwf i (p.pileFlute.get i) hdq_pos hj1 hlt' hs'
           have haces_s : q.aces.get ⟨_, hs'⟩ = p.aces.get ⟨_, hs⟩ :=
             (congrArg (fun v : Vector Int8 4 => v.get ⟨_, hs'⟩) haces.symm).trans
               (congrArg p.aces.get (Fin.ext hsuit))
@@ -1722,7 +1764,7 @@ theorem IsCanonicalPos_unique (g : Globals) (p q : SolverPosType)
                           by have := hp.pileDepth_bound i; omega⟩ -
                         p.pileFlute.get i).toInt8 := by rw [hbdy.symm]
           rw [haces_s, hcard] at hlt_aces
-          exact absurd hge (Int8.not_le.mpr hlt_aces)
+          exact absurd (congrArg Int8.toInt hge) (ne_of_lt (Int8.lt_iff_toInt_lt.mp hlt_aces))
         · exact hnfree (hbdy.symm ▸ hfree_p)
       exact UInt8.ext (Nat.le_antisymm hle1 hle2)
   -- freePiles: count of piles with depth 0, so determined by pileDepth

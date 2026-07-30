@@ -531,13 +531,33 @@ def kingMove (pile : UInt32) (hpile : pile.toNat < 10) (suit : UInt8)
     straight to `Int8`): for `x` in (non-negative, `Int8`-representable) range,
     both routes agree.
 
-    TODO: proof deferred (not needed yet for the `PileClean`/`SuitClean`
-    preservation work on `preCleanupPile`/`kingMove` themselves — only for
-    reconnecting to the real `cleanupRunResult` afterwards). -/
+    Both sides reduce to `x.toInt` itself: the `UInt32`/`UInt8` route via
+    `Int32.toNat_toUInt32_of_le` + `UInt32.toNat_toUInt8` (no wraparound, `x.toInt
+    < 128 < 256`) then the small-value `Int8` round-trip (`BitVec.toInt_eq_toNat_bmod`
+    + `UInt8.toUInt8_toInt8`); the direct `Int32.toInt_toInt8` route via `Int.bmod_eq_of_le`
+    (also wrap-free in this range). -/
 private theorem int32_toUInt32_toUInt8_toInt8_eq {x : Int32}
     (h0 : (0 : Int) ≤ x.toInt) (h128 : x.toInt < 128) :
     (x.toUInt32.toUInt8).toInt8 = x.toInt8 := by
-  sorry
+  have h0' : (0 : Int32) ≤ x := by
+    rw [Int32.le_iff_toInt_le, show ((0 : Int32).toInt = 0) from by decide]; omega
+  have hxnat : x.toUInt32.toNat = x.toNatClampNeg := Int32.toNat_toUInt32_of_le h0'
+  have hbdg : x.toNatClampNeg = x.toInt.toNat := rfl
+  have h1 : x.toUInt32.toNat = x.toInt.toNat := by rw [hxnat, hbdg]
+  have h2 : (x.toUInt32.toUInt8).toNat = x.toUInt32.toNat % 2 ^ 8 := UInt32.toNat_toUInt8 _
+  have h3 : (x.toUInt32.toUInt8).toNat = x.toInt.toNat := by rw [h2, h1]; omega
+  have h4 : (x.toUInt32.toUInt8).toInt8.toInt = ((x.toUInt32.toUInt8).toNat : Int) := by
+    show (x.toUInt32.toUInt8).toInt8.toBitVec.toInt = _
+    rw [BitVec.toInt_eq_toNat_bmod]
+    show (((x.toUInt32.toUInt8).toInt8.toUInt8.toNat : Int)).bmod (2 ^ 8) = _
+    rw [UInt8.toUInt8_toInt8]
+    exact Int.bmod_eq_of_le (by omega) (by omega)
+  have h5 : x.toInt8.toInt = x.toInt := by
+    rw [Int32.toInt_toInt8]
+    exact Int.bmod_eq_of_le (by omega) (by omega)
+  apply Int8.toInt_inj.mp
+  rw [h4, h3, h5]
+  omega
 
 /-- **`cleanupRunResult` factors as `preCleanupPile`, followed — in the
     lone-king case only — by `kingMove`.**  `kingMove` re-derives the drained
@@ -545,7 +565,7 @@ private theorem int32_toUInt32_toUInt8_toInt8_eq {x : Int32}
     (bridged back to `cleanupRunResult`'s own `Int32`-cast computation via
     `int32_toUInt32_toUInt8_toInt8_eq`, using `hmf128` to stay in range).
 
-    TODO: proof deferred, same reason as `int32_toUInt32_toUInt8_toInt8_eq`. -/
+-/
 theorem cleanupRunResult_eq (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
     (d32 : Int32) (m f : Nat) (p : SolverPosType)
@@ -556,7 +576,28 @@ theorem cleanupRunResult_eq (pile : UInt32) (hpile : pile.toNat < 10)
           kingMove pile hpile (SUIT B) hs4 ph (preCleanupPile pile hpile B ph hs4 d32 m f p))
       else
         (0xffff, preCleanupPile pile hpile B ph hs4 d32 m f p) := by
-  sorry
+  have hmofI : (Int32.ofNat m).toInt = (m : Int) := by
+    rw [Int32.toInt_ofNat', show Int32.size = 4294967296 from rfl]
+    exact Int.bmod_eq_of_le (by omega) (by omega)
+  have hfofI : (Int32.ofNat f).toInt = (f : Int) := by
+    rw [Int32.toInt_ofNat', show Int32.size = 4294967296 from rfl]
+    exact Int.bmod_eq_of_le (by omega) (by omega)
+  have h1mI : ((1 : Int32) + Int32.ofNat m).toInt = 1 + (m : Int) := by
+    rw [Int32.toInt_add, Int32.toInt_one, hmofI]
+    exact Int.bmod_eq_of_le (by omega) (by omega)
+  have hflute2I : ((1 : Int32) + Int32.ofNat m + Int32.ofNat f).toInt = 1 + (m : Int) + f := by
+    rw [Int32.toInt_add, h1mI, hfofI]
+    exact Int.bmod_eq_of_le (by omega) (by omega)
+  have hbridge := int32_toUInt32_toUInt8_toInt8_eq
+    (x := (1 : Int32) + Int32.ofNat m + Int32.ofNat f)
+    (by rw [hflute2I]; omega) (by rw [hflute2I]; omega)
+  cases hba : (p.aces[(SUIT B).toUInt32.toNat]'hs4 == (B - 1 - UInt8.ofNat f).toInt8) <;>
+    cases hk : (d32 - Int32.ofNat m == 1 && VALUE (B + UInt8.ofNat m) == 13) <;>
+    simp only [cleanupRunResult, preCleanupPile, kingMove, hba, hk, Bool.false_eq_true,
+      reduceIte, Vector.set_set, Vector.getElem_set_self] <;>
+    first
+      | rfl
+      | (rw [Prod.mk.injEq]; refine ⟨rfl, ?_⟩; rw [← hbridge])
 
 /-- **Exact run of the freed loop**: some number `f` of `freedStep`s, guard true
     before each and false after, state untouched. -/
