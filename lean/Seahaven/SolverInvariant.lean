@@ -353,14 +353,21 @@ def freePilesUpTo (p : SolverPosType) (k : Nat) : Nat :=
 /-- **Cleanup-loop invariant.**  `SolverInvBase` holds globally, `freePiles`
     matches the *prefix-relative* count `freePilesUpTo … k` (the cleanup loop
     builds `freePiles` up pile-by-pile — it counts only the already-processed
-    piles `< k`, not the raw piles still awaiting cleanup), and the first `k`
-    piles have additionally been cleaned (`PileMerged`).  `MergedUpTo … 0` is the
+    piles `< k`, not the raw piles still awaiting cleanup), the first `k`
+    piles have additionally been cleaned (`PileMerged`), and every pile `≥ k`
+    (not yet reached by the loop) still carries the default `pileFlute = 1` —
+    nothing but pile `k`'s own cleanup step ever touches pile `k`'s flute, so
+    this holds throughout and is exactly what makes `fluteNorm` a no-op on
+    pile `k` (needed to bridge to `cleanupPile_base`'s fluteNorm'd
+    precondition — see `solverCleanupPile_step`).  `MergedUpTo … 0` is the
     state right after setup, and `MergedUpTo … 10` is exactly `SolverInvMerged`
-    (where the prefix count becomes the global `freePiles_def`; see
+    (where the prefix count becomes the global `freePiles_def`, and the new
+    flute clause is vacuous — no `i : Fin 10` has `i.val ≥ 10`; see
     `mergedUpTo_ten_iff`). -/
 def MergedUpTo (g : Globals) (p : SolverPosType) (k : Nat) : Prop :=
   ∃ h : SolverInvBase g p, p.freePiles.toInt = (freePilesUpTo p k : Nat) ∧
-    ∀ i : Fin 10, i.val < k → PileMerged g p i (h.pileDepth_bound i)
+    (∀ i : Fin 10, i.val < k → PileMerged g p i (h.pileDepth_bound i)) ∧
+    (∀ i : Fin 10, k ≤ i.val → p.pileFlute.get i = 1)
 
 -- ---------------------------------------------------------------------------
 -- Bridge lemmas between the components and the tower
@@ -370,10 +377,10 @@ def MergedUpTo (g : Globals) (p : SolverPosType) (k : Nat) : Prop :=
 theorem mergedUpTo_ten_iff {g : Globals} {p : SolverPosType} :
     MergedUpTo g p 10 ↔ SolverInvMerged g p := by
   constructor
-  · rintro ⟨hbase, hfp, hpm⟩
+  · rintro ⟨hbase, hfp, hpm, _⟩
     exact ⟨hbase, fun i => hpm i i.isLt, hfp.trans (by rw [freePilesUpTo_ten])⟩
   · intro h
-    refine ⟨h.toSolverInvBase, ?_, fun i _ => h.pileMerged i⟩
+    refine ⟨h.toSolverInvBase, ?_, fun i _ => h.pileMerged i, fun i hi => absurd i.isLt (by omega)⟩
     rw [freePilesUpTo_ten]; exact h.freePiles_def
 
 /-- Canonical projects to merged + drained.  (The converse additionally needs the
