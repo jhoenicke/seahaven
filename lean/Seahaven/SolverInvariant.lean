@@ -1761,7 +1761,7 @@ theorem IsCanonicalPos_unique (g : Globals) (p q : SolverPosType)
 -- ---------------------------------------------------------------------------
 
 /-- An `Int8` that is nonnegative is determined by `x.toInt.toNat`. -/
-private theorem Int8_eq_of_toNat_eq {x y : Int8} (hx : (0 : Int8) ≤ x) (hy : (0 : Int8) ≤ y)
+theorem Int8_eq_of_toNat_eq {x y : Int8} (hx : (0 : Int8) ≤ x) (hy : (0 : Int8) ≤ y)
     (h : x.toInt.toNat = y.toInt.toNat) : x = y := by
   apply Int8.toInt_inj.mp
   have hx' : (0 : Int) ≤ x.toInt := Int8.le_iff_toInt_le.mp hx

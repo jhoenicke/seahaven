@@ -322,7 +322,7 @@ theorem StateMatchesLayout.card_in_pile
 --   col.length = n  (the boundary card is on top, flute is trivial) → n decreases by 1
 --
 -- The result is stated existentially to cover both cases uniformly.
-private lemma PileMatches_tail
+lemma PileMatches_tail
     {g : Globals} {col : Column} {p : Fin 10} {n : Fin 6}
     (hm : PileMatches g col p n)
     (hne : 0 < col.length) :
@@ -390,20 +390,20 @@ private lemma PileMatches_tail
       · exact ⟨0, fun i => i.elim0⟩
 
 -- ---- Encoding helpers
-private lemma encodeCard_SUIT (c : Card) :
+lemma encodeCard_SUIT (c : Card) :
     SUIT (encodeCard c) = UInt8.ofNat (suitToNat c.suit) := by
   fin_cases c <;> native_decide
 
-private lemma encodeCard_VALUE (c : Card) :
+lemma encodeCard_VALUE (c : Card) :
     (VALUE (encodeCard c)).toNat = rankToNat c.rank := by
   fin_cases c <;> native_decide
 
 -- nextCard preserves suit; rank increases by 1
-private lemma nextCard_suit {c top : Card} (h : nextCard c = some top) :
+lemma nextCard_suit {c top : Card} (h : nextCard c = some top) :
     top.suit = c.suit := by
   simp [nextCard] at h; split at h <;> simp_all [Card.ext_iff]
 
-private lemma nextCard_rank {c top : Card} (h : nextCard c = some top) :
+lemma nextCard_rank {c top : Card} (h : nextCard c = some top) :
     rankToNat top.rank = rankToNat c.rank + 1 := by
   simp [nextCard, nextRank] at h
   split at h <;> [simp at h; rename_i r hr]
@@ -411,7 +411,7 @@ private lemma nextCard_rank {c top : Card} (h : nextCard c = some top) :
   rw [hinjr]; exact nextRankNat (some c.rank) r (by simpa [optRankToNat, nextRank])
 
 -- nextCard c = none means c is a king (rank 13)
-private lemma nextCard_none_rank {c : Card} (h : nextCard c = none) :
+lemma nextCard_none_rank {c : Card} (h : nextCard c = none) :
     rankToNat c.rank = 13 := by
   obtain ⟨suit, rank⟩ := c
   simp[nextCard] at h
@@ -421,7 +421,7 @@ private lemma nextCard_none_rank {c : Card} (h : nextCard c = none) :
   · simp[h_eq] at h
 
 -- ---- Extend IsSameSuitDescending by appending one element
-private lemma IsSameSuitDescending_snoc
+lemma IsSameSuitDescending_snoc
     {suit : UInt8} {sv : Nat} {cards : List UInt8} {c : UInt8}
     (h : IsSameSuitDescending suit sv cards)
     (hsuit : SUIT c = suit)
@@ -444,7 +444,7 @@ private lemma IsSameSuitDescending_snoc
 -- hcont uses the exact dropCol guard: col.head? = nextCard card.
 -- When col = [], this requires nextCard card = none, i.e. card is a king.
 -- When col ≠ [], it requires the current top to be the card one rank above card.
-private lemma PileMatches_cons
+lemma PileMatches_cons
     {g : Globals} {col : Column} {p : Fin 10} {n : Fin 6} {card : Card}
     (hm : PileMatches g col p n)
     (hcont : col.head? = nextCard card) :
