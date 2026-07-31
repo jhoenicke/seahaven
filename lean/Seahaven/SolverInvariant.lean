@@ -170,10 +170,7 @@ structure SuitClean (g : Globals) (p : SolverPosType) (s : Fin 4)
   foundation_maximal_weak:
     (VALUE (p.aces.get s).toUInt8).toNat = 13 ∨
     ¬ isFreeCard g p ((p.aces.get s).toUInt8 + 1) ∨
-    (∃ i : Fin 10, (p.pileDepth.get i).toInt.toNat > 0 ∧
-      (p.aces.get s).toUInt8 = (g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
-          by have := (pileDepth_bound i); omega⟩ - p.pileFlute.get i) ∨
-    (p.aces.get s = p.kings.get s)
+    p.busyAces &&& ((1 : UInt8) <<< s.val.toUInt8) ≠ 0
 
   /-- **(5) King frontier.** Either `kings[s] = aces[s]` — because the suit is
       complete (all 13 cards in the foundation or king flute), or the king frontier
@@ -227,6 +224,18 @@ structure SolverInvBase (g : Globals) (p : SolverPosType) : Prop where
     - (p.aces.toList.foldl (fun acc a => acc + (VALUE a.toUInt8).toNat) 0 : Nat)
     - (List.zipWith (fun d f => if d ≠ (0 : Int8) then f.toNat - 1 else 0)
         p.pileDepth.toList p.pileFlute.toList |>.foldl (· + ·) 0 : Nat)
+
+  /-- **(11) `busyAces` only ever uses its low 4 bits.**  Every write to
+      `busyAces` anywhere in the solver either leaves it alone or ORs in
+      exactly `1 <<< SUIT B` for some *real* card `B` (a `pos2card` entry,
+      via `WellFormedLayout.pos2card_real`), and `SUIT` of a real card is
+      always `< 4` — so bits `4..7` are never set.  This isn't visible from
+      any of the *other* fields above (`foundation_maximal_weak`/
+      `king_frontier`/`busyAces_complete` only ever *test* bits `s.val` for
+      `s : Fin 4`, never excluding higher ones), so it needs its own field.
+      `SolverMoveAces` genuinely needs it: it uses `ctz p.busyAces` as a raw
+      index into the 4-entry `aces`/`kings` vectors. -/
+  busyAces_lt16 : p.busyAces < 16
 
 /-- Shims preserving the pre-refactor field-access names now that
     `pileDepth_bound`/`pileDepth_nonneg`/`flute_pos`/`flute_empty`/
@@ -285,10 +294,7 @@ theorem SolverInvBase.foundation_maximal_weak {g p}
     (h : SolverInvBase g p) (s : Fin 4) :
     (VALUE (p.aces.get s).toUInt8).toNat = 13 ∨
     ¬ isFreeCard g p ((p.aces.get s).toUInt8 + 1) ∨
-    (∃ i : Fin 10, (p.pileDepth.get i).toInt.toNat > 0 ∧
-      (p.aces.get s).toUInt8 = (g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
-          by have := (h.pileDepth_bound i); omega⟩ - p.pileFlute.get i) ∨
-    (p.aces.get s = p.kings.get s) :=
+    p.busyAces &&& ((1 : UInt8) <<< s.val.toUInt8) ≠ 0 :=
     (h.suitClean s).foundation_maximal_weak
 
 theorem SolverInvBase.king_frontier {g p}
@@ -643,49 +649,10 @@ theorem IsCanonicalPos.foundation_maximal {g: Globals} {p: SolverPosType}
     (hwf : WellFormedLayout g) (h : IsCanonicalPos g p) (s : Fin 4) :
     (VALUE (p.aces.get s).toUInt8).toNat = 13 ∨
     ¬ isFreeCard g p ((p.aces.get s).toUInt8 + 1) := by
-    rcases h.foundation_maximal_weak s with h13 | hnfree | ⟨i, hpile⟩  | hking
+    rcases h.foundation_maximal_weak s with h13 | hnfree | hbusy
     · exact Or.inl h13
     · exact Or.inr hnfree
-    · -- `aces[s]` sits exactly at pile `i`'s `prevCard` (boundary minus its
-      -- flute).  No suit overflow: `flute_le_value` bounds the flute length
-      -- by `VALUE(boundary)`, so subtracting it never borrows into the suit
-      -- nibble, giving `SUIT boundary = s`.  That lets `busyAces_complete`
-      -- fire on `hpile.2` directly, contradicting `busyAces_zero`.
-      set B := (g.pos2card.get i).get ⟨(p.pileDepth.get i).toInt.toNat - 1,
-          by have := h.pileDepth_bound i; omega⟩ with hBdef
-      have hreal : IsRealCard B := hwf.pos2card_real i _
-      have hs4 : (SUIT B).toNat < 4 := hreal.1
-      have hflv : (p.pileFlute.get i).toNat ≤ (VALUE B).toNat :=
-        h.flute_le_value hwf i hpile.1
-      have hVB_le_B : (VALUE B).toNat ≤ B.toNat := by rw [VALUE_toNat]; omega
-      have hleUInt8 : p.pileFlute.get i ≤ B :=
-        UInt8.le_iff_toNat_le.mpr (le_trans hflv hVB_le_B)
-      have hBfeq : (B - p.pileFlute.get i).toNat = B.toNat - (p.pileFlute.get i).toNat :=
-        UInt8.toNat_sub_of_le _ _ hleUInt8
-      have hSUITeq : SUIT (B - p.pileFlute.get i) = SUIT B := by
-        apply UInt8.toNat_inj.mp
-        rw [SUIT_toNat, SUIT_toNat, hBfeq]
-        have hVB := VALUE_toNat B
-        omega
-      have hSb : SUIT B = s.val.toUInt8 := by
-        rw [← hSUITeq, ← hpile.2]
-        exact (h.aces_kings_valid s).1
-      have hSbNat : (SUIT B).toNat = s.val := by
-        have h1 := congrArg UInt8.toNat hSb
-        have h2 : (s.val.toUInt8).toNat = s.val := by
-          rw [UInt8.toNat_ofNat']
-          have := s.isLt; omega
-        rwa [h2] at h1
-      have hidxeq : (⟨(SUIT B).toNat, hs4⟩ : Fin 4) = s := Fin.ext hSbNat
-      have hbusy := (h.pileMerged i).busyAces_complete hpile.1 hs4
-      rw [hidxeq] at hbusy
-      exact absurd (hbusy hpile.2) (by rw [h.busyAces_zero]; simp)
-    · rcases (h.king_frontier s) with ⟨_, h13orBusy⟩ | ⟨haltk, hnfree⟩
-      · rcases h13orBusy with h13 | hbusy
-        · exact Or.inl h13
-        · exact absurd hbusy (by rw [h.busyAces_zero]; simp)
-      · rw[hking,Int8.lt_iff_toInt_lt] at haltk
-        omega
+    · exact absurd hbusy (by rw [h.busyAces_zero]; simp)
 
 /-- **Kings have value `≥ 1` in canonical positions.**  The base layer no longer
     requires this (the lone-king branch of `SolverCleanupPile` can transiently
