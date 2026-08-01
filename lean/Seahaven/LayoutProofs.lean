@@ -11,12 +11,12 @@ attribute [-simp] update_same update_diff update2
 This file defines the bridge between the high-level `State` world and
 the low-level `Globals` / `UInt8` card-code world used by the solver.
 
-Three layers of properties are developed:
+Two layers of properties are developed:
 
 1. **Encoding**: bijection between `Rules.Card` and valid `UInt8` card codes.
-2. **`LayoutConsistent`**: the `Globals` arrays `pos2card`, `card2pile`,
-   `card2depth` are mutually consistent (they encode a valid initial deal).
-3. **`StateMatchesLayout`**: a `State` is compatible with a layout,
+   (`IsValidCard` is definitionally `SolverInvariant.IsRealCard`; well-formedness
+   of the `Globals` arrays lives there, as `WellFormedLayout`.)
+2. **`StateMatchesLayout`**: a `State` is compatible with a layout,
    meaning the cards in each tableau column correspond to what the layout
    recorded for those positions.
 -/
@@ -142,55 +142,6 @@ def Globals.pileOf (g : Globals) (code : UInt8) (h : code.toNat < 64) : UInt8 :=
 def Globals.depthOf (g : Globals) (code : UInt8) (h : code.toNat < 64) : UInt8 :=
   g.card2depth.get ⟨code.toNat, h⟩
 
-structure LayoutConsistent (g : Globals) : Prop where
-
-  /-- Every entry in `pos2card` is a valid card code. -/
-  pos2card_valid : ∀ (p : Fin 10) (d : Fin 5),
-      IsValidCard (g.pos2cardAt p d)
-
-  /-- `card2pile` is the left inverse of `pos2card`'s pile index.
-      The caller supplies the validity proof `hv`; `hlt` is derived from it. -/
-  card2pile_eq : ∀ (p : Fin 10) (d : Fin 5)
-      (hv : IsValidCard (g.pos2cardAt p d)),
-      (g.pileOf (g.pos2cardAt p d) (IsValidCard_lt64 hv)).toNat = p.val
-
-  /-- `card2depth` is the left inverse of `pos2card`'s depth index. -/
-  card2depth_eq : ∀ (p : Fin 10) (d : Fin 5)
-      (hv : IsValidCard (g.pos2cardAt p d)),
-      (g.depthOf (g.pos2cardAt p d) (IsValidCard_lt64 hv)).toNat = d.val
-
-  /-- `pos2card` is injective: distinct positions hold distinct cards. -/
-  pos2card_inj : ∀ (p1 p2 : Fin 10) (d1 d2 : Fin 5),
-      g.pos2cardAt p1 d1 = g.pos2cardAt p2 d2 → p1 = p2 ∧ d1 = d2
-
-  /-- Every valid card is either in some pile position or is an extra card
-      (not placed in any pile), identified by `card2depth[c] = 5`. -/
-  card_coverage : ∀ (code : UInt8) (hv : IsValidCard code),
-      (∃ (p : Fin 10) (d : Fin 5), g.pos2cardAt p d = code) ∨
-      (g.depthOf code (IsValidCard_lt64 hv)).toNat = 5
-
-/-- A consequence: the round-trip `pos2card[card2pile[c]][card2depth[c]] = c`
-    holds for cards that appear in the pile layout. -/
-theorem LayoutConsistent.pos2card_roundtrip
-    {g : Globals} (hg : LayoutConsistent g)
-    (p : Fin 10) (d : Fin 5) :
-    let hv  := hg.pos2card_valid p d
-    let hlt := IsValidCard_lt64 hv
-    let code := g.pos2cardAt p d
-    g.pos2cardAt
-      ⟨(g.pileOf code hlt).toNat,
-        (hg.card2pile_eq p d (hg.pos2card_valid p d)).symm ▸ p.isLt⟩
-      ⟨(g.depthOf code hlt).toNat,
-        (hg.card2depth_eq p d (hg.pos2card_valid p d)).symm ▸ d.isLt⟩
-    = code := by
-  simp only
-  have hv := hg.pos2card_valid p d
-  have hp := hg.card2pile_eq  p d hv
-  have hd := hg.card2depth_eq p d hv
-  congr 1
-  · exact Fin.ext hp
-  · exact Fin.ext hd
-
 -- ============================================================
 -- Section 3: State Matches Layout
 -- ============================================================
@@ -266,13 +217,6 @@ structure StateMatchesLayout (g : Globals) (s : State) : Prop where
 -- ============================================================
 -- Section 4: Key Lemmas Relating the Two Predicates
 -- ============================================================
-
-/-- In a consistent layout, the pile depth of a card (its original depth index)
-    is always < 5. -/
-theorem LayoutConsistent.depthOf_lt5
-    {g : Globals} (hg : LayoutConsistent g) (p : Fin 10) (d : Fin 5) :
-    (g.depthOf (g.pos2cardAt p d) (IsValidCard_lt64 (hg.pos2card_valid p d))).toNat < 5 := by
-  have := hg.card2depth_eq p d (hg.pos2card_valid p d); omega
 
 /-- If a card's original pile depth `d` is less than the pile's current depth `n`,
     the card is still in the pile at the correct position. -/

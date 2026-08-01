@@ -930,7 +930,7 @@ private def cardOf (g : Globals) (p : SolverPosType) : CountDomain p → UInt8
     else 0
 
 /-- `CARD s v` as raw `Nat` arithmetic, wrap-free for `s<16, v<16`. -/
-private theorem CARD_toNat {s v : Nat} (hs : s < 16) (hv : v < 16) :
+theorem CARD_toNat {s v : Nat} (hs : s < 16) (hv : v < 16) :
     (CARD (UInt8.ofNat s) (UInt8.ofNat v)).toNat = s * 16 + v := by
   unfold CARD
   rw [UInt8.toNat_add, UInt8.toNat_shiftLeft]
