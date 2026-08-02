@@ -119,14 +119,12 @@ def SolverRemoveFlute (pile : UInt32) : EStateM Error (Globals × SolverPosType)
 
 /-- `repeat` loop of `solverGetDestination`: walk up the successor chain until a
     card sits at position-from-top `> 0`. -/
-def getDestLoop (fuel : Nat) (game : SolverPosType) (suit card : UInt8) :
+def getDestLoop (fuel : Nat) (game : SolverPosType) (card : UInt8) :
     EStateM Error Globals UInt8 := do
   match fuel with
   | 0 => return 14  -- EXTRA (fuel exhausted; unreachable with sufficient fuel)
   | fuel + 1 =>
     let globals ← get
-    if card.toInt8 == (← game.kings.getE suit.toUInt32) then
-      return 10 + suit  -- KINGPILE + suit
     let card := card + 1
     let toPile ← globals.card2pile.getE card.toUInt32
     let posFromTop : Int32 := (← game.pileDepth.getE toPile.toUInt32).toInt32 -
@@ -134,7 +132,7 @@ def getDestLoop (fuel : Nat) (game : SolverPosType) (suit card : UInt8) :
     if posFromTop > 0 then
       return if posFromTop == 1 then toPile else 14  -- EXTRA
     else
-      getDestLoop fuel game suit card
+      getDestLoop fuel game card
 
 /-- Model of `Solver.solverGetDestination`. -/
 def solverGetDestination (game : SolverPosType) (pile : UInt32) : EStateM Error Globals UInt8 := do
@@ -144,7 +142,7 @@ def solverGetDestination (game : SolverPosType) (pile : UInt32) : EStateM Error 
   let suit := SUIT card
   if card.toInt8 == (← game.kings.getE suit.toUInt32) then
     return 10 + suit  -- KINGPILE + suit
-  getDestLoop 16 game suit card
+  getDestLoop 16 game card
 
 /-- Main `while` loop of `SolverMoveAces`: advance the foundation for one suit,
     removing flutes as freed cards are exposed.  Carries `(card, found, forcedKings)`. -/

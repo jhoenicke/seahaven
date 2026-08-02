@@ -111,3 +111,142 @@ theorem StateMatchesSolverPos.foundation_value {g : Globals} {s : State}
   have hs : suitToNat su < 4 := suitToNat_lt su
   rw [h.aces_match su, encodeFoundation, VALUE_toNat, CARD_toNat (by omega) (by omega)]
   omega
+
+/-! ## Encoding bridge and the flute split -/
+
+theorem nextCard_of_encode {c d : Card}
+    (hs : SUIT (encodeCard d) = SUIT (encodeCard c))
+    (hv : (VALUE (encodeCard d)).toNat = (VALUE (encodeCard c)).toNat + 1) :
+    nextCard c = some d := by
+  rw [encodeCard_SUIT, encodeCard_SUIT] at hs
+  rw [encodeCard_VALUE, encodeCard_VALUE] at hv
+  have hsuit : d.suit = c.suit := by
+    have h1 : suitToNat d.suit < 4 := suitToNat_lt _
+    have h2 : suitToNat c.suit < 4 := suitToNat_lt _
+    have heq : suitToNat d.suit = suitToNat c.suit := by
+      have := congrArg UInt8.toNat hs
+      rw [UInt8.toNat_ofNat', UInt8.toNat_ofNat'] at this
+      omega
+    rw [← natToSuit_suitToNat d.suit, ← natToSuit_suitToNat c.suit]
+    congr 1
+    exact Fin.ext heq
+  have hnr : nextRank (some c.rank) = some d.rank := by
+    unfold nextRank
+    rw [show optRankToNat (some c.rank) = rankToNat c.rank from rfl, ← hv]
+    exact rankToNatToRank (some d.rank)
+  unfold nextCard
+  rw [hnr]
+  simp [Card.ext_iff, hsuit]
+
+theorem isRun_of_getElem : ∀ {l : List Card},
+    (∀ (j : Nat) (hj : j + 1 < l.length), nextCard l[j] = some l[j + 1]) → IsRun l
+  | [], _ => trivial
+  | [_], _ => ⟨by simp, trivial⟩
+  | x :: y :: t, h => by
+    refine ⟨?_, isRun_of_getElem (fun j hj => ?_)⟩
+    · intro z hz
+      simp only [List.head?_cons, Option.mem_def, Option.some.injEq] at hz
+      subst hz
+      exact h 0 (by simp)
+    · exact h (j + 1) (by simpa using hj)
+
+theorem reverse_drop_eq_take_reverse (l : List Card) (n : Nat) (hn : n ≤ l.length) :
+    l.reverse.drop n = (l.take (l.length - n)).reverse := by
+  rw [List.reverse_take]
+  · congr 1; omega
+
+theorem rankToNat_pos (r : Rank) : 1 ≤ rankToNat r := by cases r <;> simp [rankToNat]
+
+/-- Every card of the flute, indexed from the top of the column, carries the
+boundary's suit and a value that climbs by one towards the boundary. -/
+theorem flute_elem {g : Globals} {s : State} {p : SolverPosType}
+    (h : StateMatchesSolverPos g s p) (i : Fin 10)
+    (hd : 0 < (p.pileDepth.get i).toInt.toNat)
+    (b : Fin 5) (hb : b.val = (p.pileDepth.get i).toInt.toNat - 1) :
+    ∀ (idx : Nat), idx < (s.tableau i).length + 1 - (p.pileDepth.get i).toInt.toNat →
+      ∀ (hlt : idx < (s.tableau i).length),
+      SUIT (encodeCard (s.tableau i)[idx]) = SUIT ((g.pos2card.get i).get b) ∧
+      (VALUE (encodeCard (s.tableau i)[idx])).toNat
+          + ((s.tableau i).length - (p.pileDepth.get i).toInt.toNat)
+        = (VALUE ((g.pos2card.get i).get b)).toNat + idx := by
+  intro idx hidx hlt
+  obtain ⟨h1, hbot, h3⟩ := h.depth_match i
+  simp only [] at h3
+  rw [dif_pos (by simpa using hd)] at h3
+  have hbfin : (⟨(p.pileDepth.get i).toInt.toNat - 1, by have := h.depth_lt6 i; omega⟩ : Fin 5) = b :=
+    Fin.ext hb.symm
+  rw [hbfin] at h3
+  set col := s.tableau i with hcoldef
+  set L := col.length with hL
+  set n := (p.pileDepth.get i).toInt.toNat with hn
+  set B := (g.pos2card.get i).get b with hB
+  have hnL : n ≤ L := h1
+  by_cases hbnd : idx = L - n
+  · have hk : n - 1 < n := by omega
+    have hbk := hbot ⟨n - 1, hk⟩
+    have hrevlt : n - 1 < col.reverse.length := by simp [hL]; omega
+    rw [List.getElem?_eq_getElem hrevlt, Option.map_some, List.getElem_reverse hrevlt] at hbk
+    have hidxeq : col.length - 1 - (n - 1) = idx := by omega
+    simp only [hidxeq] at hbk
+    have hBfin : (⟨n - 1, by have := h.depth_lt6 i; omega⟩ : Fin 5) = b := Fin.ext hb.symm
+    rw [hBfin] at hbk
+    have heq : encodeCard col[idx] = B := Option.some.inj hbk
+    rw [heq, hbnd]
+    exact ⟨rfl, by omega⟩
+  · have hidxlt : idx < L - n := by omega
+    set m := L - n - 1 - idx with hm
+    have hflen : ((col.reverse.drop n).map encodeCard).length = L - n := by simp [hL]
+    have hmlt : m < ((col.reverse.drop n).map encodeCard).length := by rw [hflen]; omega
+    obtain ⟨hs3, hv3⟩ := h3 ⟨m, hmlt⟩
+    have hdroplt : n + m < col.reverse.length := by simp [hL]; omega
+    have helem : ((col.reverse.drop n).map encodeCard)[m] = encodeCard col[idx] := by
+      rw [List.getElem_map, List.getElem_drop, List.getElem_reverse hdroplt]
+      congr 2
+      omega
+    rw [List.get_eq_getElem, helem] at hs3 hv3
+    have hpos : 1 ≤ (VALUE (encodeCard col[idx])).toNat := by
+      rw [encodeCard_VALUE]; exact rankToNat_pos _
+    have hkey : m + idx + 1 = L - n := by omega
+    simp only [Fin.val_mk] at hv3
+    refine ⟨hs3, ?_⟩
+    show (VALUE (encodeCard col[idx])).toNat + (L - n) = (VALUE B).toNat + idx
+    omega
+
+/-- **The bridge to `FluteMoves`.**  A pile with positive depth splits as
+`top ++ boundary :: rest`, where `top` is the physical flute above the boundary
+(`pileFlute - 1` cards), `rest` is what stays put (`pileDepth - 1` cards), and
+`top ++ [boundary]` is a run — exactly the shape `run_fluteMoves` consumes. -/
+theorem StateMatchesSolverPos.flute_split {g : Globals} {s : State} {p : SolverPosType}
+    (h : StateMatchesSolverPos g s p) (i : Fin 10)
+    (hd : 0 < (p.pileDepth.get i).toInt.toNat) :
+    ∃ (top rest : Column) (c : Card),
+      s.tableau i = top ++ c :: rest ∧
+      top.length + 1 = (p.pileFlute.get i).toNat ∧
+      rest.length + 1 = (p.pileDepth.get i).toInt.toNat ∧
+      IsRun (top ++ [c]) := by
+  have hfm := h.flute_match i hd
+  have hnL : (p.pileDepth.get i).toInt.toNat ≤ (s.tableau i).length := (h.depth_match i).1
+  have hb5 : (p.pileDepth.get i).toInt.toNat - 1 < 5 := by have := h.depth_lt6 i; omega
+  have helem := flute_elem h i hd ⟨(p.pileDepth.get i).toInt.toNat - 1, hb5⟩ rfl
+  set col := s.tableau i with hcoldef
+  set n := (p.pileDepth.get i).toInt.toNat with hn
+  set k := col.length - n with hk
+  have hklt : k < col.length := by omega
+  refine ⟨col.take k, col.drop (k + 1), col[k], ?_, ?_, ?_, ?_⟩
+  · conv_lhs => rw [← List.take_append_drop k col]
+    rw [List.drop_eq_getElem_cons hklt]
+  · simp only [List.length_take]; omega
+  · simp only [List.length_drop]; omega
+  · have hsucc : col.take k ++ [col[k]] = col.take (k + 1) := by
+      rw [List.take_succ, List.getElem?_eq_getElem hklt]; rfl
+    rw [hsucc]
+    refine isRun_of_getElem (fun j hj => ?_)
+    simp only [List.length_take] at hj
+    have hj1 : j + 1 < col.length := by omega
+    have hjl : j < col.length := by omega
+    have hgj : (col.take (k + 1))[j] = col[j] := List.getElem_take ..
+    have hgj1 : (col.take (k + 1))[j + 1] = col[j + 1] := List.getElem_take ..
+    rw [hgj, hgj1]
+    obtain ⟨hs0, hv0⟩ := helem j (by omega) hjl
+    obtain ⟨hs1, hv1⟩ := helem (j + 1) (by omega) hj1
+    exact nextCard_of_encode (hs1.trans hs0.symm) (by omega)

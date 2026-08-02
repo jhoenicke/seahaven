@@ -520,12 +520,14 @@ static uint8_t solverGetDestination(SolverPosType *game, int pile) {
     if (card == game->kings[suit]) {
         return KINGPILE + suit;
     }
+    /* The loop needs no king-frontier test of its own: the check above already
+     * covered the boundary card, and `card` only advances through cards that
+     * tested *free*, whereas kings[suit] is the first *un-freed* card counting
+     * down from the king (see SolverCleanupPile).  So the walk always stops at
+     * or below kings[suit] via posFromTop > 0. */
     int toPile;
     int posFromTop;
     do {
-        if (card == game->kings[suit]) {
-            return KINGPILE + suit;
-        }
         card++;
         toPile = card2pile[card];
         posFromTop = game->pileDepth[toPile] - card2depth[card];

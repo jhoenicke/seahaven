@@ -91,29 +91,42 @@ theorem closureInfo_block (f : Fin 11) (i : Fin 16) :
     ↔ popCount4 (grlex2bits.get i).toNat = 4 - min f.val 4 := by
   fin_cases f <;> revert i <;> decide
 
-/-! ## The king configuration a concrete state realizes -/
+/-! ## The king configuration a concrete state realizes
 
-/-- Suit `su` has a *dedicated king pile* in `s`: one of the piles the solver
-treats as empty physically carries `su`'s king stack. -/
-def hasKingPile (s : State) (p : SolverPosType) (su : Suit) : Bool :=
-  (List.finRange 10).any fun i =>
-    ((p.pileDepth.get i).toInt.toNat == 0) &&
-      (match (s.tableau i).getLast? with
-       | some c => (c.suit == su) && (c.rank == Rank.king)
-       | none => false)
+This is a *relation*, not a function.  A pile the solver treats as empty can be
+"reserved" for a suit in two ways: it physically carries that suit's king run, or
+it is genuinely empty because the suit's stack has already gone to the
+foundation — and in the latter case the pile stays reserved, because nothing else
+can be put there that would contradict the reservation.  So one state can be read
+as realizing several configurations, and `hasKingPile`-as-a-function would be
+wrong. -/
 
-/-- The solver's internal 4-bit king mask for `s`: bit `su` set means suit `su`
-has no pile of its own, so `computeKingSpaces` charges its stack to the cells. -/
-def kingBitmapOf (s : State) (p : SolverPosType) : Fin 16 :=
-  ⟨(if hasKingPile s p Suit.clubs then 0 else 1)
-     + (if hasKingPile s p Suit.diamonds then 0 else 2)
-     + (if hasKingPile s p Suit.hearts then 0 else 4)
-     + (if hasKingPile s p Suit.spades then 0 else 8),
-   by split_ifs <;> omega⟩
+/-- Suit `su` owns pile `i` in `s`: `i` is a pile the solver treats as empty and
+either physically carries `su`'s king run, or is genuinely empty *and* `su` has
+no freed king-stack card to place (`kings su` is still the king — true both
+before any king of the suit is freed and after the whole suit has reached the
+foundation).
 
-/-- The graded-lex index of that configuration — the `kingbit` of `Solver.lean:495`. -/
-def kingConfigOf (s : State) (p : SolverPosType) : Fin 16 :=
-  ⟨(bits2grlex.get (kingBitmapOf s p)).toNat, bits2grlex_lt _⟩
+The second disjunct must carry that side condition.  Without it any suit could
+reserve any empty pile — including one a flute move just emptied — and claim a
+`computeKingSpaces` refund for a stack that is really still in the cells. -/
+def OwnsPile (s : State) (p : SolverPosType) (su : Suit) (i : Fin 10) : Prop :=
+  (p.pileDepth.get i).toInt.toNat = 0 ∧
+    ((∃ c ∈ (s.tableau i).getLast?, c.suit = su ∧ c.rank = Rank.king) ∨
+      (s.tableau i = [] ∧ (VALUE (p.kings.get (finOfSuit su)).toUInt8).toNat = 13))
+
+/-- Bit `su` of the internal mask of grlex configuration `k` — set means suit
+`su` has *no* pile of its own. -/
+def CfgBitSet (k : Fin 16) (su : Suit) : Prop :=
+  (grlex2bits.get k).toNat / 2 ^ (suitToNat su) % 2 = 1
+
+/-- `s` can be read as realizing king configuration `k`: the suits whose bit is
+clear are assigned distinct piles that they own. -/
+def RealizesKingConfig (s : State) (p : SolverPosType) (k : Fin 16) : Prop :=
+  ∃ assign : Suit → Option (Fin 10),
+    (∀ su i, assign su = some i → OwnsPile s p su i) ∧
+    (∀ su su' i, assign su = some i → assign su' = some i → su = su') ∧
+    (∀ su, (assign su).isSome ↔ ¬ CfgBitSet k su)
 
 /-! ## The specification -/
 
@@ -125,9 +138,8 @@ the bit of `s`'s own king configuration is set in the `subsetTable` expansion of
 `v`.  This is the property shared by `solverRecCheckSolvable`'s return value and
 by whatever the memo table holds for `p.hash`. -/
 def SolvableBits (g : Globals) (p : SolverPosType) (v : UInt16) : Prop :=
-  ∀ s : State, StateMatchesSolverPos g s p →
-    (Solvable s ↔
-      BitSet (subsetAt ((closureInfoOf p).offset.toNat + v.toNat)) (kingConfigOf s p))
+  ∀ (s : State) (k : Fin 16), StateMatchesSolverPos g s p → RealizesKingConfig s p k →
+    (Solvable s ↔ BitSet (subsetAt ((closureInfoOf p).offset.toNat + v.toNat)) k)
 
 /-- Matching reads only the deal arrays, never the memo table. -/
 theorem StateMatchesSolverPos.hashmap_iff {g : Globals} {s : State} {p : SolverPosType}
@@ -142,7 +154,7 @@ theorem StateMatchesSolverPos.hashmap_iff {g : Globals} {s : State} {p : SolverP
 theorem SolvableBits.set_hashmap {g : Globals} {p : SolverPosType} {v : UInt16}
     (hm : Vector UInt16 BIG_HASH_SIZE) (h : SolvableBits g p v) :
     SolvableBits { g with hashmap := hm } p v :=
-  fun s hs => h s ((StateMatchesSolverPos.hashmap_iff hm).1 hs)
+  fun s k hs hk => h s k ((StateMatchesSolverPos.hashmap_iff hm).1 hs) hk
 
 /-- **Each hash identifies at most one canonical position.**  This is what makes
 `HashmapCorrect` well posed: a slot keyed by `p.hash` can only ever be about `p`.
@@ -184,6 +196,6 @@ def SolveSpec : Prop :=
   ∀ (g g' : Globals) (s : State) (p : SolverPosType) (pk : Vector UInt8 11) (r : UInt8),
     WellFormedLayout g → HashmapCorrect g →
     StateMatchesSolverPos g s p → IsCanonicalPos g p →
-    (pk.get 10) = (kingBitmapOf s p).val.toUInt8 ^^^ 0xf →
+    (∃ k : Fin 16, RealizesKingConfig s p k ∧ (pk.get 10) = (grlex2bits.get k) ^^^ 0xf) →
     EStateM.run (solve pk) g = .ok r g' →
     (r = UInt8.ofNat SUCCESS ↔ Solvable s)

@@ -280,9 +280,12 @@ def solverGetDestination (game : SolverPosType) (pile : UInt32) : EStateM Error 
     return 10 + suit  -- KINGPILE + suit
   let mut toPile : UInt8 := 0
   let mut posFromTop : Int32 := 0
+  -- The loop needs no king-frontier test of its own: the check above already
+  -- covered the boundary card, and `card` only advances through cards that
+  -- tested *free*, whereas `kings[suit]` is the first *un-freed* card counting
+  -- down from the king.  So the walk always stops at or below `kings[suit]`
+  -- via `posFromTop > 0`.
   repeat
-    if card.toInt8 == (← game.kings.getE suit.toUInt32) then
-      return 10 + suit  -- KINGPILE + suit
     card := card + 1
     toPile := ← globals.card2pile.getE card.toUInt32
     posFromTop := (← game.pileDepth.getE toPile.toUInt32).toInt32 -
