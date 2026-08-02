@@ -10,6 +10,7 @@ import Seahaven.FluteMoves
 import Seahaven.FoundationRun
 import Seahaven.LayoutProofs
 import Seahaven.MatchesPos
+import Seahaven.SolvableBits
 import Seahaven.SolverInvariant
 import Seahaven.SolverModel
 import Seahaven.SolverSpec
