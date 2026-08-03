@@ -181,7 +181,7 @@ def kingOnPileMap : Vector UInt16 4 := ⟨#[
 ], by simp⟩
 
 structure KingInfo where
-  possibleKings : Vector UInt16 6
+  possibleKings : Vector UInt8 6
 
 def getSlot(key : UInt32) : EStateM Error Globals UInt8 := do
   let g ← get
@@ -266,8 +266,8 @@ def computeKingSpaces (shiftValue : UInt8) (numBits : UInt8) (game : SolverPosTy
         usedSpace := usedSpace - Int32.ofNat (13 - (VALUE (← game.kings.getE (UInt32.ofNat suit)).toUInt8).toNat)
     let bit : UInt8 := (1 : UInt8) <<< UInt8.ofNat i
     while usedSpace <= 4 do
-      let idx := UInt32.ofNat (4 - usedSpace.toNatClampNeg)
-      kingInfo := { kingInfo with possibleKings := ← kingInfo.possibleKings.setE idx ((← kingInfo.possibleKings.getE idx) ||| bit.toUInt16) }
+      let idx := ((4 : Int32) - usedSpace).toUInt32
+      kingInfo := { kingInfo with possibleKings := ← kingInfo.possibleKings.setE idx ((← kingInfo.possibleKings.getE idx) ||| bit) }
       usedSpace := usedSpace + 1
   return kingInfo
 
@@ -280,11 +280,6 @@ def solverGetDestination (game : SolverPosType) (pile : UInt32) : EStateM Error 
     return 10 + suit  -- KINGPILE + suit
   let mut toPile : UInt8 := 0
   let mut posFromTop : Int32 := 0
-  -- The loop needs no king-frontier test of its own: the check above already
-  -- covered the boundary card, and `card` only advances through cards that
-  -- tested *free*, whereas `kings[suit]` is the first *un-freed* card counting
-  -- down from the king.  So the walk always stops at or below `kings[suit]`
-  -- via `posFromTop > 0`.
   repeat
     card := card + 1
     toPile := ← globals.card2pile.getE card.toUInt32
@@ -346,13 +341,13 @@ def solverGetMovable (kingInfo : KingInfo) (shiftValue : UInt8) (fluteLen : UInt
   if fluteLen > 5 then
     return 0
   if toPile < 10 then  -- pile to pile
-    return ← kingInfo.possibleKings.getE (fluteLen - 1).toUInt32
+    return (← kingInfo.possibleKings.getE (fluteLen - 1).toUInt32).toUInt16
   else if toPile < 14 then  -- to king pile
     let kingOnPile := (← kingOnPileMap.getE (toPile - 10).toUInt32) >>> shiftValue.toUInt16
-    return (← kingInfo.possibleKings.getE fluteLen.toUInt32) |||
-           ((← kingInfo.possibleKings.getE (fluteLen - 1).toUInt32) &&& kingOnPile)
+    return (← kingInfo.possibleKings.getE fluteLen.toUInt32).toUInt16 |||
+           ((← kingInfo.possibleKings.getE (fluteLen - 1).toUInt32).toUInt16 &&& kingOnPile)
   else  -- to extra
-    return ← kingInfo.possibleKings.getE fluteLen.toUInt32
+    return (← kingInfo.possibleKings.getE fluteLen.toUInt32).toUInt16
 
 def computeComponentKingBits (game : SolverPosType) : EStateM Error Globals UInt8 := do
   let emptyPiles := game.freePiles.toInt32
@@ -378,7 +373,7 @@ partial def solverRecCheckSolvable (game : SolverPosType) : EStateM Error Global
   if cachedValue != 0xff then
     return cachedValue.toUInt16
   let kingInfo ← computeKingSpaces closureInfo.shiftValue closureInfo.numBits game
-  let allkings ← kingInfo.possibleKings.getE 0
+  let allkings := (← kingInfo.possibleKings.getE 0).toUInt16
   let component := (← computeComponentKingBits game).toUInt16
   let mut solvable : UInt16 := 0
   for pile in List.range 10 do
