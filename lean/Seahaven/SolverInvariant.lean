@@ -1465,6 +1465,20 @@ theorem cardOf_injective {g : Globals} {p : SolverPosType}
         rw [hsub'] at hsa
         omega
 
+/-- **`freePiles ∈ [0, 10]`**, from `freePiles_def`: it counts the zero entries
+    of a ten-element vector.  This is what makes the defensive `min … 10` clamp
+    in `closureInfoOf` never fire on an invariant-satisfying position. -/
+theorem freePiles_bound {g : Globals} {p : SolverPosType} (h : SolverInvMerged g p) :
+    0 ≤ p.freePiles.toInt ∧ p.freePiles.toInt ≤ 10 := by
+  rw [h.freePiles_def]
+  have hlen : p.pileDepth.toList.length = 10 := by simp
+  have hle := List.countP_le_length (l := p.pileDepth.toList) (p := (· == 0))
+  omega
+
+theorem freePiles_toNat_le {g : Globals} {p : SolverPosType} (h : SolverInvMerged g p) :
+    p.freePiles.toInt.toNat ≤ 10 := by
+  have := freePiles_bound h; omega
+
 /-- **`usedSpace ∈ [0, 52]`**, derived from `usedSpace_def` + the counting
     injection `cardOf_injective` (no longer a base-invariant field — see
     `cardOf_injective`'s docstring history). -/
