@@ -63,23 +63,3 @@ def kingBits2setOfKing (a : Fin 5) (b : Fin 64) : Except Error UInt16 := do
 def kingBits2superset (a : Fin 5) (b : Fin (Nat.pow 2 (cnt2num a))) : Except Error UInt16 := do
   let ci ← closureInfos[UInt32.ofNat a + 1]!
   return ←subsetTable[ci.offset.toUInt32 + UInt32.ofNat b]!
-
-def saturateSet (a : Fin 5) (b : Nat)
-  (h: popcount a < b)
-
-def supersetBits_correct_2  (a : Fin 5) (b : Fin (Nat.pow 2 (cnt2num a))) (c : Fin 16) :
-  (bitsToSet (kingBits2superset a b) c == true) =
-    (∃ d : Fin 16, bitsToSet (kingBits2setOfKing b) d ∧
-      c ||| (15 - d) == 15) :=
-
-  (i : bitsToSet a)
-  (h: ∀ i, (bits2set k) (bits2grlex i) → popcount i = a)
-
-
-(i : Fin (Nat.pow 2 (cnt2num a)) :
-  let offset = offsets(a)
-  subsetBits[offset + i]!
-  offsets(a)
- (b : Fin 16) :
-  (supersetUsingBitmap a.val b.val).toOption == ((a ||| (15 - b)) == 15) := by
-  fin_cases a <;> fin_cases b <;> native_decide

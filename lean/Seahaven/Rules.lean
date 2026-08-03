@@ -129,7 +129,7 @@ def updateFoundation (s : State) (card : Card) : State :=
 
 inductive Position
   | pile (pile : Fin 10)
-  | cell (cel : Fin 4)
+  | cell (cell : Fin 4)
   | foundation
   deriving Repr, DecidableEq, BEq, Hashable
 

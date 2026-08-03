@@ -319,3 +319,57 @@ theorem MaskSub.clear_forced (d cp cc fm : Fin 16)
     MaskSub d cc := by
   revert hd hsub hcc; revert d cp cc fm; decide
 
+/-! ## King spaces -/
+
+/-- **How many suits get a king pile**: as many as there are free piles, capped
+at four.  This is the quantity `closureInfos` is really indexed by. -/
+def numPiledKings (p : SolverPosType) : Nat := min p.freePiles.toInt.toNat 4
+
+theorem numPiledKings_eq (p : SolverPosType) :
+    min (min p.freePiles.toInt.toNat 10) 4 = numPiledKings p := by
+  unfold numPiledKings; omega
+
+/-- The block for `f` free piles has one bit per way of choosing which
+`min f 4` suits get a pile. -/
+theorem closureInfo_numBits (f : Fin 11) :
+    (closureInfos.get f).numBits.toNat = Nat.choose 4 (min f.val 4) := by
+  fin_cases f <;> decide
+
+theorem closureInfoOf_numBits (p : SolverPosType) :
+    (closureInfoOf p).numBits.toNat = Nat.choose 4 (numPiledKings p) := by
+  unfold closureInfoOf
+  rw [closureInfo_numBits ⟨min p.freePiles.toInt.toNat 10, by omega⟩]
+  congr 1
+  exact numPiledKings_eq p
+
+/-- The refund `computeKingSpaces` grants configuration `k`: for every suit `k`
+puts on a pile, its whole freed king stack stops being charged to the cells. -/
+def kingRefund (p : SolverPosType) (k : Fin 16) : Int :=
+  ((List.finRange 4).map (fun su =>
+    if (grlex2bits.get k).toNat / 2 ^ su.val % 2 = 0
+    then ((13 : Int) - (VALUE (p.kings.get su).toUInt8).toNat) else 0)).sum
+
+/-- Free extra cells under king configuration `k`. -/
+def freeCellsOf (p : SolverPosType) (k : Fin 16) : Int :=
+  4 - (p.usedSpace.toInt - kingRefund p k)
+
+/-- **What `computeKingSpaces` computes.**  Bit `i` of `possibleKings[c]` says
+that local configuration `i` of `p`'s block leaves at least `c` free cells.
+
+`possibleKings[5] = 0` is *not* automatic — it needs every configuration in the
+block to leave at most four free cells, i.e. `0 ≤ usedSpace - kingRefund`.  With
+a negative effective `usedSpace` the loop would set bit 5 (and at `≤ -2` it runs
+off the end of the vector, which is why the run succeeding is a hypothesis).
+That entry exists so `solverGetMovable` can index `possibleKings` at `fluteLen`
+for `fluteLen = 5` — a five-card flute can never go to `EXTRA`, nor to a king
+pile that does not already exist — without a separate case. -/
+def KingSpacesSpec : Prop :=
+  ∀ (g : Globals) (p : SolverPosType) (ki : KingInfo),
+    EStateM.run (computeKingSpaces (closureInfoOf p).shiftValue
+                   (closureInfoOf p).numBits p) g = .ok ki g →
+    (∀ (c : Nat) (hc : c < 6) (i : Nat) (hi : i < (closureInfoOf p).numBits.toNat),
+       BitSet (ki.possibleKings.get ⟨c, hc⟩).toUInt16 ⟨min i 15, by omega⟩
+         ↔ (c : Int) ≤ freeCellsOf p (globalCfg (closureInfoOf p) i))
+    ∧ ((∀ i : Nat, i < (closureInfoOf p).numBits.toNat →
+          freeCellsOf p (globalCfg (closureInfoOf p) i) ≤ 4) →
+        ki.possibleKings.get 5 = 0)
