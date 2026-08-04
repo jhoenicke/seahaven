@@ -113,7 +113,7 @@ reserve any empty pile — including one a flute move just emptied — and claim
 def OwnsPile (s : State) (p : SolverPosType) (su : Suit) (i : Fin 10) : Prop :=
   (p.pileDepth.get i).toInt.toNat = 0 ∧
     ((∃ c ∈ (s.tableau i).getLast?, c.suit = su ∧ c.rank = Rank.king) ∨
-      (s.tableau i = [] ∧ (VALUE (p.kings.get (finOfSuit su)).toUInt8).toNat = 13))
+      (s.tableau i = [] ∧ (VALUE (p.kings.get (finOfSuit su))).toNat = 13))
 
 /-- Bit `su` of the internal mask of grlex configuration `k` — set means suit
 `su` has *no* pile of its own. -/

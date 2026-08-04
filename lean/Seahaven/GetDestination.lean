@@ -73,7 +73,7 @@ def getDestExplicit (game : SolverPosType) (pile : UInt32) : EStateM Error Globa
   let card ← (← globals.pos2card.getE pile).getE (depth.toInt32 - 1).toUInt32
   have suit : UInt8 := SUIT card
   let k ← game.kings.getE suit.toUInt32
-  if (card.toInt8 == k) = true then pure (10 + suit)
+  if (card == k) = true then pure (10 + suit)
   else do
     let r ← Loop.forIn Loop.mk (⟨card, 0, 0⟩ : DestAcc) (destBody game globals)
     pure (if (r.snd.fst == 1) = true then r.snd.snd else 14)
@@ -181,15 +181,11 @@ Relating that to `posFromTopOf`'s `Int` needs three no-wrap facts.  `Int32.toInt
 only exists in the `bmod` form and `Int32.toInt_sub_of_le` needs `b ≤ a`, which
 fails exactly when the card *is* free — so the general version is proved here. -/
 
-theorem int8_toInt_lb (x : Int8) : -128 ≤ x.toInt := by
-  show (-128 : Int) ≤ x.toBitVec.toInt
-  have h : -(2 ^ (8 - 1) : Int) ≤ x.toBitVec.toInt := BitVec.le_toInt x.toBitVec
-  norm_num at h; exact h
+theorem int8_toInt_lb (x : UInt8) : 0 ≤ x.toInt := UInt8.toInt_nonneg x
 
-theorem int8_toInt_ub (x : Int8) : x.toInt < 128 := by
-  show x.toBitVec.toInt < (128 : Int)
-  have h : x.toBitVec.toInt < (2 ^ (8 - 1) : Int) := BitVec.toInt_lt
-  norm_num at h; exact h
+theorem int8_toInt_ub (x : UInt8) : x.toInt < 256 := by
+  have h : x.toNat < 256 := x.toNat_lt_size
+  simp only [UInt8.toInt]; omega
 
 theorem uint8_toNat_lt (x : UInt8) : x.toNat < 256 := x.toNat_lt_size
 
@@ -222,22 +218,22 @@ theorem int32_toUInt32_toNat (x : Int32) (h0 : 0 ≤ x.toInt) : x.toUInt32.toNat
 
 /-- The boundary index the code computes, in `Nat` terms: for `1 ≤ depth ≤ 5`,
 `(depth.toInt32 - 1).toUInt32.toNat = depth - 1`. -/
-theorem depth_index (d : Int8) (h1 : 0 < d.toInt.toNat) (h5 : d.toInt.toNat ≤ 5) :
+theorem depth_index (d : UInt8) (h1 : 0 < d.toInt.toNat) (h5 : d.toInt.toNat ≤ 5) :
     (d.toInt32 - 1).toUInt32.toNat = d.toInt.toNat - 1 := by
   have hlb := int8_toInt_lb d
   have hub := int8_toInt_ub d
   have hone : (1 : Int32).toInt = 1 := by decide
-  have ha : (d.toInt32).toInt = d.toInt := Int8.toInt_toInt32 d
+  have ha : (d.toInt32).toInt = d.toInt := UInt8.toInt_toInt32 d
   have hsub : (d.toInt32 - 1).toInt = d.toInt - 1 := by
     rw [int32_toInt_sub _ _ (by rw [ha, hone]; omega) (by rw [ha, hone]; omega), ha, hone]
   rw [int32_toUInt32_toNat _ (by rw [hsub]; omega), hsub]
   omega
 
 /-- **The loop's `posFromTop`, as an `Int`.** -/
-theorem pft_toInt (pd : Int8) (cd : UInt8) :
+theorem pft_toInt (pd : UInt8) (cd : UInt8) :
     (pd.toInt32 - cd.toUInt32.toInt32).toInt = pd.toInt - (cd.toNat : Int) := by
   have hb : (cd.toUInt32.toInt32).toInt = (cd.toNat : Int) := uint8_toInt32_toInt cd
-  have ha : (pd.toInt32).toInt = pd.toInt := Int8.toInt_toInt32 pd
+  have ha : (pd.toInt32).toInt = pd.toInt := UInt8.toInt_toInt32 pd
   have h1 := int8_toInt_lb pd
   have h2 := int8_toInt_ub pd
   have h3 := uint8_toNat_lt cd
@@ -399,19 +395,19 @@ theorem card_walk_lt64 (B : UInt8) (hs : (SUIT B).toNat < 4) (j : Nat)
 /-- **The walk stops.**  Since `kings[s]` is un-freed and sits above `B` in the
 suit, there is a least un-freed card strictly above `B`, at or below `kings[s]`. -/
 theorem exists_stop (g : Globals) (game : SolverPosType) (s : Fin 4) (B : UInt8)
-    (hK : ¬ isFreeCard g game (game.kings.get s).toUInt8)
-    (hsK : SUIT (game.kings.get s).toUInt8 = s.val.toUInt8)
+    (hK : ¬ isFreeCard g game (game.kings.get s))
+    (hsK : SUIT (game.kings.get s) = s.val.toUInt8)
     (hsB : SUIT B = s.val.toUInt8)
-    (hlt : (VALUE B).toNat < (VALUE (game.kings.get s).toUInt8).toNat)
-    (hKle : (VALUE (game.kings.get s).toUInt8).toNat ≤ 13) :
+    (hlt : (VALUE B).toNat < (VALUE (game.kings.get s)).toNat)
+    (hKle : (VALUE (game.kings.get s)).toNat ≤ 13) :
     ∃ n : Nat, 1 ≤ n ∧
-      (VALUE B).toNat + n ≤ (VALUE (game.kings.get s).toUInt8).toNat ∧
+      (VALUE B).toNat + n ≤ (VALUE (game.kings.get s)).toNat ∧
       (∀ j, 1 ≤ j → j < n → isFreeCard g game (B + UInt8.ofNat j)) ∧
       ¬ isFreeCard g game (B + UInt8.ofNat n) := by
   classical
-  set N := (VALUE (game.kings.get s).toUInt8).toNat - (VALUE B).toNat with hN
+  set N := (VALUE (game.kings.get s)).toNat - (VALUE B).toNat with hN
   have hNpos : 1 ≤ N := by omega
-  have hBN : B + UInt8.ofNat N = (game.kings.get s).toUInt8 := by
+  have hBN : B + UInt8.ofNat N = (game.kings.get s) := by
     obtain ⟨hsN, hvN⟩ := card_walk_suit_value B N (by omega)
     exact card_eq_of_suit_value _ _ (by rw [hsN, hsB, hsK]) (by rw [hvN]; omega)
   have hNnf : ¬ isFreeCard g game (B + UInt8.ofNat N) := by rw [hBN]; exact hK
@@ -454,7 +450,7 @@ theorem getDest_apply (game : SolverPosType) (pile : UInt32) (g g' : Globals) (B
     (res : DestAcc)
     (hloop : (Loop.forIn Loop.mk (⟨B, 0, 0⟩ : DestAcc) (destBody game g)) g = .ok res g') :
     solverGetDestination game pile g =
-      (if (B.toInt8 == game.kings[(SUIT B).toUInt32.toNat]'hs32) = true then
+      (if (B == game.kings[(SUIT B).toUInt32.toNat]'hs32) = true then
          .ok (10 + SUIT B) g
        else .ok (if (res.snd.fst == 1) = true then res.snd.snd else 14) g') := by
   rw [getDest_eq_explicit]
@@ -479,7 +475,7 @@ theorem getDest_result (game : SolverPosType) (pile : UInt32) (g : Globals) (B :
     (hfree : ∀ j, 1 ≤ j → j < n → isFreeCard g game (B + UInt8.ofNat j))
     (hnf : ¬ isFreeCard g game (B + UInt8.ofNat n)) :
     solverGetDestination game pile g =
-      (if (B.toInt8 == game.kings[(SUIT B).toUInt32.toNat]'hs32) = true then
+      (if (B == game.kings[(SUIT B).toUInt32.toNat]'hs32) = true then
          .ok (10 + SUIT B) g
        else .ok (if (pftVal g game (B + UInt8.ofNat n) == 1) = true
                  then cardPile g (B + UInt8.ofNat n) else 14) g) :=
@@ -493,7 +489,7 @@ including `B`, contradicting that `B` is a pile boundary. -/
 theorem exists_stop_canonical (g : Globals) (game : SolverPosType)
     (hcan : IsCanonicalPos g game) (B : UInt8) (hreal : IsRealCard B)
     (hBnf : ¬ isFreeCard g game B)
-    (hne : B ≠ (game.kings.get ⟨(SUIT B).toNat, hreal.1⟩).toUInt8) :
+    (hne : B ≠ (game.kings.get ⟨(SUIT B).toNat, hreal.1⟩)) :
     ∃ n : Nat, 1 ≤ n ∧ (VALUE B).toNat + n ≤ 13 ∧
       (∀ j, 1 ≤ j → j < n → isFreeCard g game (B + UInt8.ofNat j)) ∧
       ¬ isFreeCard g game (B + UInt8.ofNat n) := by
@@ -508,10 +504,10 @@ theorem exists_stop_canonical (g : Globals) (game : SolverPosType)
     rcases hcase with h13 | hbusy
     · exact hBnf (hbase.foundation_cards_free s B hsB hv1 (by omega))
     · rw [hcan.busyAces_zero] at hbusy; simp at hbusy
-  · have hBle : (VALUE B).toNat ≤ (VALUE (game.kings.get s).toUInt8).toNat := by
+  · have hBle : (VALUE B).toNat ≤ (VALUE (game.kings.get s)).toNat := by
       by_contra hgt
       exact hBnf (habove B hsB (by omega) hv13)
-    have hBlt : (VALUE B).toNat < (VALUE (game.kings.get s).toUInt8).toNat := by
+    have hBlt : (VALUE B).toNat < (VALUE (game.kings.get s)).toNat := by
       rcases lt_or_eq_of_le hBle with h | h
       · exact h
       · exact absurd (card_eq_of_suit_value _ _ (by rw [hsB, hkS]) h) hne
@@ -526,7 +522,7 @@ theorem getDest_king (game : SolverPosType) (pile : UInt32) (g : Globals) (B : U
     (hcard : (g.pos2card[pile.toNat]'hp)[((game.pileDepth[pile.toNat]'hp).toInt32
                - 1).toUInt32.toNat]'hidx = B)
     (hs32 : (SUIT B).toUInt32.toNat < 4)
-    (hkeq : (B.toInt8 == game.kings[(SUIT B).toUInt32.toNat]'hs32) = true) :
+    (hkeq : (B == game.kings[(SUIT B).toUInt32.toNat]'hs32) = true) :
     solverGetDestination game pile g = .ok (10 + SUIT B) g := by
   rw [getDest_eq_explicit]
   simp only [getDestExplicit, bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get,
@@ -542,7 +538,7 @@ theorem getDest_walk (game : SolverPosType) (pile : UInt32) (g : Globals) (B : U
     (hcard : (g.pos2card[pile.toNat]'hp)[((game.pileDepth[pile.toNat]'hp).toInt32
                - 1).toUInt32.toNat]'hidx = B)
     (hs32 : (SUIT B).toUInt32.toNat < 4)
-    (hkne : (B.toInt8 == game.kings[(SUIT B).toUInt32.toNat]'hs32) = false)
+    (hkne : (B == game.kings[(SUIT B).toUInt32.toNat]'hs32) = false)
     (n : Nat) (hn1 : 1 ≤ n)
     (hbound : ∀ j, 1 ≤ j → j ≤ n → (B + UInt8.ofNat j).toNat < 64)
     (hfree : ∀ j, 1 ≤ j → j < n → isFreeCard g game (B + UInt8.ofNat j))
@@ -561,11 +557,12 @@ theorem getDest_spec (g : Globals) (game : SolverPosType) (pile : UInt32)
     (hp : pile.toNat < 10)
     (hd : 0 < (game.pileDepth.get ⟨pile.toNat, hp⟩).toInt.toNat) :
     let hb5 : (game.pileDepth.get ⟨pile.toNat, hp⟩).toInt.toNat - 1 < 5 := by
-      have := hcan.toSolverInvMerged.toSolverInvBase.pileDepth_bound ⟨pile.toNat, hp⟩; omega
+      have := hcan.toSolverInvMerged.toSolverInvBase.pileDepth_bound ⟨pile.toNat, hp⟩
+      simp only [UInt8.toInt_eq] at *; omega
     let B := (g.pos2card.get ⟨pile.toNat, hp⟩).get
                ⟨(game.pileDepth.get ⟨pile.toNat, hp⟩).toInt.toNat - 1, hb5⟩
     (B = (game.kings.get ⟨(SUIT B).toNat,
-            (hwf.pos2card_real ⟨pile.toNat, hp⟩ ⟨_, hb5⟩).1⟩).toUInt8 ∧
+            (hwf.pos2card_real ⟨pile.toNat, hp⟩ ⟨_, hb5⟩).1⟩) ∧
        solverGetDestination game pile g = .ok (10 + SUIT B) g)
     ∨ (∃ n : Nat, 1 ≤ n ∧ (VALUE B).toNat + n ≤ 13 ∧
         (∀ j, 1 ≤ j → j < n → isFreeCard g game (B + UInt8.ofNat j)) ∧
@@ -579,7 +576,7 @@ theorem getDest_spec (g : Globals) (game : SolverPosType) (pile : UInt32)
   have hs32 : (SUIT B).toUInt32.toNat < 4 := by rw [UInt8.toNat_toUInt32]; exact hreal.1
   have hnn : ∀ i : Fin 10, (0:Int) ≤ (game.pileDepth.get i).toInt := fun i => by
     have := hbase.pileDepth_nonneg i
-    rw [Int8.le_iff_toInt_le] at this; simpa using this
+    rw [UInt8.le_iff_toInt_le] at this; simpa using this
   have hdi := depth_index (game.pileDepth.get ⟨pile.toNat, hp⟩) hd
                 (hbase.pileDepth_bound ⟨pile.toNat, hp⟩)
   have hidx : ((game.pileDepth[pile.toNat]'hp).toInt32 - 1).toUInt32.toNat < 5 := by
@@ -590,17 +587,13 @@ theorem getDest_spec (g : Globals) (game : SolverPosType) (pile : UInt32)
   have hBnf : ¬ isFreeCard g game B := boundary_not_free hwf hbase ⟨pile.toNat, hp⟩ hd
   have hkidx : game.kings[(SUIT B).toUInt32.toNat]'hs32
              = game.kings.get ⟨(SUIT B).toNat, hreal.1⟩ := by congr 1
-  by_cases hkeq : B = (game.kings.get ⟨(SUIT B).toNat, hreal.1⟩).toUInt8
+  by_cases hkeq : B = (game.kings.get ⟨(SUIT B).toNat, hreal.1⟩)
   · refine Or.inl ⟨hkeq, getDest_king game pile g B hp hidx hcard hs32 ?_⟩
-    have hbk : B.toInt8 = game.kings.get ⟨(SUIT B).toNat, hreal.1⟩ := by
-      conv_lhs => rw [hkeq]
-      exact Int8.toInt8_toUInt8 _
-    rw [hkidx]; simp [hbk]
+    rw [hkidx]; exact beq_iff_eq.mpr hkeq
   · obtain ⟨n, hn1, hnle, hfree, hnf⟩ := exists_stop_canonical g game hcan B hreal hBnf hkeq
     refine Or.inr ⟨n, hn1, hnle, hfree, hnf,
       getDest_walk game pile g B hwf hnn hp hidx hcard hs32 ?_ n hn1
         (fun j hj1 hj2 => card_walk_lt64 B hreal.1 j (by omega)) hfree hnf⟩
     rw [hkidx]
     simp only [beq_eq_false_iff_ne, ne_eq]
-    intro hc
-    exact hkeq (by rw [← hc]; simp)
+    exact hkeq

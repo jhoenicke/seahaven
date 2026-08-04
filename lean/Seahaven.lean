@@ -15,4 +15,16 @@ import Seahaven.SoundnessSkeleton
 import Seahaven.SolverInvariant
 import Seahaven.GetDestination
 import Seahaven.SolverModel
+import Seahaven.SolverSpecCommon
+import Seahaven.SolverSpecKingMove
+import Seahaven.SolverSpecPreCleanupPile
+import Seahaven.SolverSpecCleanupPile
+import Seahaven.SolverSpecRemoveFlute
+import Seahaven.SolverSpecSolverCleanupPile
+import Seahaven.SolverSpecMoveAces
+import Seahaven.SolverSpecMove
+import Seahaven.SolverSpecDrain
+import Seahaven.SolverSpecSolverMove
+import Seahaven.SolverSpecSolverConvert
+import Seahaven.SolverSpecFreedBoundary
 import Seahaven.SolverSpec

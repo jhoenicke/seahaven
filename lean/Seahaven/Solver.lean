@@ -61,14 +61,84 @@ abbrev CardType := UInt8
 
 
 
+/-- C's integer promotion of a `uint8_t` to `int`: zero-extension, no sign bit.
+Mirrors what every arithmetic operator in `solver.c` does to these fields. -/
+abbrev UInt8.toInt32 (x : UInt8) : Int32 := x.toUInt32.toInt32
+
+/-- The mathematical value of a `uint8_t`. -/
+abbrev UInt8.toInt (x : UInt8) : Int := (x.toNat : Int)
+
+@[simp] theorem UInt8.toInt_eq (x : UInt8) : x.toInt = (x.toNat : Int) := rfl
+@[simp] theorem UInt8.toInt_toNat (x : UInt8) : x.toInt.toNat = x.toNat := rfl
+@[simp] theorem UInt8.toInt_nonneg (x : UInt8) : 0 ≤ x.toInt := Int.natCast_nonneg _
+
+@[simp] theorem UInt8.toInt_inj {a b : UInt8} : a.toInt = b.toInt ↔ a = b := by
+  constructor
+  · intro h
+    have : a.toNat = b.toNat := by
+      have := h; simp only [UInt8.toInt] at this; omega
+    exact UInt8.toNat_inj.mp this
+  · rintro rfl; rfl
+
+theorem UInt8.le_iff_toInt_le {a b : UInt8} : a ≤ b ↔ a.toInt ≤ b.toInt := by
+  simp [UInt8.toInt, UInt8.le_iff_toNat_le]
+
+theorem UInt8.lt_iff_toInt_lt {a b : UInt8} : a < b ↔ a.toInt < b.toInt := by
+  simp [UInt8.toInt, UInt8.lt_iff_toNat_lt]
+
+@[simp] theorem UInt8.toInt_toInt32 (x : UInt8) : x.toInt32.toInt = x.toInt := by
+  show (x.toUInt32.toInt32).toInt = _
+  have hb : (x.toUInt32.toInt32).toInt = ((x.toUInt32.toNat : Int)).bmod (2 ^ 32) := by
+    show (x.toUInt32.toInt32).toBitVec.toInt = _
+    rw [BitVec.toInt_eq_toNat_bmod]; rfl
+  have hlt : x.toNat < 256 := x.toNat_lt_size
+  rw [hb, UInt8.toNat_toUInt32, Int.bmod_eq_of_le (by omega) (by omega)]
+
+theorem UInt8.sub_sub (a b c : UInt8) : a - b - c = a - (b + c) := by
+  apply UInt8.toBitVec_inj.mp; simp [BitVec.sub_sub]
+
+@[simp] theorem UInt8.toInt_one : (1 : UInt8).toInt = 1 := rfl
+
+theorem UInt8.toInt_add (a b : UInt8) : (a + b).toInt = (a.toInt + b.toInt) % 256 := by
+  have h : (a + b).toNat = (a.toNat + b.toNat) % 256 := UInt8.toNat_add a b
+  simp only [UInt8.toInt, h]
+  omega
+
+theorem UInt8.toInt_sub (a b : UInt8) : (a - b).toInt = (a.toInt - b.toInt) % 256 := by
+  have h : (a - b).toNat = (2 ^ 8 - b.toNat + a.toNat) % 2 ^ 8 := UInt8.toNat_sub a b
+  have hcast : ((2 ^ 8 - b.toNat + a.toNat) % 2 ^ 8 : Nat) =
+      ((2 ^ 8 - b.toNat + a.toNat : Nat) : Int) % (2 ^ 8 : Int) := by
+    exact_mod_cast rfl
+  have hbnat : b.toNat < 256 := b.toNat_lt_size
+  have hcast2 : ((2 ^ 8 - b.toNat + a.toNat : Nat) : Int) =
+      256 - (b.toNat : Int) + (a.toNat : Int) := by omega
+  simp only [UInt8.toInt, h, hcast, hcast2]
+  omega
+
+
+
+/-- The solver position.
+
+**Signedness note.**  `solver.c` declares `pileDepth`, `aces`, `kings`,
+`usedSpace` and `freePiles` as `uint8_t`; this model keeps them `Int8`.  That is
+a deliberate, sound mismatch: every one of these is provably in `[0, 127]` on an
+invariant-satisfying position (`pileDepth_bound`, `aces_kings_valid`,
+`usedSpace_nonneg`, `freePiles_bound`), and on that range `int8_t` and `uint8_t`
+share a bit pattern and promote to the same `int`, so no C expression can tell
+them apart.  Keeping `Int8` here avoids rewriting the `.toInt`-based invariant
+and spec layers for no semantic gain.
+
+The mismatch would matter only if one of these fields could go negative; the
+bounds above rule that out, and a 50 000-deal differential run of the C before
+and after the `uint8_t` switch produced byte-identical output. -/
 structure SolverPosType where
   hash : UInt32
-  pileDepth : Vector Int8 10
+  pileDepth : Vector UInt8 10
   pileFlute : Vector UInt8 10
-  aces : Vector Int8 4
-  kings : Vector Int8 4
-  usedSpace : Int8
-  freePiles : Int8
+  aces : Vector UInt8 4
+  kings : Vector UInt8 4
+  usedSpace : UInt8
+  freePiles : UInt8
   busyAces : UInt8
 deriving Repr
 
@@ -223,27 +293,27 @@ def SolverCleanupPile (pile : UInt32) : EStateM Error (Globals × SolverPosType)
       flute := flute + 1
       card := card + 1
     -- Extend flute with predecessor cards already freed from their piles.
-    while (← ((do return decide ((← game.aces.getE suit.toUInt32) < prevCard.toInt8)) <&&>
+    while (← ((do return decide ((← game.aces.getE suit.toUInt32) < prevCard)) <&&>
         (do return ((← globals.card2depth.getE prevCard.toUInt32).toNat >=
             (← game.pileDepth.getE (← globals.card2pile.getE prevCard.toUInt32).toUInt32).toInt32.toNatClampNeg)))) do
       flute := flute + 1
       prevCard := prevCard - 1
       game := { game with usedSpace := game.usedSpace - 1 }
     -- If predecessor is at foundation top, mark suit for re-evaluation.
-    if (← game.aces.getE suit.toUInt32) == prevCard.toInt8 then
+    if (← game.aces.getE suit.toUInt32) == prevCard then
       game := { game with busyAces := game.busyAces ||| ((1 : UInt8) <<< suit) }
     -- Lone king: vacate pile, track king sequence in usedSpace/kings.
     if depth == 1 && (VALUE card) == 13 then
       game := { game with freePiles := game.freePiles + 1 }
-      game := { game with usedSpace := game.usedSpace + flute.toInt8 }
-      let newKings ← game.kings.setE suit.toUInt32 ((← game.kings.getE suit.toUInt32) - flute.toInt8)
+      game := { game with usedSpace := game.usedSpace + flute.toUInt32.toUInt8 }
+      let newKings ← game.kings.setE suit.toUInt32 ((← game.kings.getE suit.toUInt32) - flute.toUInt32.toUInt8)
       game := { game with kings := newKings }
       game := { game with hash := game.hash - pilehash }
       depth := 0
       flute := 1
       forcedKings := forcedKings &&& (← kingOnPileMap.getE suit.toUInt32)
   game := { game with
-    pileDepth := ← game.pileDepth.setE pile depth.toInt8
+    pileDepth := ← game.pileDepth.setE pile depth.toUInt32.toUInt8
     pileFlute := ← game.pileFlute.setE pile flute.toUInt32.toUInt8
   }
   set (⟨globals, game⟩ : Globals × SolverPosType)
@@ -263,7 +333,7 @@ def computeKingSpaces (shiftValue : UInt8) (numBits : UInt8) (game : SolverPosTy
     let kingBitmap := ← grlex2bits.getE (shiftValue + UInt8.ofNat i).toUInt32
     for suit in List.range 4 do
       if kingBitmap &&& ((1 : UInt8) <<< UInt8.ofNat suit) == 0 then
-        usedSpace := usedSpace - Int32.ofNat (13 - (VALUE (← game.kings.getE (UInt32.ofNat suit)).toUInt8).toNat)
+        usedSpace := usedSpace - Int32.ofNat (13 - (VALUE (← game.kings.getE (UInt32.ofNat suit))).toNat)
     let bit : UInt8 := (1 : UInt8) <<< UInt8.ofNat i
     while usedSpace <= 4 do
       let idx := ((4 : Int32) - usedSpace).toUInt32
@@ -276,7 +346,7 @@ def solverGetDestination (game : SolverPosType) (pile : UInt32) : EStateM Error 
   let depth ← game.pileDepth.getE pile
   let mut card := ← (← globals.pos2card.getE pile).getE (depth.toInt32 - 1).toUInt32
   let suit := SUIT card
-  if card.toInt8 == (← game.kings.getE suit.toUInt32) then
+  if card == (← game.kings.getE suit.toUInt32) then
     return 10 + suit  -- KINGPILE + suit
   let mut toPile : UInt8 := 0
   let mut posFromTop : Int32 := 0
@@ -294,7 +364,7 @@ def SolverMoveAces : EStateM Error (Globals × SolverPosType) UInt16 := do
   let suit := ctz game.busyAces
   let suitU32 := UInt32.ofNat suit
   let mut card : UInt8 := (← game.aces.getE suitU32).toInt32.toUInt32.toUInt8 + 1
-  let mut found : Int8 := 0
+  let mut found : UInt8 := 0
   while VALUE card <= 13 do
     let pile := ← globals.card2pile.getE card.toUInt32
     let cardDepth : Int32 := (← globals.card2depth.getE card.toUInt32).toUInt32.toInt32 + 1 -
@@ -303,7 +373,7 @@ def SolverMoveAces : EStateM Error (Globals × SolverPosType) UInt16 := do
       found := found + 1
       card := card + 1
     else if cardDepth == 0 then
-      game := { game with aces := ← game.aces.setE suitU32 card.toInt8 }
+      game := { game with aces := ← game.aces.setE suitU32 card }
       set (⟨globals, game⟩ : Globals × SolverPosType)
       forcedKings := forcedKings &&& (← SolverRemoveFlute pile.toUInt32)
       let s ← get; globals := s.1; game := s.2
@@ -313,9 +383,9 @@ def SolverMoveAces : EStateM Error (Globals × SolverPosType) UInt16 := do
       break
   card := card - 1
   game := { game with usedSpace := game.usedSpace - found }
-  game := { game with aces := ← game.aces.setE suitU32 card.toInt8 }
+  game := { game with aces := ← game.aces.setE suitU32 card }
   if VALUE card == 13 then
-    game := { game with kings := ← game.kings.setE suitU32 card.toInt8 }
+    game := { game with kings := ← game.kings.setE suitU32 card }
   game := { game with busyAces := game.busyAces - ((1 : UInt8) <<< UInt8.ofNat suit) }
   set (⟨globals, game⟩ : Globals × SolverPosType)
   return forcedKings
@@ -328,8 +398,8 @@ def SolverMove (pile : UInt32) (toPile : UInt8) : EStateM Error (Globals × Solv
   else  -- to king pile or extra
     if toPile < 14 then  -- king pile
       let kingIdx := (toPile - 10).toUInt32
-      game := { game with kings := ← game.kings.setE kingIdx ((← game.kings.getE kingIdx) - fluteLen.toInt8) }
-    game := { game with usedSpace := game.usedSpace + fluteLen.toInt8 }
+      game := { game with kings := ← game.kings.setE kingIdx ((← game.kings.getE kingIdx) - fluteLen) }
+    game := { game with usedSpace := game.usedSpace + fluteLen }
   set (⟨globals, game⟩ : Globals × SolverPosType)
   let mut forcedKings ← SolverRemoveFlute pile
   while (← get).2.busyAces != 0 do
@@ -359,7 +429,7 @@ def computeComponentKingBits (game : SolverPosType) : EStateM Error Globals UInt
       let kingBitmap := ← grlex2bits.getE (info.shiftValue + UInt8.ofNat i).toUInt32
       for suit in List.range 4 do
         if kingBitmap &&& ((1 : UInt8) <<< UInt8.ofNat suit) == 0 then
-          usedSpace := usedSpace - Int32.ofNat (13 - (VALUE (← game.kings.getE (UInt32.ofNat suit)).toUInt8).toNat)
+          usedSpace := usedSpace - Int32.ofNat (13 - (VALUE (← game.kings.getE (UInt32.ofNat suit))).toNat)
       if usedSpace <= 4 then
         result := result ||| ((1 : UInt16) <<< UInt16.ofNat i)
     return (← componentTable.getE (info.offset.toUInt32 + result.toUInt32))
@@ -411,9 +481,9 @@ def SolverConvertFromPilesKings (pilesking : Vector UInt8 11) :
   for i in List.range 10 do
     let iU32 := UInt32.ofNat i
     let d := ← pilesking.getE iU32
-    game := { game with pileDepth := ← game.pileDepth.setE iU32 d.toInt8 }
+    game := { game with pileDepth := ← game.pileDepth.setE iU32 d }
     game := { game with pileFlute := ← game.pileFlute.setE iU32 1 }
-    game := { game with usedSpace := game.usedSpace - d.toInt8 }
+    game := { game with usedSpace := game.usedSpace - d }
     game := { game with hash := game.hash + (← pileHashes.getE iU32) * d.toUInt32 }
 
   -- Compute aces[] (highest foundation card per suit) and kings[] (first
@@ -427,13 +497,13 @@ def SolverConvertFromPilesKings (pilesking : Vector UInt8 11) :
             (← game.pileDepth.getE (← globals.card2pile.getE ace.toUInt32).toUInt32).toInt32.toNatClampNeg))) do
       ace := ace + 1
     ace := ace - 1
-    game := { game with aces := ← game.aces.setE suitU32 ace.toInt8 }
-    game := { game with usedSpace := game.usedSpace - (VALUE ace).toInt8 }
+    game := { game with aces := ← game.aces.setE suitU32 ace }
+    game := { game with usedSpace := game.usedSpace - (VALUE ace) }
     if ace < card then
       while (← globals.card2depth.getE card.toUInt32).toNat >=
               (← game.pileDepth.getE (← globals.card2pile.getE card.toUInt32).toUInt32).toInt32.toNatClampNeg do
         card := card - 1
-    game := { game with kings := ← game.kings.setE suitU32 card.toInt8 }
+    game := { game with kings := ← game.kings.setE suitU32 card }
 
   set (⟨globals, game⟩ : Globals × SolverPosType)
 

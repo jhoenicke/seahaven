@@ -108,14 +108,14 @@ typedef uint8_t CardType;
  */
 typedef struct {
     uint32_t   hash;          /* weighted sum of pile depths, used as memoise key   */
-    int8_t     pileDepth[10]; /* above-flute card count + 1; 0 if empty             */
+    uint8_t    pileDepth[10]; /* above-flute card count + 1; 0 if empty             */
     uint8_t    pileFlute[10]; /* flute length (>= 1 when pileDepth > 0)             */
-    int8_t     aces[4];       /* highest card on foundation per suit; CARD(suit,0) if none */
-    int8_t     kings[4];      /* first un-freed card counting down from king; equals
+    uint8_t    aces[4];       /* highest card on foundation per suit; CARD(suit,0) if none */
+    uint8_t    kings[4];      /* first un-freed card counting down from king; equals
                                * CARD(suit,KING) when the king is not yet in a king
                                * pile or extra slot */
-    int8_t     usedSpace;     /* cards in extra slots + cards in king piles          */
-    int8_t     freePiles;     /* number of empty piles                               */
+    uint8_t    usedSpace;     /* cards in extra slots + cards in king piles          */
+    uint8_t    freePiles;     /* number of empty piles                               */
     uint8_t    busyAces;      /* bitmask: suits whose aces need re-evaluation        */
 } SolverPosType;
 

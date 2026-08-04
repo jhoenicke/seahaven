@@ -347,7 +347,7 @@ puts on a pile, its whole freed king stack stops being charged to the cells. -/
 def kingRefund (p : SolverPosType) (k : Fin 16) : Int :=
   ((List.finRange 4).map (fun su =>
     if (grlex2bits.get k).toNat / 2 ^ su.val % 2 = 0
-    then ((13 : Int) - (VALUE (p.kings.get su).toUInt8).toNat) else 0)).sum
+    then ((13 : Int) - (VALUE (p.kings.get su)).toNat) else 0)).sum
 
 /-- Free extra cells under king configuration `k`. -/
 def freeCellsOf (p : SolverPosType) (k : Fin 16) : Int :=

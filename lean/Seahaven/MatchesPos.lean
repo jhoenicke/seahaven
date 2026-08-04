@@ -82,12 +82,12 @@ structure StateMatchesSolverPos (g : Globals) (s : State) (p : SolverPosType) : 
   king_pile : ∀ i : Fin 10, (p.pileDepth.get i).toInt.toNat = 0 →
       ∀ c ∈ (s.tableau i).getLast?,
         (s.tableau i).length
-          + (VALUE (p.kings.get (finOfSuit c.suit)).toUInt8).toNat = 13
+          + (VALUE (p.kings.get (finOfSuit c.suit))).toNat = 13
   /-- **Foundations match.**  Unlike `kings`, `aces` is *not* determined by the
       depths — a freed card may be on the foundation or in a cell — so this has
       to be said. -/
   aces_match : ∀ su : Suit,
-      (p.aces.get (finOfSuit su)).toUInt8 = encodeFoundation su (s.foundations su)
+      (p.aces.get (finOfSuit su)) = encodeFoundation su (s.foundations su)
 
 /-! ## Immediate consequences -/
 
@@ -103,7 +103,7 @@ theorem StateMatchesSolverPos.noDup {g : Globals} {s : State} {p : SolverPosType
 /-- The foundation readout, in `Rules` terms. -/
 theorem StateMatchesSolverPos.foundation_value {g : Globals} {s : State}
     {p : SolverPosType} (h : StateMatchesSolverPos g s p) (su : Suit) :
-    (VALUE (p.aces.get (finOfSuit su)).toUInt8).toNat = optRankToNat (s.foundations su) := by
+    (VALUE (p.aces.get (finOfSuit su))).toNat = optRankToNat (s.foundations su) := by
   have hr : optRankToNat (s.foundations su) ≤ 13 := by
     cases hf : s.foundations su with
     | none => simp [optRankToNat]
