@@ -7,7 +7,6 @@ import Seahaven.SolverSpecSolverCleanupPile
 import Seahaven.SolverSpecMoveAces
 import Seahaven.SolverSpecMove
 import Seahaven.SolverSpecDrain
-import Seahaven.SolverSpecSolverMove
 import Seahaven.SolverSpecSolverConvert
 import Seahaven.SolverSpecFreedBoundary
 
@@ -40,9 +39,10 @@ now just re-exports them all:
 * `SolverSpecSolverCleanupPile` — spec for the monadic `SolverCleanupPile`
   step.
 * `SolverSpecMoveAces` — spec for `moveAcesLoop` / `SolverMoveAces`.
-* `SolverSpecMove` — spec for the composed `move` step.
+* `SolverSpecMove` — spec for the composed `move` step, including
+  `move_merged` (the top-level `SolverMove` entry point preserves canonical
+  form — supersedes the old model-based `solverMove_canonical`).
 * `SolverSpecDrain` — spec for the `busyAces` drain loop.
-* `SolverSpecSolverMove` — spec for the top-level `SolverMove` entry point.
 * `SolverSpecSolverConvert` — spec for `SolverConvertFromPilesKings`.
 * `SolverSpecFreedBoundary` — the freed-loop absorption-range boundary lemma.
 -/

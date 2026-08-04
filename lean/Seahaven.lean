@@ -24,7 +24,6 @@ import Seahaven.SolverSpecSolverCleanupPile
 import Seahaven.SolverSpecMoveAces
 import Seahaven.SolverSpecMove
 import Seahaven.SolverSpecDrain
-import Seahaven.SolverSpecSolverMove
 import Seahaven.SolverSpecSolverConvert
 import Seahaven.SolverSpecFreedBoundary
 import Seahaven.SolverSpec
