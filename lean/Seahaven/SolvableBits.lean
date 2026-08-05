@@ -120,6 +120,9 @@ def OwnsPile (s : State) (p : SolverPosType) (su : Suit) (i : Fin 10) : Prop :=
 def CfgBitSet (k : Fin 16) (su : Suit) : Prop :=
   (grlex2bits.get k).toNat / 2 ^ (suitToNat su) % 2 = 1
 
+instance (k : Fin 16) (su : Suit) : Decidable (CfgBitSet k su) :=
+  inferInstanceAs (Decidable (_ = _))
+
 /-- `s` can be read as realizing king configuration `k`: the suits whose bit is
 clear are assigned distinct piles that they own. -/
 def RealizesKingConfig (s : State) (p : SolverPosType) (k : Fin 16) : Prop :=
@@ -127,6 +130,115 @@ def RealizesKingConfig (s : State) (p : SolverPosType) (k : Fin 16) : Prop :=
     (∀ su i, assign su = some i → OwnsPile s p su i) ∧
     (∀ su su' i, assign su = some i → assign su' = some i → su = su') ∧
     (∀ su, (assign su).isSome ↔ ¬ CfgBitSet k su)
+
+/-- Suit `su` has **no** king pile in `s`: no pile the solver treats as empty
+carries a card of that suit.  The exact negation of the physical half of
+`OwnsPile` — a genuinely empty column reserved for a suit is *not* excluded, since
+nothing of the suit sits on it. -/
+def NoKingPile (s : State) (p : SolverPosType) (su : Suit) : Prop :=
+  ∀ i : Fin 10, (p.pileDepth.get i).toInt.toNat = 0 →
+    ∀ d ∈ (s.tableau i).getLast?, d.suit ≠ su
+
+/-- **A state matched against a position *and* a king configuration.**
+
+`StateMatchesSolverPos` is silent about which empty column carries which suit's
+freed king run — deliberately, since the abstract position does not record it.
+That information is what `k` adds, and both directions of it are needed:
+
+* bit `su` **clear** (suit `su` owns a pile): `su` is assigned a column of its own,
+  which either physically carries its run — by `king_pile_contents` exactly the
+  cards `kings[su] + 1 … CARD su 13` — or is genuinely empty because nothing of the
+  suit is freed yet (`VALUE kings[su] = 13`).  Distinct suits get distinct columns.
+* bit `su` **set** (suit `su` has no pile): no solver-empty column carries `su` at
+  all.  `RealizesKingConfig` alone does *not* say this — it only withholds an
+  assignment — and the difference is load-bearing: a `kings[su]` write while a
+  column holds a partial run of `su` would break that column's `king_pile` clause,
+  so the simulation of a to-cells king move needs `no_pile` as a real hypothesis
+  (see `MoveSim`'s `parkMoveAbs_kingDest`).
+
+Reading a configuration off a state stays many-to-many, as it must: a suit whose
+stack has entirely reached the foundation satisfies both branches, so it may be
+recorded as owning a spare empty column or as owning nothing. -/
+structure StateMatchesKingConfig (g : Globals) (s : State) (p : SolverPosType)
+    (k : Fin 16) : Prop where
+  toMatches : StateMatchesSolverPos g s p
+  realizes : RealizesKingConfig s p k
+  no_pile : ∀ su : Suit, CfgBitSet k su → NoKingPile s p su
+
+/-- A suit with its bit clear owns a column. -/
+theorem StateMatchesKingConfig.owns {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
+    (h : StateMatchesKingConfig g s p k) {su : Suit} (hk : ¬ CfgBitSet k su) :
+    ∃ i : Fin 10, OwnsPile s p su i := by
+  obtain ⟨assign, hown, _, hiff⟩ := h.realizes
+  obtain ⟨i, hi⟩ := Option.isSome_iff_exists.1 ((hiff su).2 hk)
+  exact ⟨i, hown su i hi⟩
+
+/-- A suit with its bit set has its freed run in the cells, not on a column. -/
+theorem StateMatchesKingConfig.noKingPile {g : Globals} {s : State} {p : SolverPosType}
+    {k : Fin 16} (h : StateMatchesKingConfig g s p k) {su : Suit} (hk : CfgBitSet k su) :
+    NoKingPile s p su := h.no_pile su hk
+
+/-! ### Dedicated piles, counted
+
+Every suit with its bit clear has a column of its own — `RealizesKingConfig`'s
+assignment is injective, so two suits never share one, not even in the
+`VALUE kings[su] = 13` case where the column is genuinely empty.  The counting
+consequence is that a configuration cannot claim more king piles than the position
+has empty columns. -/
+
+/-- Injectivity of the assignment, as a count: at most as many suits have their
+bit clear as there are piles the solver treats as empty. -/
+theorem RealizesKingConfig.card_clear_le_empty {s : State} {p : SolverPosType} {k : Fin 16}
+    (h : RealizesKingConfig s p k) :
+    (Finset.univ.filter (fun su : Suit => ¬ CfgBitSet k su)).card
+      ≤ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card := by
+  obtain ⟨assign, hown, hinj, hiff⟩ := h
+  refine Finset.card_le_card_of_injOn (fun su => (assign su).getD 0) ?_ ?_
+  · intro su hsu
+    obtain ⟨i, hi⟩ := Option.isSome_iff_exists.1 ((hiff su).2 (Finset.mem_filter.1 hsu).2)
+    have hd := (hown su i hi).1
+    simp only [hi, Option.getD_some, Finset.coe_filter, Finset.mem_univ, true_and,
+      Set.mem_setOf_eq]
+    exact UInt8.toNat_inj.mp
+      (show (p.pileDepth.get i).toNat = (0 : UInt8).toNat from by simpa using hd)
+  · intro su hsu su' hsu' heq
+    have hb : (assign su).getD 0 = (assign su').getD 0 := heq
+    have h1 : ¬ CfgBitSet k su := (Finset.mem_filter.1 (Finset.mem_coe.1 hsu)).2
+    have h2 : ¬ CfgBitSet k su' := (Finset.mem_filter.1 (Finset.mem_coe.1 hsu')).2
+    obtain ⟨i, hi⟩ := Option.isSome_iff_exists.1 ((hiff su).2 h1)
+    obtain ⟨i', hi'⟩ := Option.isSome_iff_exists.1 ((hiff su').2 h2)
+    rw [hi, hi', Option.getD_some, Option.getD_some] at hb
+    exact hinj su su' i hi (hb ▸ hi')
+
+/-- The number of piles of depth `0`, as a `Finset` card, is what `freePiles`
+counts. -/
+theorem card_empty_piles_eq_freePiles {g : Globals} {p : SolverPosType}
+    (hm : SolverInvMerged g p) :
+    (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card
+      = p.freePiles.toNat := by
+  have hlist : p.pileDepth.toList.countP (· == 0)
+      = (List.finRange 10).countP (fun i => p.pileDepth.get i == 0) := by
+    rw [show p.pileDepth.toList = (List.finRange 10).map (fun i => p.pileDepth.get i) from by
+      apply List.ext_getElem <;> simp [Vector.get]]
+    rw [List.countP_map]
+    rfl
+  have hcard : (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card
+      = (List.finRange 10).countP (fun i => p.pileDepth.get i == 0) := by
+    simp only [List.countP_eq_length_filter, Finset.filter, Finset.univ, Fintype.elems,
+      Finset.card, Multiset.filter, Multiset.card]
+    rfl
+  have hfp := hm.freePiles_def
+  have hcast : p.freePiles.toInt = (p.freePiles.toNat : Int) := rfl
+  rw [hcard, ← hlist]
+  omega
+
+/-- **A configuration cannot claim more king piles than `freePiles`.** -/
+theorem RealizesKingConfig.card_clear_le_freePiles {g : Globals} {s : State}
+    {p : SolverPosType} {k : Fin 16} (h : RealizesKingConfig s p k)
+    (hm : SolverInvMerged g p) :
+    (Finset.univ.filter (fun su : Suit => ¬ CfgBitSet k su)).card ≤ p.freePiles.toNat := by
+  rw [← card_empty_piles_eq_freePiles hm]
+  exact h.card_clear_le_empty
 
 /-! ## The specification -/
 

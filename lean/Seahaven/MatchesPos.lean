@@ -250,3 +250,146 @@ theorem StateMatchesSolverPos.flute_split {g : Globals} {s : State} {p : SolverP
     obtain ⟨hs0, hv0⟩ := helem j (by omega) hjl
     obtain ⟨hs1, hv1⟩ := helem (j + 1) (by omega) hj1
     exact nextCard_of_encode (hs1.trans hs0.symm) (by omega)
+
+/-! ## Piles the solver treats as empty
+
+Such a pile is either genuinely empty or carries one suit's freed king run.  This
+section pins down *which* cards that run consists of, which is what makes the
+king-configuration reading of a state well defined. -/
+
+theorem reverse_getElem_zero_of_getLast? {α : Type} {l : List α} {a : α}
+    (hlast : l.getLast? = some a) (h0 : 0 < l.reverse.length) : l.reverse[0]'h0 = a := by
+  have h1 : l.reverse[0]? = some a := by
+    rw [← List.head?_eq_getElem?, List.head?_reverse]; exact hlast
+  rw [List.getElem?_eq_getElem h0] at h1
+  exact Option.some.inj h1
+
+/-- The `pileDepth = 0` branch of `depth_match`, unpacked. -/
+theorem StateMatchesSolverPos.king_pile_run {g : Globals} {s : State} {p : SolverPosType}
+    (h : StateMatchesSolverPos g s p) (i : Fin 10)
+    (hd : (p.pileDepth.get i).toInt.toNat = 0) :
+    ∃ su : UInt8, IsSameSuitDescending su 13 ((s.tableau i).reverse.map encodeCard) := by
+  obtain ⟨_, _, hflute⟩ := h.depth_match i
+  simp only [hd, gt_iff_lt, lt_self_iff_false, dif_neg, not_false_eq_true,
+    List.drop_zero] at hflute
+  exact hflute
+
+/-- **The run on a solver-empty pile belongs to its deepest card's suit**, and
+descends from the king: reading from the bottom, `CARD su 13, CARD su 12, …`. -/
+theorem StateMatchesSolverPos.empty_pile_suit {g : Globals} {s : State} {p : SolverPosType}
+    (h : StateMatchesSolverPos g s p) (i : Fin 10)
+    (hd : (p.pileDepth.get i).toInt.toNat = 0) {d : Card}
+    (hlast : (s.tableau i).getLast? = some d) :
+    IsSameSuitDescending (UInt8.ofNat (suitToNat d.suit)) 13
+      ((s.tableau i).reverse.map encodeCard) := by
+  obtain ⟨su, hrun⟩ := h.king_pile_run i hd
+  have hne : s.tableau i ≠ [] := by
+    intro hnil; rw [hnil] at hlast; simp at hlast
+  have hposr : 0 < (s.tableau i).reverse.length := by
+    simpa using List.length_pos_iff_ne_nil.mpr hne
+  have hpos : 0 < ((s.tableau i).reverse.map encodeCard).length := by simpa using hposr
+  have hget : ((s.tableau i).reverse.map encodeCard)[0]'hpos = encodeCard d := by
+    rw [List.getElem_map, reverse_getElem_zero_of_getLast? hlast hposr]
+  have hsu : su = UInt8.ofNat (suitToNat d.suit) := by
+    have h0 := (hrun ⟨0, hpos⟩).1
+    simp only [List.get_eq_getElem, hget] at h0
+    rw [← h0, encodeCard_SUIT]
+  rw [← hsu]
+  exact hrun
+
+/-- The deepest card of a solver-empty pile is a king: nothing of its suit above
+it has been freed. -/
+theorem StateMatchesSolverPos.empty_pile_king {g : Globals} {s : State} {p : SolverPosType}
+    (h : StateMatchesSolverPos g s p) (i : Fin 10)
+    (hd : (p.pileDepth.get i).toInt.toNat = 0) {d : Card}
+    (hlast : (s.tableau i).getLast? = some d) : d.rank = Rank.king := by
+  have hrun := h.empty_pile_suit i hd hlast
+  have hne : s.tableau i ≠ [] := by
+    intro hnil; rw [hnil] at hlast; simp at hlast
+  have hposr : 0 < (s.tableau i).reverse.length := by
+    simpa using List.length_pos_iff_ne_nil.mpr hne
+  have hpos : 0 < ((s.tableau i).reverse.map encodeCard).length := by simpa using hposr
+  have hget : ((s.tableau i).reverse.map encodeCard)[0]'hpos = encodeCard d := by
+    rw [List.getElem_map, reverse_getElem_zero_of_getLast? hlast hposr]
+  have h0 := (hrun ⟨0, hpos⟩).2
+  simp only [List.get_eq_getElem, hget, Nat.sub_zero] at h0
+  exact rankInj _ _ (by rw [← encodeCard_VALUE, h0]; rfl)
+
+/-- **What a king pile holds, card by card.**  A solver-empty pile carrying suit
+`su`'s freed run holds exactly `kings[su] + 1 … CARD su 13`: it has
+`13 - VALUE kings[su]` cards, and the one at depth `j` from the bottom is
+`CARD su (13 - j)`.  This is the precise reading of `king_pile`'s length
+equation, and it is what lets a state's king configuration be read off its
+columns. -/
+theorem StateMatchesSolverPos.king_pile_contents {g : Globals} {s : State} {p : SolverPosType}
+    (h : StateMatchesSolverPos g s p) (i : Fin 10)
+    (hd : (p.pileDepth.get i).toInt.toNat = 0) {d : Card}
+    (hlast : (s.tableau i).getLast? = some d) :
+    (s.tableau i).length + (VALUE (p.kings.get (finOfSuit d.suit))).toNat = 13 ∧
+      ∀ (j : Nat) (hj : j < (s.tableau i).reverse.length),
+        encodeCard ((s.tableau i).reverse[j]'hj)
+          = CARD (UInt8.ofNat (suitToNat d.suit)) (UInt8.ofNat (13 - j)) := by
+  refine ⟨h.king_pile i hd d (Option.mem_def.2 hlast), fun j hj => ?_⟩
+  have hrun := h.empty_pile_suit i hd hlast
+  have hjm : j < ((s.tableau i).reverse.map encodeCard).length := by simpa using hj
+  obtain ⟨hs, hv⟩ := hrun ⟨j, hjm⟩
+  have hget : ((s.tableau i).reverse.map encodeCard)[j]'hjm
+      = encodeCard ((s.tableau i).reverse[j]'hj) := List.getElem_map ..
+  simp only [List.get_eq_getElem, hget] at hs hv
+  -- a card code is determined by its suit and value nibbles
+  set x := encodeCard ((s.tableau i).reverse[j]'hj) with hxdef
+  have hsn : suitToNat d.suit < 4 := suitToNat_lt _
+  have hslt : (SUIT x).toNat = suitToNat d.suit := by
+    rw [hs, UInt8.toNat_ofNat']; omega
+  have hj13 : j ≤ 13 := by
+    have := h.king_pile i hd d (Option.mem_def.2 hlast)
+    simp only [List.length_reverse] at hj
+    omega
+  apply UInt8.toNat_inj.mp
+  rw [CARD_toNat (by omega) (by omega)]
+  have hsx := SUIT_toNat x
+  have hvx := VALUE_toNat x
+  omega
+
+/-! ### At most one pile per suit
+
+Identifying *which* pile carries a suit's stack needs a no-duplicates argument:
+the two candidate piles would show the same king. -/
+
+theorem one_le_countColumn {xs : List Card} {c : Card} (h : c ∈ xs) :
+    1 ≤ countColumn xs c := by
+  unfold countColumn
+  refine List.single_le_sum (fun _ _ => Nat.zero_le _) 1 ?_
+  simp only [List.mem_map]
+  exact ⟨c, h, by simp [countCard]⟩
+
+/-- Two distinct columns contribute independently to the tableau count. -/
+theorem countTableau_pair_le {t : Fin 10 → Column} {c : Card} {i j : Fin 10} (hij : i ≠ j) :
+    countColumn (t i) c + countColumn (t j) c ≤ countTableau t c := by
+  unfold countTableau
+  have hpair := Finset.sum_pair (f := fun k : Fin 10 => countColumn (t k) c) hij
+  rw [List.sum_ofFn, ← hpair]
+  exact Finset.sum_le_sum_of_subset (Finset.subset_univ _)
+
+/-- **No card is in two piles at once.** -/
+theorem NoDupState.pile_unique {s : State} (h : NoDupState s) {c : Card} {i j : Fin 10}
+    (hi : c ∈ s.tableau i) (hj : c ∈ s.tableau j) : i = j := by
+  by_contra hij
+  have h1 := one_le_countColumn hi
+  have h2 := one_le_countColumn hj
+  have h3 := countTableau_pair_le (t := s.tableau) (c := c) hij
+  have h4 := h c
+  unfold countState at h4
+  omega
+
+/-- **At most one pile carries a given suit's king stack.**  Both candidate piles
+would have that suit's king as their deepest card. -/
+theorem StateMatchesSolverPos.empty_pile_unique {g : Globals} {s : State} {p : SolverPosType}
+    (h : StateMatchesSolverPos g s p) {i j : Fin 10}
+    (hi : (p.pileDepth.get i).toInt.toNat = 0) (hj : (p.pileDepth.get j).toInt.toNat = 0)
+    {d e : Card} (hdi : (s.tableau i).getLast? = some d) (hej : (s.tableau j).getLast? = some e)
+    (hsuit : d.suit = e.suit) : i = j := by
+  have hde : d = e := by
+    apply Card.ext hsuit
+    rw [h.empty_pile_king i hi hdi, h.empty_pile_king j hj hej]
+  exact h.noDup.pile_unique (List.mem_of_getLast? hdi) (hde ▸ List.mem_of_getLast? hej)
