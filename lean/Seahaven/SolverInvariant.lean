@@ -1619,6 +1619,79 @@ theorem usedSpace_ge_of_disjoint_free {g : Globals} {p : SolverPosType}
   have hdef := h.usedSpace_def
   omega
 
+/-- **`usedSpace_ge_of_disjoint_free` with the `cardOf` obligations spelled out.**
+    The three families `usedSpace_def` already counts are
+
+    * cards still resident in a pile — excluded by `isFreeCard` alone
+      (`depth_card_not_free`);
+    * cards played to a foundation — excluded by `haces`: each of our cards
+      strictly outranks its own suit's foundation;
+    * the interior cards of some pile's flute, i.e. `boundary[j] - m` for
+      `1 ≤ m < pileFlute[j]` — excluded by `hflute`.
+
+    Stated this way so that callers in other files — which cannot name the
+    private `CountDomain`/`cardOf` — can still use the counting argument.  The
+    intended application is "cards in cells plus cards on king piles", giving
+    `#cells + Σ king stacks ≤ usedSpace`. -/
+theorem usedSpace_ge_of_free_above {g : Globals} {p : SolverPosType}
+    (hwf : WellFormedLayout g) (h : SolverInvBase g p)
+    {n : Nat} (c : Fin n → UInt8) (hinj : Function.Injective c)
+    (hreal : ∀ k, IsRealCard (c k))
+    (hfree : ∀ k, isFreeCard g p (c k))
+    (haces : ∀ (k : Fin n) (hs : (SUIT (c k)).toNat < 4),
+      p.aces.get ⟨(SUIT (c k)).toNat, hs⟩ < c k)
+    (hflute : ∀ (k : Fin n) (j : Fin 10), 0 < (p.pileDepth.get j).toNat →
+      ∀ m : Nat, 1 ≤ m → m < (p.pileFlute.get j).toNat →
+      (g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1,
+          by have := h.pileDepth_bound j; omega⟩ - UInt8.ofNat m ≠ c k) :
+    (n : Int) ≤ p.usedSpace.toInt := by
+  apply usedSpace_ge_of_disjoint_free hwf h c hinj hreal
+  intro k x
+  match x with
+  | .inl ⟨i, d⟩ =>
+    have hd5 : d.val < 5 := by have := h.pileDepth_bound i; have := d.isLt; omega
+    intro heq
+    have hnotfree := depth_card_not_free hwf h i ⟨d.val, hd5⟩ d.isLt
+    simp only [cardOf, dif_pos hd5] at heq
+    rw [heq] at hnotfree
+    exact hnotfree (hfree k)
+  | .inr (.inl ⟨s, v⟩) =>
+    intro heq
+    simp only [cardOf] at heq
+    have hs4 : (SUIT (c k)).toNat < 4 := (hreal k).1
+    have hVas13 : (VALUE (p.aces.get s)).toNat ≤ 13 := (h.aces_kings_valid s).2.1
+    have hv13 : v.val + 1 ≤ (VALUE (p.aces.get s)).toNat := by have := v.isLt; omega
+    have hct : (CARD s.val.toUInt8 (UInt8.ofNat (v.val + 1))).toNat =
+        s.val * 16 + (v.val + 1) := CARD_toNat (by have := s.isLt; omega) (by omega)
+    have hck : (c k).toNat = s.val * 16 + (v.val + 1) := by rw [← heq]; exact hct
+    have hSck : (SUIT (c k)).toNat = s.val := by
+      rw [SUIT_toNat, hck]; have := s.isLt; omega
+    -- same suit as `aces[s]`, but `haces` puts it strictly above — while the
+    -- ace-slot card is at or below the foundation top.
+    have hlt := haces k hs4
+    rw [show (⟨(SUIT (c k)).toNat, hs4⟩ : Fin 4) = s from Fin.ext hSck] at hlt
+    have hltNat : (p.aces.get s).toNat < (c k).toNat := UInt8.lt_iff_toNat_lt.mp hlt
+    have hAS := congrArg UInt8.toNat (h.aces_kings_valid s).1
+    have hb1 := SUIT_toNat (p.aces.get s)
+    have hb2 := VALUE_toNat (p.aces.get s)
+    have hSval : ((s.val.toUInt8)).toNat = s.val := by
+      rw [UInt8.toNat_ofNat']; have := s.isLt; omega
+    omega
+  | .inr (.inr ⟨j, k'⟩) =>
+    intro heq
+    have hk'lt := k'.isLt
+    by_cases hdj : (p.pileDepth.get j).toNat > 0 ∧ (p.pileDepth.get j).toNat ≤ 5
+    · simp only [cardOf, dif_pos hdj] at heq
+      have hif : (if (p.pileDepth.get j).toNat ≠ 0 then
+          (p.pileFlute.get j).toNat - 1 else 0) = (p.pileFlute.get j).toNat - 1 :=
+        if_pos (by omega)
+      exact hflute k j hdj.1 (k'.val + 1) (by omega) (by omega) heq
+    · push Not at hdj
+      have hd0 : (p.pileDepth.get j).toNat = 0 := by have := h.pileDepth_bound j; omega
+      have hif : (if (p.pileDepth.get j).toNat ≠ 0 then
+          (p.pileFlute.get j).toNat - 1 else 0) = 0 := if_neg (by omega)
+      omega
+
 /-- **`usedSpace_ge_of_disjoint_free`, specialized to a downward run below a
     not-free card `B`.**  Given `B` not free (e.g. some pile's own current
     boundary) and `f` pairwise-distinct free cards `B-1, …, B-f` each strictly

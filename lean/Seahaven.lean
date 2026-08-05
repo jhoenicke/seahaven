@@ -27,3 +27,5 @@ import Seahaven.SolverSpecDrain
 import Seahaven.SolverSpecSolverConvert
 import Seahaven.SolverSpecFreedBoundary
 import Seahaven.SolverSpec
+import Seahaven.MoveSim
+import Seahaven.UsedSpaceBound
