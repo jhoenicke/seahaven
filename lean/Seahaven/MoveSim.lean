@@ -494,7 +494,7 @@ theorem fluteMoveAbs_pileDest {g : Globals} {s : State} {p : SolverPosType}
 
 /-! ### Destination is a king pile sitting on an empty column -/
 
-private theorem suitToNat_inj {su su' : Suit} (h : suitToNat su = suitToNat su') : su = su' := by
+theorem suitToNat_inj {su su' : Suit} (h : suitToNat su = suitToNat su') : su = su' := by
   rw [← natToSuit_suitToNat su, ← natToSuit_suitToNat su']
   congr 1
   exact Fin.ext h

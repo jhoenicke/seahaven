@@ -1005,6 +1005,10 @@ When the merged boundary turns out to be a king on a depth-1 pile, cleanup vacat
 the pile.  That is `cleanupPileSim` followed by `cleanupVacate` — still `f` moves in
 total, since the vacate moves nothing. -/
 
+/-- A card whose rank counts as 13 is a king. -/
+theorem rank_king_of_13 {r : Rank} (h : rankToNat r = 13) : r = Rank.king := by
+  cases r <;> simp_all [rankToNat]
+
 /-- **A whole lone-king `SolverCleanupPile` is simulated**, again by just the `f`
 cell→pile moves of the extension.  `hkingval` is the branch's own test
 (`VALUE (B + m) = 13`), and `hqk_self` is its `kings` write. -/
@@ -1041,7 +1045,11 @@ theorem StateMatchesSolverPos.cleanupPileSimKing {g : Globals} {s : State}
     (hqk_ne : ∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ → (p.pileDepth.get i).toInt.toNat = 0 →
       ∀ d ∈ (s.tableau i).getLast?,
         q.kings.get (finOfSuit d.suit) = p.kings.get (finOfSuit d.suit)) :
-    ∃ v : State, Reach s v ∧ StateMatchesSolverPos g v q := by
+    ∃ v : State, Reach s v ∧
+      (∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ → v.tableau i = s.tableau i) ∧
+      StateMatchesSolverPos g v q ∧
+      ∃ c ∈ (v.tableau ⟨pile.toNat, hpile⟩).getLast?,
+        suitToNat c.suit = (SUIT B).toNat ∧ c.rank = Rank.king := by
   set a : Fin 10 := ⟨pile.toNat, hpile⟩ with hadef
   have hd1 : 1 ≤ (p.pileDepth.get a).toInt.toNat := by omega
   have hBreal : IsRealCard B := by rw [← hB]; exact hwf.pos2card_real a _
@@ -1126,8 +1134,51 @@ theorem StateMatchesSolverPos.cleanupPileSimKing {g : Globals} {s : State}
     (by rw [← hadef]; omega) hchain hf hfree haces hBflute1 (q := p₂)
     (by rw [← hadef]; omega) hp₂f
     hp₂dne hp₂fne rfl rfl
+  -- the column the vacate empties has `1 + m + f` cards, and its deepest card is
+  -- the suit's king — needed both by `cleanupVacate` and by the exported fact
+  have hlen : (v.tableau a).length + 1 = 1 + (1 + m + f) := by
+    have := hmatch₂.flute_match a (by omega)
+    rw [hp₂d, hp₂f] at this
+    exact this
+  have hcode : ∀ d ∈ (v.tableau a).getLast?,
+      encodeCard d = (g.pos2card.get a).get ⟨0, hzero5⟩ := by
+    intro d hd
+    obtain ⟨_, hbotm, _⟩ := hmatch₂.depth_match a
+    have hrevlt : 0 < (v.tableau a).reverse.length := by
+      simp only [List.length_reverse]; omega
+    have hk0 := hbotm ⟨0, by show (0 : Nat) < (p₂.pileDepth.get a).toInt.toNat; omega⟩
+    rw [List.getElem?_eq_getElem hrevlt, Option.map_some] at hk0
+    have hd0 : (v.tableau a).reverse[0]'hrevlt = d :=
+      reverse_getElem_zero_of_getLast? (Option.mem_def.1 hd) hrevlt
+    rw [hd0] at hk0
+    exact Option.some.inj hk0
+  have hsuitOf : ∀ d ∈ (v.tableau a).getLast?,
+      finOfSuit d.suit = (⟨(SUIT B).toNat, hs4⟩ : Fin 4) := by
+    intro d hd
+    refine Fin.ext (show suitToNat d.suit = (SUIT B).toNat from ?_)
+    have he := encodeCard_SUIT d
+    have h1 : (SUIT (encodeCard d)).toNat = suitToNat d.suit := by
+      rw [he, UInt8.toNat_ofNat']
+      have := suitToNat_lt d.suit
+      omega
+    rw [hcode d hd] at h1
+    have h2 := congrArg UInt8.toNat hksuit
+    rw [UInt8.toNat_ofNat'] at h2
+    omega
+  have hexport : ∃ c ∈ (v.tableau a).getLast?,
+      suitToNat c.suit = (SUIT B).toNat ∧ c.rank = Rank.king := by
+    have hne : (v.tableau a) ≠ [] := by
+      intro he; rw [he] at hlen; simp at hlen
+    refine ⟨(v.tableau a).getLast hne, ?_, ?_, ?_⟩
+    · exact Option.mem_def.2 (List.getLast?_eq_some_getLast hne)
+    · exact congrArg Fin.val
+        (hsuitOf _ (Option.mem_def.2 (List.getLast?_eq_some_getLast hne)))
+    · refine rank_king_of_13 ?_
+      rw [← encodeCard_VALUE, hcode _ (Option.mem_def.2 (List.getLast?_eq_some_getLast hne))]
+      exact hkingv
   -- the vacate: no moves
-  refine ⟨v, hreach, hmatch₂.cleanupVacate a hp₂d hkingv hqd ?_ ?_ (by rw [hqaces]) ?_ ?_⟩
+  refine ⟨v, hreach, hframe, hmatch₂.cleanupVacate a hp₂d hkingv hqd ?_ ?_ (by rw [hqaces]) ?_ ?_,
+    hexport⟩
   · exact fun i hi => by rw [hqdne i hi, hp₂dne i hi]
   · exact fun i hi => by rw [hqfne i hi, hp₂fne i hi]
   · -- other empty piles keep their frontier
@@ -1137,34 +1188,7 @@ theorem StateMatchesSolverPos.cleanupPileSimKing {g : Globals} {s : State}
     exact hqk_ne i hi hdi d hd
   · -- the vacated pile: its column is exactly the suit's freed run
     intro d hd
-    -- the column has `1 + m + f` cards
-    have hlen : (v.tableau a).length + 1 = 1 + (1 + m + f) := by
-      have := hmatch₂.flute_match a (by omega)
-      rw [hp₂d, hp₂f] at this
-      exact this
-    -- its deepest card is the king
-    obtain ⟨_, hbot, _⟩ := hmatch₂.depth_match a
-    have hrevlt : 0 < (v.tableau a).reverse.length := by
-      simp only [List.length_reverse]; omega
-    have hk0 := hbot ⟨0, by show (0 : Nat) < (p₂.pileDepth.get a).toInt.toNat; omega⟩
-    rw [List.getElem?_eq_getElem hrevlt, Option.map_some] at hk0
-    have hd0 : (v.tableau a).reverse[0]'hrevlt = d :=
-      reverse_getElem_zero_of_getLast? (Option.mem_def.1 hd) hrevlt
-    rw [hd0] at hk0
-    have hdcode : encodeCard d = (g.pos2card.get a).get ⟨0, hzero5⟩ := Option.some.inj hk0
-    -- so `d`'s suit is `B`'s
-    have hdsuit : finOfSuit d.suit = (⟨(SUIT B).toNat, hs4⟩ : Fin 4) := by
-      refine Fin.ext (show suitToNat d.suit = (SUIT B).toNat from ?_)
-      have he := encodeCard_SUIT d
-      have h1 : (SUIT (encodeCard d)).toNat = suitToNat d.suit := by
-        rw [he, UInt8.toNat_ofNat']
-        have := suitToNat_lt d.suit
-        omega
-      rw [hdcode] at h1
-      have h2 := congrArg UInt8.toNat hksuit
-      rw [UInt8.toNat_ofNat'] at h2
-      omega
-    rw [hdsuit, hqk_self hs4]
+    rw [hsuitOf d hd, hqk_self hs4]
     -- `kings` drops by the whole flute, whose length is the column's
     have hfB := hBreal.2.2
     have hflute13 : 1 + m + f ≤ 13 := by omega
@@ -1208,7 +1232,7 @@ private theorem int32_add_toInt (a b : Int32) (h1 : -2147483648 ≤ a.toInt + b.
   exact Int.bmod_eq_of_le (by omega) (by omega)
 
 /-- The depth the ordinary branch writes, as a `Nat`. -/
-private theorem depth1_toNat {d : UInt8} {m : Nat} (hd5 : d.toNat ≤ 5) (hm : m ≤ d.toNat) :
+theorem depth1_toNat {d : UInt8} {m : Nat} (hd5 : d.toNat ≤ 5) (hm : m ≤ d.toNat) :
     ((d.toInt32 - Int32.ofNat m).toUInt32.toUInt8).toNat = d.toNat - m := by
   have hd : (d.toInt32).toInt = (d.toNat : Int) := uint8_toInt32_toInt d
   have hmof : (Int32.ofNat m).toInt = (m : Int) := by
@@ -1274,9 +1298,15 @@ theorem StateMatchesSolverPos.cleanupRunResult_sim {g : Globals} {s : State}
     (hnoshare : ∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ →
       (p.pileDepth.get i).toInt.toNat = 0 →
       ∀ d ∈ (s.tableau i).getLast?, suitToNat d.suit ≠ (SUIT B).toNat) :
-    ∃ v : State, Reach s v ∧ StateMatchesSolverPos g v
+    ∃ v : State, Reach s v ∧
+      (∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ → v.tableau i = s.tableau i) ∧
+      StateMatchesSolverPos g v
       (cleanupRunResult pile hpile B ph hs4'
-        (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).2 := by
+        (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).2 ∧
+      ((((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m == 1)
+          && (VALUE (B + UInt8.ofNat m) == 13)) = true →
+        ∃ c ∈ (v.tableau ⟨pile.toNat, hpile⟩).getLast?,
+          suitToNat c.suit = (SUIT B).toNat ∧ c.rank = Rank.king) := by
   have hs4 : (SUIT B).toNat < 4 := by rwa [UInt8.toNat_toUInt32] at hs4'
   have hBreal : IsRealCard B := by rw [← hB]; exact hwf.pos2card_real _ _
   have hd5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat ≤ 5 :=
@@ -1384,8 +1414,10 @@ theorem StateMatchesSolverPos.cleanupRunResult_sim {g : Globals} {s : State}
       refine Vector.getElem_set_ne hs4' (finOfSuit d.suit).isLt (fun hc => ?_)
       rw [UInt8.toNat_toUInt32] at hc
       exact hnoshare i hi hdi d hd hc.symm
-    exact h.cleanupPileSimKing hwf hb hpile hidx hfl1 hB hdepth1 hchain hkingval hf hfree
-      haces hBflute1 hd0 hdne hfne (by rw [hqa]) hkself hkne
+    obtain ⟨v, hreach, hframe, hmatch, hexport⟩ :=
+      h.cleanupPileSimKing hwf hb hpile hidx hfl1 hB hdepth1 hchain hkingval hf hfree
+        haces hBflute1 hd0 hdne hfne (by rw [hqa]) hkself hkne
+    exact ⟨v, hreach, hframe, hmatch, fun _ => hexport⟩
   · -- the ordinary branch
     obtain ⟨hqd, hqf, hqa, hqk⟩ := cleanupRunResult_fields_ordinary pile hpile B ph hs4'
       (p.pileDepth[pile.toNat]'hpile).toInt32 m f p hk
@@ -1421,10 +1453,10 @@ theorem StateMatchesSolverPos.cleanupRunResult_sim {g : Globals} {s : State}
       rw [hqf]
       show (p.pileFlute.set pile.toNat _ hpile)[i.val] = p.pileFlute[i.val]
       exact Vector.getElem_set_ne hpile i.isLt (fun hc => hi (Fin.ext hc.symm))
-    obtain ⟨v, hreach, _, hmatch⟩ := h.cleanupPileSim hwf hb hpile hidx (by omega) hfl1 hB
+    obtain ⟨v, hreach, hframe, hmatch⟩ := h.cleanupPileSim hwf hb hpile hidx (by omega) hfl1 hB
       (by omega) hchain hf hfree haces hBflute1 hdself hfself hdne hfne (by rw [hqa])
       (by rw [hqk])
-    exact ⟨v, hreach, hmatch⟩
+    exact ⟨v, hreach, hframe, hmatch, fun hc => absurd hc hk⟩
 
 /-! ### The merge guards, without a new induction
 

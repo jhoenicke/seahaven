@@ -241,8 +241,8 @@ This holds because:
 - The only writes are `setSlot(game.hash, solvable)` at the end of
   `solverRecCheckSolvable`, where `solvable` is the result computed (without
   the cache hit) in that same call — matching `solverRecCheckSolvable_pure`.
-- Hash injectivity (no collisions) ensures no other state's write can
-  corrupt the entry.
+- Hash injectivity (for same extra key) ensures no other state's write can
+  corrupt the entry, if it overwrites the other state is FREESLOT again.
 
 `soundness_pure` + `memo_agrees` immediately give soundness of the memoized
 `solverRecCheckSolvable`.
@@ -274,64 +274,36 @@ still in extra, consuming slots that the abstract state regards as free.
 This lemma is the bridge that lets us transfer move feasibility from the
 concrete to the abstract level.
 
-### Case analysis on the next winning `Rules.Move`
+### How to get the next solver move from  a winning Rule.Move sequence
 
-Assume `S` has a winning play whose first move is `m`.
+Simulate moves until the next move that decreases the pileDepth.  This is
+the first move whose source is a pile starting with non-consecutive cards.
+Up to that move the position still matches the game position module flute 
+lengths and possibly with a different king configuration.  The moved card
+gives as the source pile number.
 
-**Case A: pile-to-nonempty-pile move.**
-`m` moves a flute of length `L` from `pile` to a non-empty `toPile`.
-This requires `L - 1` free extra slots in `S`.
-By `extra_space_bound`, `sp` also has at least `L - 1` free extra slots.
-The solver therefore considers a pile-to-pile `SolverMove(pile, toPile)` with
-`fluteLen = L`, which is feasible.  The solver does iterate over `toPile`
-because `solverGetDestination` returns it (it is the next card's home pile, at
-position-from-top 1).  The resulting child abstract state `sp'` matches the
-abstract state of `S` after `m` (up to normalization), and the inductive
-hypothesis applies.
+Claim: Doing SolverMove on the GamePosition without the busyAces loop, yields
+a position that matches the Rule state after applying all possible CP moves.
+Inserting CP moves will not affect solvability. Then moving to the foundations
+will also not affect solvability.  The resulting position matches the game
+after SolverMove.
 
-**Case B: pile-to-extra move.**
-`m` moves a flute of length `L` from `pile` to extra, requiring `L` free extra
-slots in `S`.  By `extra_space_bound`, `sp` has at least `L` free extra slots.
-The solver may consider one of two sub-cases depending on whether a pile target
-exists:
+If the king configuration changed, we need to argue that both king configurations
+are in the component.  This follows because at some point we had to empty a pile
+showing that the starting component has a feasible component with freePiles-1
+piled kings.  And similarly before we pile the last king to reach the target
+configuration we have a subset configuration of the target with freePiles-1
+kings.  So these are both in the component.
 
-- *No target pile exists* (`solverGetDestination` returns `EXTRA`): the solver
-  calls `SolverMove(pile, EXTRA)`, which is feasible.  The child abstract state
-  matches the abstract state after `m` (up to normalization).
-- *A target pile exists* (`solverGetDestination` returns some `toPile`): the
-  solver considers `SolverMove(pile, toPile)` first.  Since the target pile is
-  the natural home of the next card, the winning play can route through that
-  same abstract transition — the concrete move in `S` to extra is a detour that
-  the abstract move to `toPile` subsumes.  In either case the resulting child
-  abstract state has strictly smaller hash and the inductive hypothesis applies.
-
-**Case C: pile-to-foundation (or extra-to-foundation) move.**
-`m` moves a card to the foundation.  This does not change any pile depth, so
-`sp.hash` is unchanged.  The abstract state before and after `m` (once
-normalized) is **the same**: `toAbstract(S after m) = toAbstract(S)`.  The
-winning play from `S after m` witnesses that `sp` is solvable, so no new
-inductive step is needed — the same bit was already going to be set.
-
-**Case D: king shuffling (rearranging stacks among empty piles).**
-`m` moves a king stack from one empty pile to another.  This leaves all pile
-depths and the foundation unchanged; only the assignment of king suits to
-concrete empty piles changes.  In the abstract world this corresponds to moving
-between king configurations in the same reachability component (as captured by
-`computeComponentKingBits`).  The proof obligation is:
-
-- If the current king configuration is `kc` and after `m` it is `kc'`, and `kc'`
-  is reachable from `kc` via the component graph, and `kc'` leads to a winning
-  play, then `kc` also leads to a winning play — because the solver propagates
-  solvability across the entire component via `movable |= component`.
+So the movable |= component is applied and the source configuration is marked 
+as movable.
 
 This requires the component table to be proven correct (see Open Questions §2).
 
-### Inductive step conclusion
+### SolverRecCheckSolvable loop invariant
 
-In all four cases, after the first `Rules.move` the winning play continues from
-a state whose abstract hash is either smaller (cases A, B) or equal (cases C,
-D).  Cases C and D terminate without needing the inductive hypothesis; cases A
-and B apply it.  This closes the induction.
+The invariant is that once the winning move is examined, the solvable bit for the
+king configuration is set to 1 and will stay 1 for all following iterations.
 
 ---
 
