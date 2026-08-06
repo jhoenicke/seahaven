@@ -785,3 +785,21 @@ theorem StateMatchesSolverPos.isRun_take {g : Globals} {s : State} {p : SolverPo
     rw [encodeCard_VALUE]
     omega
 
+
+/-- **A phase that touches no column at all** carries the king configuration
+unchanged: every owned pile keeps its depth, its `kings` entry and its column, and no
+new solver-empty pile appears.  This is the drain's tail, where the whole run comes out
+of the cells. -/
+theorem StateMatchesKingConfig.frameAll {g : Globals} {s v : State} {p q : SolverPosType}
+    {k : Fin 16} (hk : StateMatchesKingConfig g s p k)
+    (hreach : Reach s v) (hmatch : StateMatchesSolverPos g v q)
+    (hframe : ∀ i : Fin 10, v.tableau i = s.tableau i)
+    (hqd : ∀ i : Fin 10, q.pileDepth.get i = p.pileDepth.get i)
+    (hqkings : q.kings = p.kings) :
+    Simulates g s p k v q k ∅ 0xffff := by
+  refine Simulates.ofReach hreach ⟨hmatch, ?_, ?_⟩
+  · obtain ⟨assign, hown, hinj, hiff⟩ := hk.realizes
+    exact ⟨assign, fun su i hi =>
+      (hown su i hi).frame (hqd i) (by rw [hqkings]) (hframe i), hinj, hiff⟩
+  · intro su hsu
+    exact (hk.no_pile su hsu).frame (fun i hi => Or.inl ⟨by rw [← hqd i]; exact hi, hframe i⟩)

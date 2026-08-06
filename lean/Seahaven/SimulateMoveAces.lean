@@ -111,15 +111,18 @@ theorem exists_playsAll_pending {g : Globals} {s : State} {p : SolverPosType}
       (∀ d ∈ runFrom (nextFoundationCard u su) j, isFreeCard g p (encodeCard d)) →
       ∃ w, PlaysAll u (runFrom (nextFoundationCard u su) j) w ∧
         (∀ q : Fin 10, ∃ k : Nat, w.tableau q = (s.tableau q).drop k) ∧
-        (∀ d : Card, countState w d = 1) := by
+        (∀ d : Card, countState w d = 1) ∧
+        -- a column that changed gave up one of the run's cards
+        (∀ q : Fin 10, w.tableau q = u.tableau q ∨
+          ∃ d ∈ runFrom (nextFoundationCard u su) j, d ∈ u.tableau q) := by
   intro j
   induction j with
-  | zero => intro u hdrop hcount _; exact ⟨u, PlaysAll.nil u, hdrop, hcount⟩
+  | zero => intro u hdrop hcount _; exact ⟨u, PlaysAll.nil u, hdrop, hcount, fun _ => Or.inl rfl⟩
   | succ j ih =>
     intro u hdrop hcount hfree
     cases hnf : nextFoundationCard u su with
     | none =>
-      refine ⟨u, ?_, hdrop, hcount⟩
+      refine ⟨u, ?_, hdrop, hcount, fun _ => Or.inl rfl⟩
       rw [runFrom_none]
       exact PlaysAll.nil u
     | some c =>
@@ -160,11 +163,39 @@ theorem exists_playsAll_pending {g : Globals} {s : State} {p : SolverPosType}
         refine hfree d ?_
         rw [hnf, runFrom_some]
         exact List.mem_cons_of_mem c hd
-      obtain ⟨w, hall, hw1, hw2⟩ := ih t1 hdrop1 hcount1 hfree1
-      refine ⟨w, ?_, hw1, hw2⟩
-      rw [runFrom_some]
-      rw [hnext1] at hall
-      exact PlaysAll.cons hplay hall
+      obtain ⟨w, hall, hw1, hw2, hw3⟩ := ih t1 hdrop1 hcount1 hfree1
+      refine ⟨w, ?_, hw1, hw2, ?_⟩
+      · rw [runFrom_some]
+        rw [hnext1] at hall
+        exact PlaysAll.cons hplay hall
+      · -- either this play or a later one touched the column
+        intro q
+        rcases hplay.cases with ⟨i0, hcell0, ht1⟩ | ⟨q0, rest, hcol, ht1⟩
+        · -- played from a cell: this step changed no column
+          have hteq : t1.tableau q = u.tableau q := by rw [ht1]; simp
+          rcases hw3 q with hsame | ⟨d, hdrun, hdmem⟩
+          · exact Or.inl (hsame.trans hteq)
+          · refine Or.inr ⟨d, ?_, hteq ▸ hdmem⟩
+            rw [runFrom_some]
+            rw [hnext1] at hdrun
+            exact List.mem_cons_of_mem c hdrun
+        · -- played off column `q0`
+          by_cases hq : q = q0
+          · subst hq
+            refine Or.inr ⟨c, ?_, ?_⟩
+            · rw [runFrom_some]; exact List.mem_cons_self
+            · rw [hcol]; exact List.mem_cons_self
+          · have hteq : t1.tableau q = u.tableau q := by
+              rw [ht1]
+              simp only [updateFoundation_tableau, updateColumn_tableau, update,
+                if_neg (show ¬ (q0 = q) from fun hc => hq hc.symm)]
+            rcases hw3 q with hsame | ⟨d, hdrun, hdmem⟩
+            · exact Or.inl (hsame.trans hteq)
+            · refine Or.inr ⟨d, ?_, hteq ▸ hdmem⟩
+              rw [runFrom_some]
+              rw [hnext1] at hdrun
+              exact List.mem_cons_of_mem c hdrun
+
 
 /-- **At a sync point the walk has already passed the whole flute.**
 
@@ -589,3 +620,492 @@ theorem StateMatchesSolverPos.syncRun_foundations {g : Globals} {s w : State}
     rw [hupd]
     exact hall.foundations_of_forall_ne v
       (fun c hc => by rw [hmemsuit c hc]; exact fun hc' => hv hc'.symm)
+
+/-! ### The sync step's plays, as one `Simulates`
+
+Gluing the pieces: `playSyncRun` ships the run off the column, `syncRun_foundations`
+and `aces_match_play` handle `aces`, `syncPile` gives the matching at the cleanup's
+entry position, and `framePile` carries the king configuration — unchanged, since the
+only pile touched either stays non-empty or ends up with a physically empty column.
+`Simulates.ofCleanupRun` then composes onto this with `Simulates.trans`. -/
+
+/-- **The drain's foundation plays are simulated**, landing exactly at the position
+`SolverCleanupPile` is entered at. -/
+theorem Simulates.syncPlays {g : Globals} {s : State} {p q : SolverPosType} {k : Fin 16}
+    (hk : StateMatchesKingConfig g s p k) (i : Fin 10)
+    {su : Suit} {bc : Card} {found : Nat}
+    (hd : 0 < (p.pileDepth.get i).toInt.toNat)
+    (hidx : (p.pileDepth.get i).toInt.toNat - 1 < 5)
+    (hbsuit : (SUIT ((g.pos2card.get i).get ⟨_, hidx⟩)).toNat = suitToNat su)
+    (hbc : encodeCard bc = (g.pos2card.get i).get ⟨_, hidx⟩)
+    (hflute : (p.pileFlute.get i).toNat = found + 1)
+    (hbval : (VALUE ((g.pos2card.get i).get ⟨_, hidx⟩)).toNat
+      = optRankToNat (s.foundations su) + found + 1)
+    (hqd : (q.pileDepth.get i).toInt.toNat = (p.pileDepth.get i).toInt.toNat - 1)
+    (hqdne : ∀ j : Fin 10, j ≠ i → q.pileDepth.get j = p.pileDepth.get j)
+    (hqf : (q.pileFlute.get i).toNat = 1)
+    (hqfne : ∀ j : Fin 10, j ≠ i → q.pileFlute.get j = p.pileFlute.get j)
+    (hqkings : q.kings = p.kings)
+    (hqasu : q.aces.get (finOfSuit su) = encodeCard bc)
+    (hqane : ∀ su' : Suit, su' ≠ su → q.aces.get (finOfSuit su') = p.aces.get (finOfSuit su')) :
+    ∃ v : State, Simulates g s p k v q k ∅ 0xffff := by
+  -- play the run off the column
+  obtain ⟨w, hall, hwi, hwj, hlen⟩ :=
+    hk.toMatches.playSyncRun i hd hidx hbsuit hflute hbval
+  have hreach : Reach s w := hall.toReach
+  have hcount : ∀ c : Card, countState w c = 1 := by
+    intro c
+    rw [congrFun (countState_of_reach hreach) c]
+    exact hk.toMatches.cards_count c
+  -- `aces` follows the foundations
+  have hfound := hk.toMatches.syncRun_foundations i hd hidx hbsuit hlen hbc hall
+  have hbcsu : bc.suit = su := by
+    refine suitToNat_inj ?_
+    have h1 : (SUIT (encodeCard bc)).toNat = suitToNat bc.suit := by
+      rw [encodeCard_SUIT, UInt8.toNat_ofNat']
+      have := suitToNat_lt bc.suit
+      omega
+    rw [← h1, hbc, hbsuit]
+  have hqaces := hk.toMatches.aces_match_play hbcsu hqasu hqane hfound
+  -- matching at the cleanup's entry position
+  have hmatch := hk.toMatches.syncPile i hd hwi hwj hcount hlen hqd hqdne hqf hqfne hqkings hqaces
+  -- and the king configuration is untouched
+  refine ⟨w, hk.framePile hreach hmatch hd ?_ hwj hqdne hqkings⟩
+  by_cases hd1 : 0 < (p.pileDepth.get i).toInt.toNat - 1
+  · exact Or.inl (by omega)
+  · refine Or.inr ?_
+    refine List.eq_nil_of_length_eq_zero ?_
+    rw [hwi, List.length_drop, hlen]
+    omega
+
+/-! ### At the walk's end, no flute gave up a card
+
+The tail's frame: a column that handed over one of the played cards cannot have been
+a *non-empty* pile.  Such a card would be a flute interior, so that pile's boundary
+carries the same suit above it; the boundary is not free, so it cannot sit inside the
+walked window, and flute contiguity then puts the walk's *stopping* card inside the
+same flute — where it is either the boundary itself or a flute interior, hence free.
+Both contradict the exit test, which is exactly "not free and not the boundary".
+
+Note on spelling: the boundary index is written `(p.pileDepth.get j).toNat - 1`, matching
+`PileBase.flute_cards_free`, and card codes are never rewritten *inside* `isFreeCard`
+(its body branches on `c.toNat < 64`, so unifying two defeq-but-different codes there
+sends `whnf` into the weeds).  Equalities between codes are moved by rewriting the
+subterm in a hypothesis instead. -/
+
+/-- **No flute gives up a played card at the walk's end.** -/
+theorem StateMatchesSolverPos.no_flute_at_exit {g : Globals} {s : State} {p : SolverPosType}
+    (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
+    {su : Suit} {V : Nat} {stop : UInt8} (j : Fin 10)
+    (hdj : 0 < (p.pileDepth.get j).toNat)
+    (hidxj : (p.pileDepth.get j).toNat - 1 < 5)
+    (hnotfree : ∀ c : UInt8, (SUIT c).toNat = suitToNat su → ¬ isFreeCard g p c →
+      (VALUE c).toNat ≤ V → (VALUE c).toNat ≤ (VALUE (p.aces.get (finOfSuit su))).toNat)
+    (hstopsuit : (SUIT stop).toNat = suitToNat su)
+    (hstopval : (VALUE stop).toNat = V + 1)
+    (hstopfree : ¬ isFreeCard g p stop)
+    (hstopbnd : (g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩ ≠ stop)
+    {x : Card} (hxmem : x ∈ s.tableau j) (hxsuit : x.suit = su)
+    (hxgt : (VALUE (p.aces.get (finOfSuit su))).toNat < rankToNat x.rank)
+    (hxle : rankToNat x.rank ≤ V) : False := by
+  have hbridge : (p.pileDepth.get j).toInt.toNat = (p.pileDepth.get j).toNat := rfl
+  -- codes decompose as `16 * suit + value`
+  have hdec : ∀ c : UInt8, c.toNat = 16 * (SUIT c).toNat + (VALUE c).toNat := by
+    intro c
+    have h1 := SUIT_toNat c
+    have h2 := VALUE_toNat c
+    omega
+  -- `x` carries the suit and, being in the window, is free
+  have hxs : (SUIT (encodeCard x)).toNat = suitToNat su := by
+    rw [encodeCard_SUIT, UInt8.toNat_ofNat', hxsuit]
+    have := suitToNat_lt su
+    omega
+  have hxv : (VALUE (encodeCard x)).toNat = rankToNat x.rank := encodeCard_VALUE x
+  have hxfree : isFreeCard g p (encodeCard x) := by
+    by_contra hnf
+    have := hnotfree (encodeCard x) hxs hnf (by omega)
+    omega
+  obtain ⟨idx, hidxlt, hidxeq⟩ := List.getElem_of_mem hxmem
+  have hxi : (s.tableau j)[idx]'hidxlt = x := hidxeq
+  have habove := h.free_above_boundary hwf hb j hidxlt (by rw [hxi]; exact hxfree)
+  have hLen : (s.tableau j).length + 1
+      = (p.pileDepth.get j).toInt.toNat + (p.pileFlute.get j).toNat :=
+    h.flute_match j (by omega)
+  -- the boundary: same suit, value at least `x`'s
+  obtain ⟨hs0, hv0⟩ := flute_elem h j (by omega)
+    ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩ rfl idx (by omega) hidxlt
+  rw [hxi] at hs0 hv0
+  rw [encodeCard_VALUE] at hv0
+  have hbs : (SUIT ((g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩)).toNat
+      = suitToNat su := by rw [← hs0]; exact hxs
+  have hbnotfree :
+      ¬ isFreeCard g p ((g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩) :=
+    depth_card_not_free hwf hb j ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩
+      (show (p.pileDepth.get j).toNat - 1 < (p.pileDepth.get j).toNat from by omega)
+  -- it lies above the walked window
+  have hbgt : V
+      < (VALUE ((g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩)).toNat := by
+    by_contra hle
+    push Not at hle
+    have := hnotfree _ hbs hbnotfree hle
+    omega
+  have hfl1 : 1 ≤ (p.pileFlute.get j).toNat := (hb.pileBase j).flute_pos
+  have hdecB := hdec ((g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩)
+  have hvB := VALUE_toNat ((g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩)
+  have hB256 : ((g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩).toNat < 256 :=
+    UInt8.toNat_lt _
+  -- the stop card sits in this pile's flute, at offset `m`
+  rcases Nat.eq_zero_or_pos
+      ((VALUE ((g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩)).toNat - (V + 1))
+    with hm0 | hm1
+  · -- offset zero: the stop card *is* the boundary
+    refine hstopbnd (UInt8.toNat_inj.mp ?_)
+    rw [hdecB, hdec stop, hbs, hstopsuit, hstopval]
+    omega
+  · -- positive offset: the stop card is a flute interior, hence free
+    have hmof : (UInt8.ofNat
+        ((VALUE ((g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩)).toNat
+          - (V + 1))).toNat
+        = (VALUE ((g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩)).toNat
+          - (V + 1) := by
+      rw [UInt8.toNat_ofNat']
+      omega
+    have hfree := (hb.pileBase j).flute_cards_free
+      (UInt8.ofNat
+        ((VALUE ((g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩)).toNat - (V + 1)))
+      (by omega) (by rw [hmof]; omega) (by rw [hmof]; omega)
+    -- move the code equality by rewriting the hypothesis, never inside `isFreeCard`'s goal
+    have heq : (g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩
+        - UInt8.ofNat
+          ((VALUE ((g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩)).toNat
+            - (V + 1)) = stop := by
+      refine UInt8.toNat_inj.mp ?_
+      rw [UInt8.toNat_sub, hmof, hdec stop, hstopsuit, hstopval, hdecB, hbs]
+      omega
+    rw [heq] at hfree
+    exact hstopfree hfree
+
+/-- **No column at all gives up a played card at a non-completing exit.**  Extends
+`no_flute_at_exit` to solver-empty piles: there `flute_empty` kills the flute-interior
+case, and a king-run card would put the stop card above the suit's frontier, where
+`king_frontier` makes it free.  So when the walk stops at a card that is neither free
+nor a boundary, every played card came out of a *cell*. -/
+theorem StateMatchesSolverPos.no_played_in_column {g : Globals} {s : State} {p : SolverPosType}
+    (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
+    {su : Suit} {V : Nat} {stop : UInt8} (j : Fin 10)
+    (hnotfree : ∀ c : UInt8, (SUIT c).toNat = suitToNat su → ¬ isFreeCard g p c →
+      (VALUE c).toNat ≤ V → (VALUE c).toNat ≤ (VALUE (p.aces.get (finOfSuit su))).toNat)
+    (hstopsuit : (SUIT stop).toNat = suitToNat su)
+    (hstopval : (VALUE stop).toNat = V + 1)
+    (hstopreal : (VALUE stop).toNat ≤ 13)
+    (hstopfree : ¬ isFreeCard g p stop)
+    (hstopbnd : ∀ hd : 0 < (p.pileDepth.get j).toNat,
+      (g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1,
+        by have := hb.pileDepth_bound j; omega⟩ ≠ stop)
+    {x : Card} (hxmem : x ∈ s.tableau j) (hxsuit : x.suit = su)
+    (hxgt : (VALUE (p.aces.get (finOfSuit su))).toNat < rankToNat x.rank)
+    (hxle : rankToNat x.rank ≤ V) : False := by
+  have hdb := hb.pileDepth_bound j
+  have hxs : (SUIT (encodeCard x)).toNat = suitToNat su := by
+    rw [encodeCard_SUIT, UInt8.toNat_ofNat', hxsuit]
+    have := suitToNat_lt su
+    omega
+  have hxv : (VALUE (encodeCard x)).toNat = rankToNat x.rank := encodeCard_VALUE x
+  have hxfree : isFreeCard g p (encodeCard x) := by
+    by_contra hnf
+    have := hnotfree (encodeCard x) hxs hnf (by omega)
+    omega
+  by_cases hdj : 0 < (p.pileDepth.get j).toNat
+  · exact h.no_flute_at_exit hwf hb j hdj (by omega) hnotfree hstopsuit hstopval hstopfree
+      (hstopbnd hdj) hxmem hxsuit hxgt hxle
+  · -- solver-empty pile
+    push Not at hdj
+    have hd0 : (p.pileDepth.get j).toInt.toNat = 0 := by
+      show (p.pileDepth.get j).toNat = 0
+      omega
+    rcases h.column_cases hwf hb j hxmem with hnf | ⟨m, -, hm1, hm2, -⟩ | ⟨-, hking⟩
+    · exact hnf hxfree
+    · -- an empty pile's flute is trivial
+      have hfe : p.pileFlute.get j = 1 :=
+        (hb.pileBase j).flute_empty (UInt8.toNat_inj.mp (show (p.pileDepth.get j).toNat
+          = (0 : UInt8).toNat from by simpa using hdj))
+      rw [hfe] at hm2
+      simp only [show ((1 : UInt8)).toNat = 1 from rfl] at hm2
+      omega
+    · -- a king-run card puts the stop card above the frontier, so it is free
+      refine hstopfree ?_
+      have hs4 : suitToNat su < 4 := suitToNat_lt su
+      have hfin : finOfSuit x.suit = (⟨suitToNat su, hs4⟩ : Fin 4) :=
+        Fin.ext (show suitToNat x.suit = suitToNat su from by rw [hxsuit])
+      rw [hfin] at hking
+      refine (hb.king_frontier ⟨suitToNat su, hs4⟩).2 stop ?_ (by omega) (by omega)
+      refine UInt8.toNat_inj.mp ?_
+      rw [hstopsuit]
+      show suitToNat su = ((⟨suitToNat su, hs4⟩ : Fin 4).val.toUInt8).toNat
+      rw [show ((⟨suitToNat su, hs4⟩ : Fin 4).val.toUInt8).toNat
+        = ((UInt8.ofNat (suitToNat su))).toNat from rfl, UInt8.toNat_ofNat']
+      omega
+
+/-! ### The suit-complete exit
+
+When the walk runs the suit out to the king there is no stopping card to reason
+about, and the two cases separate cleanly:
+
+* a **non-empty** pile still cannot give up a played card — every card of the suit
+  above the foundation top is free by then, and boundaries never are, so
+  `no_flute_at_complete` needs no stop card at all;
+* the suit's **king pile** is drained *completely*: all of its cards are of that suit
+  and above the foundation top, hence played, and a card cannot be both on a
+  foundation and in a column (`column_nil_of_all_played`). -/
+
+/-- A column whose every card is already on a foundation is empty. -/
+theorem column_nil_of_all_played {w : State} (hcount : ∀ c : Card, countState w c = 1)
+    (j : Fin 10) (hall : ∀ d ∈ w.tableau j, countFoundation w.foundations d = 1) :
+    w.tableau j = [] := by
+  by_contra hne
+  obtain ⟨d, hd⟩ : ∃ d, d ∈ w.tableau j := by
+    cases hcol : w.tableau j with
+    | nil => exact absurd hcol hne
+    | cons y ys => exact ⟨y, List.mem_cons_self⟩
+  have h1 := hall d hd
+  have h2 : 1 ≤ countTableau w.tableau d := one_le_countTableau hd
+  have h3 := hcount d
+  unfold countState at h3
+  omega
+
+/-- **At a suit-complete exit no non-empty pile gives up a played card.**  Every card
+of the suit above the foundation top is free once the walk has run to the king, and a
+pile's boundary is never free — so the boundary above a played flute card cannot exist. -/
+theorem StateMatchesSolverPos.no_flute_at_complete {g : Globals} {s : State} {p : SolverPosType}
+    (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
+    {su : Suit} (j : Fin 10) (hdj : 0 < (p.pileDepth.get j).toNat)
+    (hnotfree : ∀ c : UInt8, (SUIT c).toNat = suitToNat su → ¬ isFreeCard g p c →
+      (VALUE c).toNat ≤ 13 → (VALUE c).toNat ≤ (VALUE (p.aces.get (finOfSuit su))).toNat)
+    {x : Card} (hxmem : x ∈ s.tableau j) (hxsuit : x.suit = su)
+    (hxgt : (VALUE (p.aces.get (finOfSuit su))).toNat < rankToNat x.rank) : False := by
+  have hdb := hb.pileDepth_bound j
+  have hbridge : (p.pileDepth.get j).toInt.toNat = (p.pileDepth.get j).toNat := rfl
+  have hidxj : (p.pileDepth.get j).toNat - 1 < 5 := by omega
+  have hxs : (SUIT (encodeCard x)).toNat = suitToNat su := by
+    rw [encodeCard_SUIT, UInt8.toNat_ofNat', hxsuit]
+    have := suitToNat_lt su
+    omega
+  have hxv : (VALUE (encodeCard x)).toNat = rankToNat x.rank := encodeCard_VALUE x
+  have hxr13 : rankToNat x.rank ≤ 13 := rankBounded _
+  have hxfree : isFreeCard g p (encodeCard x) := by
+    by_contra hnf
+    have := hnotfree (encodeCard x) hxs hnf (by omega)
+    omega
+  obtain ⟨idx, hidxlt, hidxeq⟩ := List.getElem_of_mem hxmem
+  have hxi : (s.tableau j)[idx]'hidxlt = x := hidxeq
+  have habove := h.free_above_boundary hwf hb j hidxlt (by rw [hxi]; exact hxfree)
+  have hLen : (s.tableau j).length + 1
+      = (p.pileDepth.get j).toInt.toNat + (p.pileFlute.get j).toNat :=
+    h.flute_match j (by omega)
+  obtain ⟨hs0, hv0⟩ := flute_elem h j (by omega)
+    ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩ rfl idx (by omega) hidxlt
+  rw [hxi] at hs0 hv0
+  rw [encodeCard_VALUE] at hv0
+  -- the boundary carries the suit, sits above `x`, and is real
+  have hbs : (SUIT ((g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩)).toNat
+      = suitToNat su := by rw [← hs0]; exact hxs
+  have hbreal : IsRealCard ((g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩) :=
+    hwf.pos2card_real j _
+  have hbnotfree :
+      ¬ isFreeCard g p ((g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩) :=
+    depth_card_not_free hwf hb j ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩
+      (show (p.pileDepth.get j).toNat - 1 < (p.pileDepth.get j).toNat from by omega)
+  have := hnotfree _ hbs hbnotfree hbreal.2.2
+  omega
+
+/-! ### The tail, assembled
+
+At a non-completing exit no column gives up a card (`no_played_in_column`), so the
+whole pending run comes out of the cells: the tableau is untouched, the position moves
+only in `aces`, and both the matching (`tailPile`) and the king configuration carry
+over directly. -/
+
+/-- Every card of the walked run carries the suit and a rank inside the window. -/
+theorem rank_mem_runFrom : ∀ (n : Nat) (c₀ c : Card), c ∈ runFrom (some c₀) n →
+    c.suit = c₀.suit ∧ rankToNat c₀.rank ≤ rankToNat c.rank ∧
+      rankToNat c.rank < rankToNat c₀.rank + n := by
+  intro n
+  induction n with
+  | zero => intro c₀ c hc; simp at hc
+  | succ n ih =>
+    intro c₀ c hc
+    rw [runFrom_some, List.mem_cons] at hc
+    rcases hc with rfl | hc
+    · exact ⟨rfl, le_refl _, by omega⟩
+    · cases hnc : nextCard c₀ with
+      | none => rw [hnc] at hc; simp at hc
+      | some c₁ =>
+        rw [hnc] at hc
+        obtain ⟨hsu, hge, hlt⟩ := ih c₁ c hc
+        have h1 : c₁.suit = c₀.suit := nextCard_suit hnc
+        have h2 : rankToNat c₁.rank = rankToNat c₀.rank + 1 := nextCard_rank hnc
+        exact ⟨hsu.trans h1, by omega, by omega⟩
+
+/-- **At a non-completing exit the tail plays entirely out of the cells.**  Every card
+of the walked run lies in the window, so `no_played_in_column` forbids it from sitting
+in any column; the tableau therefore comes through untouched. -/
+theorem StateMatchesSolverPos.tailPlaysCells {g : Globals} {s : State} {p : SolverPosType}
+    (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
+    {su : Suit} {found : Nat} {stop : UInt8}
+    (hfree : ∀ d ∈ runFrom (nextFoundationCard s su) found, isFreeCard g p (encodeCard d))
+    (hstopsuit : (SUIT stop).toNat = suitToNat su)
+    (hstopval : (VALUE stop).toNat = (VALUE (p.aces.get (finOfSuit su))).toNat + found + 1)
+    (hstopreal : (VALUE stop).toNat ≤ 13)
+    (hstopfree : ¬ isFreeCard g p stop)
+    (hstopbnd : ∀ (j : Fin 10) (hd : 0 < (p.pileDepth.get j).toNat),
+      (g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1,
+        by have := hb.pileDepth_bound j; omega⟩ ≠ stop)
+    (hnotfree : ∀ c : UInt8, (SUIT c).toNat = suitToNat su → ¬ isFreeCard g p c →
+      (VALUE c).toNat ≤ (VALUE (p.aces.get (finOfSuit su))).toNat + found →
+      (VALUE c).toNat ≤ (VALUE (p.aces.get (finOfSuit su))).toNat) :
+    ∃ v : State, PlaysAll s (runFrom (nextFoundationCard s su) found) v ∧
+      (∀ j : Fin 10, v.tableau j = s.tableau j) ∧
+      (∀ c : Card, countState v c = 1) := by
+  obtain ⟨v, hall, -, hcount, hchanged⟩ :=
+    exists_playsAll_pending hwf hb h su found s (fun q => ⟨0, by simp⟩) h.cards_count hfree
+  refine ⟨v, hall, fun j => ?_, hcount⟩
+  rcases hchanged j with hsame | ⟨d, hdrun, hdmem⟩
+  · exact hsame
+  · -- a run card in a column is impossible
+    exfalso
+    cases hnf : nextFoundationCard s su with
+    | none => rw [hnf, runFrom_none] at hdrun; simp at hdrun
+    | some c₀ =>
+      rw [hnf] at hdrun
+      obtain ⟨hsu0, hready0⟩ := nextFoundationCard_spec hnf
+      obtain ⟨hdsuit, hdge, hdlt⟩ := rank_mem_runFrom found c₀ d hdrun
+      -- the run starts one above the foundation top
+      have hc0rank : rankToNat c₀.rank = optRankToNat (s.foundations su) + 1 := by
+        rw [← hsu0]
+        exact nextRankNat _ _ hready0.symm
+      have hfv := h.foundation_value su
+      exact h.no_played_in_column hwf hb j hnotfree hstopsuit hstopval hstopreal hstopfree
+        (hstopbnd j) hdmem (hdsuit.trans hsu0) (by omega) (by omega)
+
+/-- **The tail, as one `Simulates`** (non-completing exit).  The run comes out of the
+cells, so the tableau is untouched: `tailPile` gets `Or.inl` at every pile and
+`frameAll` carries the configuration.  The only thing the caller still owes is that the
+position's `aces` really read off the new foundations — which is exactly what the
+solver's `aces[su] := card - 1` write establishes. -/
+theorem Simulates.tailPlays {g : Globals} {s : State} {p q : SolverPosType} {k : Fin 16}
+    (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
+    (hk : StateMatchesKingConfig g s p k) {su : Suit} {found : Nat} {stop : UInt8}
+    (hfree : ∀ d ∈ runFrom (nextFoundationCard s su) found, isFreeCard g p (encodeCard d))
+    (hstopsuit : (SUIT stop).toNat = suitToNat su)
+    (hstopval : (VALUE stop).toNat = (VALUE (p.aces.get (finOfSuit su))).toNat + found + 1)
+    (hstopreal : (VALUE stop).toNat ≤ 13)
+    (hstopfree : ¬ isFreeCard g p stop)
+    (hstopbnd : ∀ (j : Fin 10) (hd : 0 < (p.pileDepth.get j).toNat),
+      (g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1,
+        by have := hb.pileDepth_bound j; omega⟩ ≠ stop)
+    (hnotfree : ∀ c : UInt8, (SUIT c).toNat = suitToNat su → ¬ isFreeCard g p c →
+      (VALUE c).toNat ≤ (VALUE (p.aces.get (finOfSuit su))).toNat + found →
+      (VALUE c).toNat ≤ (VALUE (p.aces.get (finOfSuit su))).toNat)
+    (hqd : q.pileDepth = p.pileDepth) (hqf : q.pileFlute = p.pileFlute)
+    (hqkings : q.kings = p.kings) :
+    ∃ v : State, PlaysAll s (runFrom (nextFoundationCard s su) found) v ∧
+      ((∀ su' : Suit, q.aces.get (finOfSuit su') = encodeFoundation su' (v.foundations su')) →
+        Simulates g s p k v q k ∅ 0xffff) := by
+  obtain ⟨v, hall, hframe, hcount⟩ :=
+    hk.toMatches.tailPlaysCells hwf hb hfree hstopsuit hstopval hstopreal hstopfree
+      hstopbnd hnotfree
+  refine ⟨v, hall, fun hqaces => ?_⟩
+  -- the piles are untouched, so every clause of the matching transfers
+  have hdeq : ∀ i : Fin 10, q.pileDepth.get i = p.pileDepth.get i := by
+    intro i; rw [hqd]
+  have hmatch := hk.toMatches.tailPile hcount (fun j => Or.inl (hframe j)) hqd hqf
+    (fun j _ _ d _ => by rw [hqkings]) hqaces
+  exact hk.frameAll hall.toReach hmatch hframe hdeq hqkings
+
+/-- **The suit-complete exit's frame.**  Once the walk has run the suit out to the
+king, a non-empty pile still gives up nothing (`no_flute_at_complete`), and the suit's
+king pile — every card of which is now on the foundation — is emptied outright
+(`column_nil_of_all_played`).  The completeness premise is left to the caller since it
+speaks about the resulting state. -/
+theorem StateMatchesSolverPos.tailPlaysComplete {g : Globals} {s : State} {p : SolverPosType}
+    (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
+    {su : Suit} {found : Nat}
+    (hfree : ∀ d ∈ runFrom (nextFoundationCard s su) found, isFreeCard g p (encodeCard d))
+    (hnotfree : ∀ c : UInt8, (SUIT c).toNat = suitToNat su → ¬ isFreeCard g p c →
+      (VALUE c).toNat ≤ 13 → (VALUE c).toNat ≤ (VALUE (p.aces.get (finOfSuit su))).toNat) :
+    ∃ v : State, PlaysAll s (runFrom (nextFoundationCard s su) found) v ∧
+      (∀ c : Card, countState v c = 1) ∧
+      (optRankToNat (v.foundations su) = 13 →
+        ∀ j : Fin 10, v.tableau j = s.tableau j ∨
+          (v.tableau j = [] ∧ (p.pileDepth.get j).toInt.toNat = 0)) := by
+  obtain ⟨v, hall, hdrop, hcount, hchanged⟩ :=
+    exists_playsAll_pending hwf hb h su found s (fun q => ⟨0, by simp⟩) h.cards_count hfree
+  refine ⟨v, hall, hcount, fun hdone j => ?_⟩
+  rcases hchanged j with hsame | ⟨d, hdrun, hdmem⟩
+  · exact Or.inl hsame
+  · -- column `j` gave up a run card
+    cases hnf : nextFoundationCard s su with
+    | none => rw [hnf, runFrom_none] at hdrun; simp at hdrun
+    | some c₀ =>
+      rw [hnf] at hdrun
+      obtain ⟨hsu0, hready0⟩ := nextFoundationCard_spec hnf
+      obtain ⟨hdsuit, hdge, -⟩ := rank_mem_runFrom found c₀ d hdrun
+      have hc0rank : rankToNat c₀.rank = optRankToNat (s.foundations su) + 1 := by
+        rw [← hsu0]; exact nextRankNat _ _ hready0.symm
+      have hfv := h.foundation_value su
+      have hdsu : d.suit = su := hdsuit.trans hsu0
+      have hdgt : (VALUE (p.aces.get (finOfSuit su))).toNat < rankToNat d.rank := by omega
+      by_cases hdj : 0 < (p.pileDepth.get j).toNat
+      · exact absurd (h.no_flute_at_complete hwf hb j hdj hnotfree hdmem hdsu hdgt) (fun h => h)
+      · -- the suit's king pile: everything on it is now on the foundation
+        push Not at hdj
+        have hd0 : (p.pileDepth.get j).toInt.toNat = 0 := by
+          show (p.pileDepth.get j).toNat = 0
+          omega
+        refine Or.inr ⟨?_, hd0⟩
+        -- the column is one suit's run, and `d` fixes that suit
+        have hne : s.tableau j ≠ [] := by
+          intro hnil; rw [hnil] at hdmem; cases hdmem
+        obtain ⟨e, he⟩ : ∃ e, (s.tableau j).getLast? = some e := by
+          cases hl : (s.tableau j).getLast? with
+          | none => exact absurd (List.getLast?_eq_none_iff.1 hl) hne
+          | some e => exact ⟨e, rfl⟩
+        have hrun := h.empty_pile_suit j hd0 he
+        -- every card of the column carries `e`'s suit
+        have hcolsuit : ∀ (c : Card), c ∈ s.tableau j → suitToNat c.suit = suitToNat e.suit := by
+          intro c hc
+          obtain ⟨idx, hidxlt, hidxeq⟩ := List.getElem_of_mem hc
+          have hrevlt : (s.tableau j).length - 1 - idx < (s.tableau j).reverse.length := by
+            simp only [List.length_reverse]; omega
+          have hjm : (s.tableau j).length - 1 - idx
+              < ((s.tableau j).reverse.map encodeCard).length := by simpa using hrevlt
+          obtain ⟨hs, -⟩ := hrun ⟨_, hjm⟩
+          have hget : ((s.tableau j).reverse.map encodeCard).get ⟨_, hjm⟩
+              = encodeCard ((s.tableau j).reverse[(s.tableau j).length - 1 - idx]'hrevlt) := by
+            simp only [List.get_eq_getElem, List.getElem_map]
+          rw [hget] at hs
+          have hlr : (s.tableau j).reverse.length = (s.tableau j).length := by
+            simp only [List.length_reverse]
+          have hrev : (s.tableau j).reverse[(s.tableau j).length - 1 - idx]'hrevlt = c := by
+            rw [List.getElem_reverse hrevlt, ← hidxeq]
+            congr 1
+            omega
+          rw [hrev, encodeCard_SUIT] at hs
+          have h2 := congrArg UInt8.toNat hs
+          rw [UInt8.toNat_ofNat', UInt8.toNat_ofNat'] at h2
+          have := suitToNat_lt c.suit
+          have := suitToNat_lt e.suit
+          omega
+        -- so they are all of suit `su`, hence all already played
+        have hesu : suitToNat e.suit = suitToNat su := by
+          rw [← hcolsuit d hdmem, hdsu]
+        refine column_nil_of_all_played hcount j (fun c hc => ?_)
+        obtain ⟨kk, hkk⟩ := hdrop j
+        have hcs : c ∈ s.tableau j := by
+          rw [hkk] at hc
+          exact List.mem_of_mem_drop hc
+        have hcsu : c.suit = su := suitToNat_inj (by rw [hcolsuit c hcs, hesu])
+        unfold countFoundation
+        rw [hcsu, if_neg (by
+          have := rankBounded c.rank
+          omega)]
