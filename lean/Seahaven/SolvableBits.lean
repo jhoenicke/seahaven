@@ -33,6 +33,27 @@ consumed as `subsetTable[childCI.offset + child'] >>> parentCI.shiftValue`.
 Phrasing the specification the same way makes it compose — and makes one
 statement serve both the function and the memo table, which stores exactly the
 value the function returns (`Solver.lean:402`).
+
+## Why the specification must pin the configuration down (`StateMatchesKingConfig`)
+
+`SolvableBits` is stated over `StateMatchesKingConfig` — matching *plus*
+`RealizesKingConfig` *plus* the negative clause `no_pile` — and the negative
+clause is load-bearing.  With bare `RealizesKingConfig` the specification is
+**unsatisfiable** (a refuted shortcut, recorded so it is not tried a third time):
+
+Suppose the position arose by force-vacating suit A's lone king onto a pile, and
+it is solvable only with B and C piled and A's run in the cells — an honest
+answer sets only that configuration's bit, call it `d_BC`.  `subsetTable`'s
+downward closure makes `d_BC` cover the sparser configuration `gi` = "only C
+piled, A's bit set".  But `RealizesKingConfig` merely *withholds* assignments,
+so the actual state `s'` — A's run physically on a pile, B's in the cells —
+*also* realizes `gi`, and the specification would demand `Solvable s'`.  That is
+false: which king sits in the cells changes solvability.  `no_pile` breaks the
+masquerade: `s'` does not `StateMatchesKingConfig`-stand for `gi` (A's bit is
+set, yet a solver-empty pile carries A's king), so the specification only speaks
+at A-clear configurations — and transporting the recursion's query from `gi` to
+such a configuration is exactly what `forcedKings` is for (`kingStep_transport`
+in `SoundnessSkeleton`).
 -/
 
 /-! ## Pure, total accessors
@@ -48,6 +69,19 @@ def closureInfoOf (p : SolverPosType) : ClosureInfo :=
 
 /-- `subsetTable` lookup. -/
 def subsetAt (idx : Nat) : UInt16 := subsetTable.get ⟨min idx 99, by omega⟩
+
+/-- A local bitmask is one that fits in its block.  The value
+`solverRecCheckSolvable` returns (and the memo table stores) must satisfy this —
+`subsetTable` is only meaningful at in-block indices, so the property has to be
+threaded through the recursion (`RecCheckSolvableSpec`, `HashmapCorrect`). -/
+def LocalMask (p : SolverPosType) (v : UInt16) : Prop :=
+  v.toNat < 2 ^ (closureInfoOf p).numBits.toNat
+
+/-- Intersecting only shrinks a local mask (`childSolvable &&& (forcedKings >>> …)`
+stays in the block). -/
+theorem LocalMask.and_left {p : SolverPosType} {a : UInt16} (b : UInt16)
+    (ha : LocalMask p a) : LocalMask p (a &&& b) :=
+  lt_of_le_of_lt (by rw [UInt16.toNat_and]; exact Nat.and_le_left) ha
 
 /-- Bit `k` of a 16-bit configuration set, spelled as the solver spells it
 (`Solver.lean:499`). -/
@@ -245,12 +279,15 @@ theorem RealizesKingConfig.card_clear_le_freePiles {g : Globals} {s : State}
 /-- `SolvableBits g p v` : the **local** king-configuration bitmask `v` is the
 correct answer for position `p`.
 
-For every concrete state `s` that `p` stands for, `s` is solvable exactly when
-the bit of `s`'s own king configuration is set in the `subsetTable` expansion of
-`v`.  This is the property shared by `solverRecCheckSolvable`'s return value and
-by whatever the memo table holds for `p.hash`. -/
+For every concrete state `s` that `p` stands for *at configuration `k`*, `s` is
+solvable exactly when `k`'s bit is set in the `subsetTable` expansion of `v`.
+This is the property shared by `solverRecCheckSolvable`'s return value and by
+whatever the memo table holds for `p.hash`.
+
+The hypothesis must be `StateMatchesKingConfig`, not bare `RealizesKingConfig` —
+see the module docstring for the counterexample otherwise. -/
 def SolvableBits (g : Globals) (p : SolverPosType) (v : UInt16) : Prop :=
-  ∀ (s : State) (k : Fin 16), StateMatchesSolverPos g s p → RealizesKingConfig s p k →
+  ∀ (s : State) (k : Fin 16), StateMatchesKingConfig g s p k →
     (Solvable s ↔ BitSet (subsetAt ((closureInfoOf p).offset.toNat + v.toNat)) k)
 
 /-- Matching reads only the deal arrays, never the memo table. -/
@@ -262,11 +299,22 @@ theorem StateMatchesSolverPos.hashmap_iff {g : Globals} {s : State} {p : SolverP
             depth_match := h.depth_match, flute_match := h.flute_match,
             king_pile := h.king_pile, aces_match := h.aces_match }
 
+/-- `StateMatchesKingConfig` likewise never reads the memo table — its two extra
+clauses mention `g` not at all. -/
+theorem StateMatchesKingConfig.hashmap_iff {g : Globals} {s : State} {p : SolverPosType}
+    {k : Fin 16} (hm : Vector UInt16 BIG_HASH_SIZE) :
+    StateMatchesKingConfig { g with hashmap := hm } s p k ↔ StateMatchesKingConfig g s p k := by
+  constructor <;> intro h
+  · exact { toMatches := (StateMatchesSolverPos.hashmap_iff hm).1 h.toMatches,
+            realizes := h.realizes, no_pile := h.no_pile }
+  · exact { toMatches := (StateMatchesSolverPos.hashmap_iff hm).2 h.toMatches,
+            realizes := h.realizes, no_pile := h.no_pile }
+
 /-- Consequently a memo-table write cannot invalidate a `SolvableBits` fact. -/
 theorem SolvableBits.set_hashmap {g : Globals} {p : SolverPosType} {v : UInt16}
     (hm : Vector UInt16 BIG_HASH_SIZE) (h : SolvableBits g p v) :
     SolvableBits { g with hashmap := hm } p v :=
-  fun s k hs hk => h s k ((StateMatchesSolverPos.hashmap_iff hm).1 hs) hk
+  fun s k hs => h s k ((StateMatchesKingConfig.hashmap_iff hm).1 hs)
 
 /-- **Each hash identifies at most one canonical position.**  This is what makes
 `HashmapCorrect` well posed: a slot keyed by `p.hash` can only ever be about `p`.
@@ -278,11 +326,15 @@ theorem IsCanonicalPos_of_hash_eq (g : Globals) (p q : SolverPosType)
 
 /-- **Memo table correctness.**  Every slot either reads back as `FREESLOT` — the
 table is allowed to forget, since collisions silently evict — or holds the
-correct bitmask for the unique canonical position with that hash. -/
+correct bitmask for the unique canonical position with that hash.
+
+The `LocalMask` conjunct is needed because consumers feed the stored mask to
+`subsetTable` arithmetic that is only meaningful in-block, and `getSlot` by
+itself can return up to 7 bits — wider than any block. -/
 def HashmapCorrect (g : Globals) : Prop :=
   ∀ (p : SolverPosType), IsCanonicalPos g p →
     ∀ v : UInt8, EStateM.run (getSlot p.hash) g = .ok v g →
-      v = UInt8.ofNat FREESLOT ∨ SolvableBits g p v.toUInt16
+      v = UInt8.ofNat FREESLOT ∨ (SolvableBits g p v.toUInt16 ∧ LocalMask p v.toUInt16)
 
 /-! ## The two statements to discharge
 
@@ -293,21 +345,33 @@ unproved. -/
 /-- What `solverRecCheckSolvable` must satisfy.  To be proved by well-founded
 induction on the pile depths (equivalently on `hash`, which strictly decreases
 on every child — see `IsCanonicalPos_hash_inj`).  Note it must also *carry the
-memo invariant forward*, since the function writes to the table. -/
+memo invariant forward*, since the function writes to the table.
+
+`LocalMask g p v` is part of the induction: the parent applies
+`kingStep_transport` to the child's answer, which reads `subsetTable` at the
+*un*intersected mask — an index the run itself never touches, so its bound must
+come from the spec.  (Provable: `computeKingSpaces` sets only bits `< numBits`,
+`componentTable` entries fit their block — `componentTable_localBound` — the
+`hash == 0` leaf returns 1, and the memo path carries it via `HashmapCorrect`.) -/
 def RecCheckSolvableSpec : Prop :=
   ∀ (g g' : Globals) (p : SolverPosType) (v : UInt16),
     WellFormedLayout g → IsCanonicalPos g p → HashmapCorrect g →
     EStateM.run (solverRecCheckSolvable p) g = .ok v g' →
-    SolvableBits g p v ∧ HashmapCorrect g' ∧ g'.pos2card = g.pos2card
+    (SolvableBits g p v ∧ LocalMask p v) ∧ HashmapCorrect g' ∧ g'.pos2card = g.pos2card
 
 /-- What the whole `solve` entry point must satisfy: it answers `SUCCESS` exactly
 for solvable positions.  `pk` carries the pile depths and, in slot 10, the
 king mask in the *external* convention (`pk[10] = internal ^^^ 0xf`, so bit
-`su` set means suit `su` *does* have a pile). -/
+`su` set means suit `su` *does* have a pile).
+
+The input configuration must be supplied as `StateMatchesKingConfig` — the
+caller asserts not only that the piled suits own piles but also that the other
+suits have none.  With bare `RealizesKingConfig` a state with an unreported king
+pile could masquerade as `pk[10]` and the equivalence would be false (module
+docstring). -/
 def SolveSpec : Prop :=
   ∀ (g g' : Globals) (s : State) (p : SolverPosType) (pk : Vector UInt8 11) (r : UInt8),
-    WellFormedLayout g → HashmapCorrect g →
-    StateMatchesSolverPos g s p → IsCanonicalPos g p →
-    (∃ k : Fin 16, RealizesKingConfig s p k ∧ (pk.get 10) = (grlex2bits.get k) ^^^ 0xf) →
+    WellFormedLayout g → HashmapCorrect g → IsCanonicalPos g p →
+    (∃ k : Fin 16, StateMatchesKingConfig g s p k ∧ (pk.get 10) = (grlex2bits.get k) ^^^ 0xf) →
     EStateM.run (solve pk) g = .ok r g' →
     (r = UInt8.ofNat SUCCESS ↔ Solvable s)

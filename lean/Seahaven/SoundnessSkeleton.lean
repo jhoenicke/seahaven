@@ -14,8 +14,10 @@ expansion turns out to be *additive* in the local bitmask (`subsetAt_or`, decide
 over the tables below).  That is the one structural fact that makes this
 tractable; it is proved here, along with the `BitSet` algebra it needs.
 
-What is left is four semantic obligations, stated at the end as named `Prop`s:
-`SubsetSound`, `ComponentSound`, `MoveSimulated`, `ForcedKingsTransport`.
+What is left is three semantic obligations, stated as named `Prop`s:
+`SubsetSound`, `ComponentSound`, `MoveSimulated`.  The fourth piece — carrying
+the recursion's query across a lone-king vacate — is **proved** here as
+`kingStep_transport`, from `MoveSimulated`'s `KingVacates`/`FK` clause.
 
 ## What `subsetTable` is for
 
@@ -31,8 +33,17 @@ Two consequences, and note they point in opposite directions:
 * the *reverse* fails: a forced lone-king vacate puts one *more* king on a pile,
   landing in a different block, while the solver keeps querying the child
   expansion at the parent's configuration.  That is exactly why the child answer
-  is intersected with `forcedKings`, and `MaskSub.clear_forced` is the lemma that
-  makes it go through.
+  is intersected with `forcedKings` — the intersection deletes every child
+  configuration lacking the vacated kings, and what survives covers the child's
+  *actual* configuration too (`kingStep_transport`, engine `MaskSub_iff` /
+  `MaskSub.clear_forced`).
+
+Beware the twice-refuted shortcut "the intersection only shrinks the set, so
+soundness is free": it silently instantiates the child's answer at the parent's
+configuration, which the child state does *not* stand for after a vacate — see
+the `SolvableBits` module docstring for the concrete counterexample.  The
+solvability specs are stated over `StateMatchesKingConfig` (with the `no_pile`
+clause) precisely to make that instantiation impossible.
 -/
 
 /-! ## `BitSet` algebra -/
@@ -58,6 +69,51 @@ theorem BitSet_or (x y : UInt16) (k : Fin 16) :
   simp [BitSet_toNat, UInt16.toNat_or, Nat.testBit_or]
 
 theorem BitSet_zero (k : Fin 16) : ¬ BitSet 0 k := by simp [BitSet_toNat]
+
+theorem BitSet_and (x y : UInt16) (k : Fin 16) :
+    BitSet (x &&& y) k ↔ BitSet x k ∧ BitSet y k := by
+  simp [BitSet_toNat, UInt16.toNat_and, Nat.testBit_and]
+
+/-! ## `forcedKings`, described through the vacated suits
+
+`forcedKings` is a set of king **configurations** — bit `d` stands for grlex
+index `d`, itself denoting a set of suits — but it is always built as the
+intersection of `kingOnPileMap` rows for the suits whose lone king was vacated
+(`Solver.lean:301`, starting from `0xffff`).  `KingVacates FK fk` captures that
+by its membership condition: configuration `d` survives in `fk` exactly when it
+piles *every* vacated suit.
+
+The `.2` direction is the completeness-facing one: any configuration that piles
+all of `FK`'s suits — in particular "`K` with `FK`'s bits cleared", for every
+`K` — survives the `&&& forcedKings` intersection. -/
+
+def KingVacates (FK : Finset Suit) (fk : UInt16) : Prop :=
+  ∀ d : Fin 16, BitSet fk d ↔ ∀ su ∈ FK, ¬ CfgBitSet d su
+
+/-- No vacate: `forcedKings` starts (and stays) at `0xffff`. -/
+theorem KingVacates.empty : KingVacates ∅ 0xffff := by
+  unfold KingVacates; decide
+
+/-- One vacate contributes its `kingOnPileMap` row (cf. `kingOnPileMap_eq`). -/
+theorem KingVacates.single (su : Suit) :
+    KingVacates {su} (kingOnPileMap.get (finOfSuit su)) := by
+  unfold KingVacates; revert su; decide
+
+/-- Vacates accumulate: suit sets by union, masks by `&&&` — exactly the code's
+`forcedKings := forcedKings &&& …` accumulators across cleanup calls and the
+`busyAces` drain. -/
+theorem KingVacates.inter {F₁ F₂ : Finset Suit} {fk₁ fk₂ : UInt16}
+    (h₁ : KingVacates F₁ fk₁) (h₂ : KingVacates F₂ fk₂) :
+    KingVacates (F₁ ∪ F₂) (fk₁ &&& fk₂) := by
+  intro d
+  rw [BitSet_and, h₁ d, h₂ d]
+  constructor
+  · rintro ⟨ha, hb⟩ su hsu
+    rcases Finset.mem_union.1 hsu with h | h
+    · exact ha su h
+    · exact hb su h
+  · exact fun h => ⟨fun su hsu => h su (Finset.mem_union_left _ hsu),
+                    fun su hsu => h su (Finset.mem_union_right _ hsu)⟩
 
 /-! ## `subsetTable` is additive in the local bitmask
 
@@ -104,10 +160,6 @@ theorem subsetAt_or_block (f : Fin 11) (a b : Nat)
   · exact subsetAt_or_80 ⟨a, ha⟩ ⟨b, hb⟩
   all_goals exact subsetAt_or_96 ⟨a, ha⟩ ⟨b, hb⟩
 
-/-- A local bitmask is one that fits in its block. -/
-def LocalMask (p : SolverPosType) (v : UInt16) : Prop :=
-  v.toNat < 2 ^ (closureInfoOf p).numBits.toNat
-
 theorem subsetAt_or_pos (p : SolverPosType) {a b : UInt16}
     (ha : LocalMask p a) (hb : LocalMask p b) :
     subsetAt ((closureInfoOf p).offset.toNat + (a ||| b).toNat)
@@ -122,15 +174,19 @@ theorem subsetAt_zero_pos (p : SolverPosType) :
 
 /-! ## The loop invariant -/
 
-/-- The soundness half of `SolvableBits`: a set bit really does mean solvable. -/
+/-- The soundness half of `SolvableBits`: a set bit really does mean solvable.
+Like `SolvableBits`, this must be stated over `StateMatchesKingConfig` — with
+bare `RealizesKingConfig` an A-piled state masquerades as an A-in-cells
+configuration and the statement is unsatisfiable (see the `SolvableBits` module
+docstring). -/
 def SoundBits (g : Globals) (p : SolverPosType) (v : UInt16) : Prop :=
-  ∀ (s : State) (k : Fin 16), StateMatchesSolverPos g s p → RealizesKingConfig s p k →
+  ∀ (s : State) (k : Fin 16), StateMatchesKingConfig g s p k →
     BitSet (subsetAt ((closureInfoOf p).offset.toNat + v.toNat)) k → Solvable s
 
 /-- **Base case** of the loop: the accumulator starts at `0`, whose expansion is
 empty in every block, so the invariant holds vacuously. -/
 theorem SoundBits.zero (g : Globals) (p : SolverPosType) : SoundBits g p 0 := by
-  intro s _ _ _ hbit
+  intro s _ _ hbit
   rw [subsetAt_zero_pos p] at hbit
   exact absurd hbit (BitSet_zero _)
 
@@ -140,19 +196,22 @@ masks.  This is what additivity buys — the whole loop reduces to establishing
 theorem SoundBits.union {g : Globals} {p : SolverPosType} {a b : UInt16}
     (hla : LocalMask p a) (hlb : LocalMask p b)
     (ha : SoundBits g p a) (hb : SoundBits g p b) : SoundBits g p (a ||| b) := by
-  intro s k hs hk hbit
+  intro s k hs hbit
   rw [subsetAt_or_pos p hla hlb, BitSet_or] at hbit
   rcases hbit with h | h
-  · exact ha s k hs hk h
-  · exact hb s k hs hk h
+  · exact ha s k hs h
+  · exact hb s k hs h
 
-/-- Soundness is monotone downwards, which is why intersecting with `forcedKings`
-(`Solver.lean:394`) is free for this direction: it only shrinks the set. -/
+/-- Soundness is monotone downwards: a subset of a sound mask is sound.  (This is
+*not* enough to discharge the `&&& forcedKings` intersection — the parent queries
+the child's expansion at its own configuration, which the child state does not
+`StateMatchesKingConfig`-realize after a vacate; that transport is
+`kingStep_transport` below.) -/
 theorem SoundBits.of_sub {g : Globals} {p : SolverPosType} {a b : UInt16}
     (hla : LocalMask p a) (hlb : LocalMask p b)
     (hsub : a ||| b = b) (hb : SoundBits g p b) : SoundBits g p a := by
-  intro s k hs hk hbit
-  refine hb s k hs hk ?_
+  intro s k hs hbit
+  refine hb s k hs ?_
   rw [← hsub, subsetAt_or_pos p hla hlb, BitSet_or]
   exact Or.inl hbit
 
@@ -162,19 +221,16 @@ Everything above is proved.  What follows are the four statements the rest of
 the argument needs; each is independent of the others. -/
 
 /-- `s` can be brought, by legal moves that change nothing the abstract position
-records, to a state realizing king configuration `k`.  Reshuffling king stacks
-between the cells and empty piles changes neither depths, flutes, nor
-foundations — which is exactly why the same `p` appears on both sides. -/
+records, to a state standing for the same `p` at king configuration `k`.
+Reshuffling king stacks between the cells and empty piles changes neither
+depths, flutes, nor foundations — which is exactly why the same `p` appears on
+both sides. -/
 def KingConfigReachable (g : Globals) (p : SolverPosType) (s : State) (k : Fin 16) : Prop :=
-  ∃ s', Reach s s' ∧ StateMatchesSolverPos g s' p ∧ RealizesKingConfig s' p k
+  ∃ s', Reach s s' ∧ StateMatchesKingConfig g s' p k
 
 /-- The global grlex configuration of local bit `i` of block `ci`. -/
 def globalCfg (ci : ClosureInfo) (i : Nat) : Fin 16 :=
   ⟨min (ci.shiftValue.toNat + i) 15, by omega⟩
-/-- The suits `fk` forces onto a pile: those whose `kingOnPileMap` entry contains
-all of `fk`, i.e. every configuration `fk` still allows has that suit on a pile. -/
-def ForcedSuit (fk : UInt16) (su : Suit) : Prop :=
-  fk ||| kingOnPileMap.get (finOfSuit su) = kingOnPileMap.get (finOfSuit su)
 
 
 /-- **(1) `subsetTable` soundness.**  Its expansion means what its name says: if
@@ -205,42 +261,32 @@ def ComponentSound : Prop :=
 and the `busyAces` drain — is realized by a sequence of legal `Rules` moves,
 provided the move is affordable in `s`'s configuration (`solverGetMovable`).
 The pieces are already built: `run_fluteMoves` / `run_fluteToCells` for the flute,
-`CPStep` for the freed-predecessor absorption, `PlaysAll` for the drain. -/
+`CPStep` for the freed-predecessor absorption, `PlaysAll` for the drain.
+
+The witness configuration `k'` is **existential** and must be: a `∀ k'` version
+is false, because a suit whose run drains entirely to the foundation may or may
+not be read as claiming a spare empty pile (`OwnsPile`'s second disjunct — the
+pile carries no card, so even `no_pile` cannot exclude the claim).  The
+simulation *chooses* `k'`: `k` with exactly the vacated suits `FK` cleared,
+each newly owning its vacated pile.
+
+The last clause — a bit clear in `k'` was already clear in `k` or is forced —
+feeds `kingStep_transport`, which carries the recursion's query from the
+parent's configuration to `k'`. -/
 def MoveSimulated : Prop :=
   ∀ (g : Globals) (s : State) (p p' : SolverPosType) (pile : UInt32) (toPile : UInt8)
     (fk mv : UInt16) (kingInfo : KingInfo) (i : Nat),
-    WellFormedLayout g → IsCanonicalPos g p → StateMatchesSolverPos g s p →
-    RealizesKingConfig s p (globalCfg (closureInfoOf p) i) →
+    WellFormedLayout g → IsCanonicalPos g p →
+    StateMatchesKingConfig g s p (globalCfg (closureInfoOf p) i) →
     EStateM.run (solverGetMovable kingInfo (closureInfoOf p).shiftValue
         (p.pileFlute.get ⟨pile.toNat % 10, by omega⟩) toPile) g = .ok mv g →
     BitSet mv ⟨min i 15, by omega⟩ →
     EStateM.run (SolverMove pile toPile) (g, p) = .ok fk (g, p') →
-    ∃ s', Reach s s' ∧ StateMatchesSolverPos g s' p' ∧
-      -- the king-pile bound: no suit gains a pile except the forced ones
-      ∀ k' : Fin 16, RealizesKingConfig s' p' k' →
-        ∀ su : Suit, ¬ CfgBitSet k' su →
-          ¬ CfgBitSet (globalCfg (closureInfoOf p) i) su ∨ ForcedSuit fk su
-
-/-- **(4) Forced-king transport** — the hurdle.  The child is evaluated at the
-*parent's* global configuration index (`Solver.lean:396-397` shifts by the
-*parent's* `shiftValue`), but a lone-king vacate moves the concrete state into a
-different block.  `forcedKings` records exactly which suits were forced onto
-piles.  This says the child's real configuration is still covered.
-
-Note the shortcut refuted in the module docstring: this cannot be reduced to
-"clearing a bit is harmless". -/
-def ForcedKingsTransport : Prop :=
-  ∀ (g : Globals) (s s' : State) (p p' : SolverPosType) (pile : UInt32) (toPile : UInt8)
-    (fk : UInt16) (T : UInt16) (i : Nat),
-    StateMatchesSolverPos g s p → StateMatchesSolverPos g s' p' →
-    Reach s s' →
-    EStateM.run (SolverMove pile toPile) (g, p) = .ok fk (g, p') →
-    RealizesKingConfig s p (globalCfg (closureInfoOf p) i) →
-    BitSet (subsetAt ((closureInfoOf p').offset.toNat +
-              (T &&& (fk >>> (closureInfoOf p').shiftValue.toUInt16)).toNat))
-           (globalCfg (closureInfoOf p) i) →
-    ∀ k' : Fin 16, RealizesKingConfig s' p' k' →
-    BitSet (subsetAt ((closureInfoOf p').offset.toNat + T.toNat)) k'
+    ∃ (s' : State) (k' : Fin 16) (FK : Finset Suit),
+      Reach s s' ∧ StateMatchesKingConfig g s' p' k' ∧
+      KingVacates FK fk ∧
+      ∀ su : Suit, ¬ CfgBitSet k' su →
+        ¬ CfgBitSet (globalCfg (closureInfoOf p) i) su ∨ su ∈ FK
 
 /-! ## What `subsetTable` actually computes
 
@@ -319,6 +365,168 @@ theorem MaskSub.clear_forced (d cp cc fm : Fin 16)
     MaskSub d cc := by
   revert hd hsub hcc; revert d cp cc fm; decide
 
+/-- Suit-level characterization of `MaskSub`: `d` piles more kings than `c` iff
+every suit without a pile in `d` is without one in `c`. -/
+theorem MaskSub_iff (d c : Fin 16) :
+    MaskSub d c ↔ ∀ su : Suit, CfgBitSet d su → CfgBitSet c su := by
+  revert d c; decide
+
+/-! ## The `forcedKings` transport, assembled
+
+`kingStep_transport` is what the per-contribution soundness argument uses: the
+recursion queried the child's expansion at the *parent's* configuration `gi`
+(`Solver.lean:449-452` shifts by the parent's `shiftValue`), but after a vacate
+the child state only `StateMatchesKingConfig`-stands for configurations with the
+vacated suits piled, such as the simulation's witness `k'`.  The `&&&
+forcedKings` intersection is exactly what lets the bit travel from `gi` to `k'`:
+every surviving witness configuration piles all vacated suits, so covering `gi`
+(`MaskSub d gi`) upgrades to covering `k'` (`MaskSub d k'`, via `MaskSub_iff`).
+
+First the `subsetAt_spec_*` characterization uniformly over the blocks. -/
+
+/-- Blocks fit in 16 bits: `shiftValue + numBits ≤ 16`. -/
+theorem closureInfo_shift_add_numBits (f : Fin 11) :
+    (closureInfos.get f).shiftValue.toNat + (closureInfos.get f).numBits.toNat ≤ 16 := by
+  fin_cases f <;> decide
+
+theorem closureInfo_numBits_pos (f : Fin 11) :
+    1 ≤ (closureInfos.get f).numBits.toNat := by
+  fin_cases f <;> decide
+
+theorem globalCfg_val (ci : ClosureInfo) (i : Nat) (h : ci.shiftValue.toNat + i ≤ 15) :
+    (globalCfg ci i).val = ci.shiftValue.toNat + i := by
+  simp only [globalCfg]
+  omega
+
+/-- Converts one block's `subsetAt_spec_*` (a `Fin`-indexed `∃` with an inlined
+index proof) into the uniform `globalCfg` phrasing. -/
+private theorem spec_exists_conv (sh n : Nat) (ci : ClosureInfo)
+    (hsh : ci.shiftValue.toNat = sh) (hn : ci.numBits.toNat = n) (hle : sh + n ≤ 16)
+    (T : Nat) (c : Fin 16) (hpf : ∀ i : Fin n, sh + i.val < 16) :
+    (∃ i : Fin n, T.testBit i.val = true ∧ MaskSub ⟨sh + i.val, hpf i⟩ c) ↔
+    (∃ i : Nat, i < ci.numBits.toNat ∧ T.testBit i = true ∧ MaskSub (globalCfg ci i) c) := by
+  subst hsh; subst hn
+  constructor
+  · rintro ⟨i, hbit, hsub⟩
+    refine ⟨i.val, i.isLt, hbit, ?_⟩
+    have he : globalCfg ci i.val = ⟨ci.shiftValue.toNat + i.val, hpf i⟩ :=
+      Fin.ext (by rw [globalCfg_val ci i.val (by omega)])
+    rw [he]; exact hsub
+  · rintro ⟨i, hi, hbit, hsub⟩
+    refine ⟨⟨i, hi⟩, hbit, ?_⟩
+    have he : globalCfg ci i = ⟨ci.shiftValue.toNat + i, hpf ⟨i, hi⟩⟩ :=
+      Fin.ext (by rw [globalCfg_val ci i (by omega)])
+    rw [← he]; exact hsub
+
+/-- **Uniform `subsetAt` characterization**: over every block, a configuration is
+covered iff some set bit of the local mask covers it. -/
+theorem subsetAt_spec_block (f : Fin 11) (T : Nat)
+    (hT : T < 2 ^ (closureInfos.get f).numBits.toNat) (c : Fin 16) :
+    BitSet (subsetAt ((closureInfos.get f).offset.toNat + T)) c ↔
+      ∃ i : Nat, i < (closureInfos.get f).numBits.toNat ∧ T.testBit i = true ∧
+        MaskSub (globalCfg (closureInfos.get f) i) c := by
+  fin_cases f
+  · exact (subsetAt_spec_98 ⟨T, hT⟩ c).trans
+      (spec_exists_conv 15 1 _ (by decide) (by decide) (by omega) T c (fun i => by omega))
+  · exact (subsetAt_spec_0 ⟨T, hT⟩ c).trans
+      (spec_exists_conv 11 4 _ (by decide) (by decide) (by omega) T c (fun i => by omega))
+  · exact (subsetAt_spec_16 ⟨T, hT⟩ c).trans
+      (spec_exists_conv 5 6 _ (by decide) (by decide) (by omega) T c (fun i => by omega))
+  · exact (subsetAt_spec_80 ⟨T, hT⟩ c).trans
+      (spec_exists_conv 1 4 _ (by decide) (by decide) (by omega) T c (fun i => by omega))
+  all_goals
+    exact (subsetAt_spec_96 ⟨T, hT⟩ c).trans
+      (spec_exists_conv 0 1 _ (by decide) (by decide) (by omega) T c (fun i => by omega))
+
+theorem subsetAt_spec_pos (p : SolverPosType) {T : UInt16} (hT : LocalMask p T) (c : Fin 16) :
+    BitSet (subsetAt ((closureInfoOf p).offset.toNat + T.toNat)) c ↔
+      ∃ i : Nat, i < (closureInfoOf p).numBits.toNat ∧ T.toNat.testBit i = true ∧
+        MaskSub (globalCfg (closureInfoOf p) i) c :=
+  subsetAt_spec_block ⟨min p.freePiles.toInt.toNat 10, by omega⟩ T.toNat hT c
+
+/-- **The transport.**  If the parent's configuration `gi` is covered by the
+`forcedKings`-intersected child mask, then the simulation's witness `k'` — which
+clears, relative to `gi`, only vacated suits — is covered by the full child mask.
+
+This is why the recursion is sound despite querying the child at the parent's
+configuration: the surviving witness `d` piles every vacated suit (`d ∈ fk`), so
+`d`'s cell-bound suits avoid `FK`; they are cell-bound in `gi` too (`MaskSub d
+gi`), hence — not being vacated — still cell-bound in `k'` (`hstep`). -/
+theorem kingStep_transport (p' : SolverPosType) {T fk : UInt16} {FK : Finset Suit}
+    {gi k' : Fin 16} (hT : LocalMask p' T) (hv : KingVacates FK fk)
+    (hstep : ∀ su : Suit, ¬ CfgBitSet k' su → ¬ CfgBitSet gi su ∨ su ∈ FK)
+    (hbit : BitSet (subsetAt ((closureInfoOf p').offset.toNat +
+        (T &&& (fk >>> (closureInfoOf p').shiftValue.toUInt16)).toNat)) gi) :
+    BitSet (subsetAt ((closureInfoOf p').offset.toNat + T.toNat)) k' := by
+  have hble : (closureInfoOf p').shiftValue.toNat + (closureInfoOf p').numBits.toNat ≤ 16 :=
+    closureInfo_shift_add_numBits ⟨min p'.freePiles.toInt.toNat 10, by omega⟩
+  have hbpos : 1 ≤ (closureInfoOf p').numBits.toNat :=
+    closureInfo_numBits_pos ⟨min p'.freePiles.toInt.toNat 10, by omega⟩
+  obtain ⟨i, hi, hbits, hsub⟩ :=
+    (subsetAt_spec_pos p' (LocalMask.and_left _ hT) gi).1 hbit
+  rw [UInt16.toNat_and, Nat.testBit_and, Bool.and_eq_true] at hbits
+  obtain ⟨hbT, hbX⟩ := hbits
+  -- bit `i` of `fk >>> shift` is bit `shift + i` of `fk`
+  have hfkbit : fk.toNat.testBit ((closureInfoOf p').shiftValue.toNat + i) = true := by
+    rwa [UInt16.toNat_shiftRight, UInt8.toNat_toUInt16,
+         Nat.mod_eq_of_lt (by omega : (closureInfoOf p').shiftValue.toNat < 16),
+         Nat.testBit_shiftRight] at hbX
+  -- the witness configuration `d` survives `fk`, so it piles every vacated suit
+  have hdfk : BitSet fk (globalCfg (closureInfoOf p') i) := by
+    rw [BitSet_toNat, globalCfg_val _ _ (by omega)]
+    exact hfkbit
+  have hforced := (hv _).1 hdfk
+  -- and therefore covers `k'` as well
+  have hk' : MaskSub (globalCfg (closureInfoOf p') i) k' := by
+    rw [MaskSub_iff]
+    intro su hdsu
+    by_contra hknot
+    rcases hstep su hknot with hgi | hFK
+    · exact hgi ((MaskSub_iff _ gi).1 hsub su hdsu)
+    · exact hforced su hFK hdsu
+  exact (subsetAt_spec_pos p' hT k').2 ⟨i, hi, hbT, hk'⟩
+
+/-! ## `componentTable` fits its blocks
+
+Needed to thread `LocalMask` through `solverRecCheckSolvable`'s accumulator: the
+`component` contribution is a `componentTable` entry, which never has bits above
+its block's width. -/
+
+private theorem compBound_98 : ∀ j : Fin 2,
+    (componentTable.get ⟨98 + j.val, by omega⟩).toNat < 16 := by decide
+private theorem compBound_0 : ∀ j : Fin 16,
+    (componentTable.get ⟨0 + j.val, by omega⟩).toNat < 64 := by decide
+private theorem compBound_16 : ∀ j : Fin 64,
+    (componentTable.get ⟨16 + j.val, by omega⟩).toNat < 16 := by decide
+private theorem compBound_80 : ∀ j : Fin 16,
+    (componentTable.get ⟨80 + j.val, by omega⟩).toNat < 2 := by decide
+private theorem compBound_96 : ∀ j : Fin 2,
+    (componentTable.get ⟨96 + j.val, by omega⟩).toNat < 2 := by decide
+
+/-- Note the off-by-one: `computeComponentKingBits` indexes `componentTable`
+through `closureInfos[emptyPiles - 1]` — the loop enumerates the block one
+*below* the position's — but the returned value is a local mask of the
+position's own block.  So block `f`'s component entries are bounded by block
+`f + 1`'s width; instantiate at `f := freePiles - 1` to get `LocalMask` for the
+`component` contribution. -/
+theorem componentTable_localBound (f : Fin 11) (hf : f.val < 10) (j : Nat)
+    (hj : j < 2 ^ (closureInfos.get f).numBits.toNat)
+    (hidx : (closureInfos.get f).offset.toNat + j < 100) :
+    (componentTable.get ⟨(closureInfos.get f).offset.toNat + j, hidx⟩).toNat
+      < 2 ^ (closureInfos.get ⟨f.val + 1, by omega⟩).numBits.toNat := by
+  fin_cases f
+  · exact compBound_98 ⟨j, hj⟩
+  · exact compBound_0 ⟨j, hj⟩
+  · exact compBound_16 ⟨j, hj⟩
+  · exact compBound_80 ⟨j, hj⟩
+  · exact compBound_96 ⟨j, hj⟩
+  · exact compBound_96 ⟨j, hj⟩
+  · exact compBound_96 ⟨j, hj⟩
+  · exact compBound_96 ⟨j, hj⟩
+  · exact compBound_96 ⟨j, hj⟩
+  · exact compBound_96 ⟨j, hj⟩
+  · exact absurd hf (by decide)
+
 /-! ## King spaces -/
 
 /-- **How many suits get a king pile**: as many as there are free piles, capped
@@ -362,9 +570,16 @@ a negative effective `usedSpace` the loop would set bit 5 (and at `≤ -2` it ru
 off the end of the vector, which is why the run succeeding is a hypothesis).
 That entry exists so `solverGetMovable` can index `possibleKings` at `fluteLen`
 for `fluteLen = 5` — a five-card flute can never go to `EXTRA`, nor to a king
-pile that does not already exist — without a separate case. -/
+pile that does not already exist — without a separate case.
+
+`SolverInvBase` is needed for a narrow but real reason: the loop computes each
+refund as `Int32.ofNat (13 - VALUE kings[su])` — a **`Nat`** subtraction, which
+truncates at zero — while `kingRefund` subtracts in `Int`.  The two agree exactly
+when `VALUE kings[su] ≤ 13`, which is `aces_kings_valid`.  (Proved:
+`kingSpaces_spec` in `ComputeKingSpaces`.) -/
 def KingSpacesSpec : Prop :=
   ∀ (g : Globals) (p : SolverPosType) (ki : KingInfo),
+    SolverInvBase g p →
     EStateM.run (computeKingSpaces (closureInfoOf p).shiftValue
                    (closureInfoOf p).numBits p) g = .ok ki g →
     (∀ (c : Nat) (hc : c < 6) (i : Nat) (hi : i < (closureInfoOf p).numBits.toNat),

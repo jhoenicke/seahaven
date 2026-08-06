@@ -117,20 +117,7 @@ theorem UInt8.toInt_sub (a b : UInt8) : (a - b).toInt = (a.toInt - b.toInt) % 25
 
 
 
-/-- The solver position.
-
-**Signedness note.**  `solver.c` declares `pileDepth`, `aces`, `kings`,
-`usedSpace` and `freePiles` as `uint8_t`; this model keeps them `Int8`.  That is
-a deliberate, sound mismatch: every one of these is provably in `[0, 127]` on an
-invariant-satisfying position (`pileDepth_bound`, `aces_kings_valid`,
-`usedSpace_nonneg`, `freePiles_bound`), and on that range `int8_t` and `uint8_t`
-share a bit pattern and promote to the same `int`, so no C expression can tell
-them apart.  Keeping `Int8` here avoids rewriting the `.toInt`-based invariant
-and spec layers for no semantic gain.
-
-The mismatch would matter only if one of these fields could go negative; the
-bounds above rule that out, and a 50 000-deal differential run of the C before
-and after the `uint8_t` switch produced byte-identical output. -/
+/-- The solver position. -/
 structure SolverPosType where
   hash : UInt32
   pileDepth : Vector UInt8 10

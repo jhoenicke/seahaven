@@ -923,3 +923,442 @@ theorem StateMatchesKingConfig.movePre_king {g : Globals} {s : State} {p : Solve
     obtain ⟨v, _, hreach, _, hm⟩ := hk.toMatches.movePre_kingDest hpile h10 h14 hcol hrest hrun
       (hcellsPile hbit) (hdst b hown) hsu hown hval
     exact ⟨v, hreach, hm⟩
+
+/-! ## Phase 1, all destinations
+
+The dispatch on `toPile`, closing phase 1: whatever destination
+`solverGetDestination` returned, phase 1 of `SolverMove` is realized by legal moves
+and lands in a state matching `movePre`.
+
+Every hypothesis is guarded by the branch that needs it, which is also how the
+solver itself splits them: `solverGetMovable` charges `fluteLen - 1` cells for a
+column destination and `fluteLen` for a cell destination, and the destination facts
+(`hdstPile`/`hdstKing`, `hsu`, `hval`) are what the `getDestination` bridge will
+supply. -/
+theorem StateMatchesKingConfig.movePre_run {g : Globals} {s : State} {p : SolverPosType}
+    {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
+    {top rest : Column} {c : Card}
+    (hk : StateMatchesKingConfig g s p k)
+    (hcol : s.tableau ⟨pile.toNat, hpile⟩ = top ++ c :: rest)
+    (hrest : rest.length + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
+    (hrun : IsRun (top ++ [c]))
+    -- affordability: `fluteLen - 1` cells for a column destination, `fluteLen` for a
+    -- cell destination — exactly how `solverGetMovable` splits it
+    (hcellsCol : (toPile.toNat < 10 ∨ ¬ CfgBitSet k c.suit) →
+      (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat - 1 ≤ (freeCells s).length)
+    (hcellsFull : (¬ toPile.toNat < 14 ∨ CfgBitSet k c.suit) →
+      (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat ≤ (freeCells s).length)
+    -- a pile destination: distinct, non-empty, accepts the boundary card, no wrap
+    (hne : toPile.toNat < 10 → pile.toNat ≠ toPile.toNat)
+    (hdb : ∀ h10 : toPile.toNat < 10, 0 < (p.pileDepth.get ⟨toPile.toNat, h10⟩).toNat)
+    (hdstPile : ∀ h10 : toPile.toNat < 10,
+      (s.tableau ⟨toPile.toNat, h10⟩).head? = nextCard c)
+    (hsum : ∀ h10 : toPile.toNat < 10, (p.pileFlute.get ⟨toPile.toNat, h10⟩).toNat
+      + (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat < 256)
+    -- a king destination: the suit is `c`'s, its column accepts `c`, the flute fits
+    (hsu : ¬ toPile.toNat < 10 → toPile.toNat < 14 → toPile.toNat - 10 = suitToNat c.suit)
+    (hdstKing : ¬ toPile.toNat < 10 → toPile.toNat < 14 →
+      ∀ b : Fin 10, OwnsPile s p c.suit b → (s.tableau b).head? = nextCard c)
+    (hval : ¬ toPile.toNat < 10 → toPile.toNat < 14 →
+      top.length + 1 ≤ (VALUE (p.kings.get (finOfSuit c.suit))).toNat) :
+    ∃ v : State, Reach s v ∧
+      StateMatchesSolverPos g v (SolverSpec.movePre pile toPile hpile p) := by
+  by_cases h10 : toPile.toNat < 10
+  · -- pile to pile
+    obtain ⟨v, _, hreach, _, hm⟩ := hk.toMatches.movePre_pileDest hpile h10 (hne h10) hcol hrest
+      hrun (hcellsCol (Or.inl h10)) (hdstPile h10) (hdb h10) (hsum h10)
+    exact ⟨v, hreach, hm⟩
+  · by_cases h14 : toPile.toNat < 14
+    · -- king pile: `movePre_king` splits on whether the suit owns a column
+      exact hk.movePre_king hpile h10 h14 hcol hrest hrun (hsu h10 h14)
+        (fun hbit => hcellsCol (Or.inr hbit)) (fun hbit => hcellsFull (Or.inr hbit))
+        (hdstKing h10 h14)
+        (hval h10 h14)
+    · -- EXTRA: the whole flute goes to the cells
+      obtain ⟨v, _, hreach, _, hm⟩ := hk.toMatches.movePre_extra hpile h14 hcol hrest
+        (hcellsFull (Or.inl h14))
+      exact ⟨v, hreach, hm⟩
+
+/-! ## The king-destination bridge
+
+`solverGetDestination` returns `KINGPILE + SUIT B` exactly when the pile's boundary
+card *is* the suit's king frontier: `card == kings[suit]`.  That single fact implies
+both remaining destination hypotheses:
+
+* `hval` — the flute fits below the frontier — because a run of `L` cards topping out
+  at `c` forces `rankToNat c.rank ≥ L`;
+* `hdst` — the owned column accepts `c` — because that column holds exactly
+  `kings[su] + 1 … CARD su 13` (`king_pile_contents`), so its exposed card is
+  `kings[su] + 1 = nextCard c`; and if the column is empty then nothing of the suit
+  is freed, i.e. `c` is the king itself and `nextCard c = none`. -/
+
+private theorem isRun_rank_aux (c : Card) : ∀ (l : List Card), IsRun (l ++ [c]) →
+    ∀ x ∈ (l ++ [c]).head?, rankToNat x.rank + l.length = rankToNat c.rank := by
+  intro l
+  induction l with
+  | nil =>
+    intro _ x hx
+    simp only [List.nil_append, List.head?_cons, Option.mem_def, Option.some.injEq] at hx
+    rw [← hx]
+    simp
+  | cons a as ih =>
+    intro hrun x hx
+    simp only [List.cons_append, List.head?_cons, Option.mem_def, Option.some.injEq] at hx
+    rw [← hx]
+    obtain ⟨y, hy⟩ : ∃ y, (as ++ [c]).head? = some y := by
+      cases hl : as ++ [c] with
+      | nil => simp at hl
+      | cons y ys => exact ⟨y, by simp⟩
+    simp only [List.cons_append] at hrun
+    have hnext : nextCard a = some y := hrun.head y (Option.mem_def.2 hy)
+    have hy' := ih hrun.tail y (Option.mem_def.2 hy)
+    have hrank := nextCard_rank hnext
+    simp only [List.length_cons]
+    omega
+
+/-- **A run's boundary card outranks the run's length.** -/
+theorem IsRun.length_lt_rank {l : List Card} {c : Card} (h : IsRun (l ++ [c])) :
+    l.length + 1 ≤ rankToNat c.rank := by
+  obtain ⟨x, hx⟩ : ∃ x, (l ++ [c]).head? = some x := by
+    cases hl : l ++ [c] with
+    | nil => simp at hl
+    | cons y ys => exact ⟨y, by simp⟩
+  have h1 := isRun_rank_aux c l h x (Option.mem_def.2 hx)
+  have h2 := rankToNat_pos x.rank
+  omega
+
+/-- **The column a suit owns accepts the suit's frontier card.** -/
+theorem StateMatchesSolverPos.head_of_ownsPile {g : Globals} {s : State} {p : SolverPosType}
+    (h : StateMatchesSolverPos g s p) {c : Card} {b : Fin 10}
+    (hkc : encodeCard c = p.kings.get (finOfSuit c.suit))
+    (hown : OwnsPile s p c.suit b) :
+    (s.tableau b).head? = nextCard c := by
+  obtain ⟨hd0, hcases⟩ := hown
+  have hVc : (VALUE (p.kings.get (finOfSuit c.suit))).toNat = rankToNat c.rank := by
+    rw [← hkc, encodeCard_VALUE]
+  rcases hcases with ⟨d, hd, hdsuit, _⟩ | ⟨hnil, h13⟩
+  · -- `b` carries the stack; its exposed card is `kings[su] + 1`
+    have hlast : (s.tableau b).getLast? = some d := Option.mem_def.1 hd
+    obtain ⟨hlen, hcont⟩ := h.king_pile_contents b hd0 hlast
+    rw [hdsuit] at hlen hcont
+    have hne : s.tableau b ≠ [] := by
+      intro hnil; rw [hnil] at hlast; simp at hlast
+    have hpos : 0 < (s.tableau b).length := List.length_pos_iff_ne_nil.mpr hne
+    have hrev : (s.tableau b).length - 1 < (s.tableau b).reverse.length := by
+      simp only [List.length_reverse]; omega
+    -- the top card sits at reverse index `length - 1`
+    have hhead : (s.tableau b).head? = some ((s.tableau b)[0]'hpos) := by
+      rw [List.head?_eq_getElem?, List.getElem?_eq_getElem hpos]
+    have hidx : (s.tableau b).reverse[(s.tableau b).length - 1]'hrev = (s.tableau b)[0]'hpos := by
+      rw [List.getElem_reverse hrev]
+      congr 1
+      omega
+    have hcode := hcont ((s.tableau b).length - 1) hrev
+    rw [hidx] at hcode
+    -- its code is `c`'s code plus one, in `c`'s suit
+    have hsu4 : suitToNat c.suit < 4 := suitToNat_lt _
+    have hr13 : rankToNat c.rank ≤ 13 := rankBounded _
+    have hval : 13 - ((s.tableau b).length - 1) = rankToNat c.rank + 1 := by omega
+    rw [hval] at hcode
+    have hct1 : (CARD (UInt8.ofNat (suitToNat c.suit))
+        (UInt8.ofNat (rankToNat c.rank + 1))).toNat
+        = (suitToNat c.suit) * 16 + (rankToNat c.rank + 1) :=
+      CARD_toNat (by omega) (by omega)
+    have hct2 : (encodeCard c).toNat = (suitToNat c.suit) * 16 + rankToNat c.rank := by
+      rw [encodeCard]
+      exact CARD_toNat (by omega) (by omega)
+    rw [hhead]
+    refine (nextCard_of_encode ?_ ?_).symm
+    · apply UInt8.toNat_inj.mp
+      rw [SUIT_toNat, SUIT_toNat, hcode, hct1, hct2]
+      omega
+    · rw [hcode, VALUE_toNat, VALUE_toNat, hct1, hct2]
+      omega
+  · -- `b` is empty and nothing of the suit is freed, so `c` is the king
+    have hking : c.rank = Rank.king := rankInj _ _ (by rw [← hVc, h13]; rfl)
+    rw [hnil]
+    have hnone : nextCard c = none := by
+      unfold nextCard
+      rw [show nextRank c.rank = none from by rw [hking]; exact nextRank_king]
+    rw [hnone]
+    rfl
+
+/-- **Phase 1 to a king pile, from the solver's own frontier test.**  `hkc` is
+exactly `solverGetDestination`'s `card == kings[suit]`; the destination and
+flute-fits hypotheses are derived from it. -/
+theorem StateMatchesKingConfig.movePre_king_of_frontier {g : Globals} {s : State}
+    {p : SolverPosType} {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
+    (h10 : ¬ toPile.toNat < 10) (h14 : toPile.toNat < 14)
+    {top rest : Column} {c : Card}
+    (hk : StateMatchesKingConfig g s p k)
+    (hcol : s.tableau ⟨pile.toNat, hpile⟩ = top ++ c :: rest)
+    (hrest : rest.length + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
+    (hrun : IsRun (top ++ [c]))
+    (hsu : toPile.toNat - 10 = suitToNat c.suit)
+    (hkc : encodeCard c = p.kings.get (finOfSuit c.suit))
+    (hcellsPile : ¬ CfgBitSet k c.suit →
+      (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat - 1 ≤ (freeCells s).length)
+    (hcellsExtra : CfgBitSet k c.suit →
+      (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat ≤ (freeCells s).length) :
+    ∃ v : State, Reach s v ∧
+      StateMatchesSolverPos g v (SolverSpec.movePre pile toPile hpile p) :=
+  hk.movePre_king hpile h10 h14 hcol hrest hrun hsu hcellsPile hcellsExtra
+    (fun _ hown => hk.toMatches.head_of_ownsPile hkc hown)
+    (by rw [← hkc, encodeCard_VALUE]; exact hrun.length_lt_rank)
+
+/-- **Phase 1, all destinations, with the king branch reduced to the frontier test.** -/
+theorem StateMatchesKingConfig.movePre_run_of_frontier {g : Globals} {s : State}
+    {p : SolverPosType} {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
+    {top rest : Column} {c : Card}
+    (hk : StateMatchesKingConfig g s p k)
+    (hcol : s.tableau ⟨pile.toNat, hpile⟩ = top ++ c :: rest)
+    (hrest : rest.length + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
+    (hrun : IsRun (top ++ [c]))
+    (hcellsCol : (toPile.toNat < 10 ∨ ¬ CfgBitSet k c.suit) →
+      (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat - 1 ≤ (freeCells s).length)
+    (hcellsFull : (¬ toPile.toNat < 14 ∨ CfgBitSet k c.suit) →
+      (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat ≤ (freeCells s).length)
+    (hne : toPile.toNat < 10 → pile.toNat ≠ toPile.toNat)
+    (hdb : ∀ h10 : toPile.toNat < 10, 0 < (p.pileDepth.get ⟨toPile.toNat, h10⟩).toNat)
+    (hdstPile : ∀ h10 : toPile.toNat < 10,
+      (s.tableau ⟨toPile.toNat, h10⟩).head? = nextCard c)
+    (hsum : ∀ h10 : toPile.toNat < 10, (p.pileFlute.get ⟨toPile.toNat, h10⟩).toNat
+      + (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat < 256)
+    (hsu : ¬ toPile.toNat < 10 → toPile.toNat < 14 → toPile.toNat - 10 = suitToNat c.suit)
+    (hkc : ¬ toPile.toNat < 10 → toPile.toNat < 14 →
+      encodeCard c = p.kings.get (finOfSuit c.suit)) :
+    ∃ v : State, Reach s v ∧
+      StateMatchesSolverPos g v (SolverSpec.movePre pile toPile hpile p) :=
+  hk.movePre_run hpile hcol hrest hrun hcellsCol hcellsFull hne hdb hdstPile hsum hsu
+    (fun h10 h14 _ hown => hk.toMatches.head_of_ownsPile (hkc h10 h14) hown)
+    (fun h10 h14 => by rw [← hkc h10 h14, encodeCard_VALUE]; exact hrun.length_lt_rank)
+
+/-! ## The pile-destination bridge
+
+`solverGetDestination` walks up from the source boundary `B_src` over free cards and
+stops at the first resident one, returning its pile when that card is the pile's own
+*boundary*.  So the destination boundary is `B_src + n`, and the `n - 1` cards
+between them are free — which under `flute_maximal` makes the destination's flute
+exactly `n` long.  The destination flute therefore need **not** be trivial; what
+matters is that its length equals the gap between the two boundary cards, because
+then the card it exposes is `B_src + 1 = nextCard c`.
+
+Both facts below are stated on that gap, so the solver side owes only "same suit" and
+"`VALUE B_dst = VALUE B_src + pileFlute[dst]`". -/
+
+/-- The code of a matching pile's *exposed* card: `pileFlute - 1` below its boundary. -/
+theorem StateMatchesSolverPos.head_code {g : Globals} {s : State} {p : SolverPosType}
+    (h : StateMatchesSolverPos g s p) (i : Fin 10)
+    (hd : 0 < (p.pileDepth.get i).toInt.toNat)
+    (hidx : (p.pileDepth.get i).toInt.toNat - 1 < 5) :
+    ∃ e : Card, (s.tableau i).head? = some e ∧
+      SUIT (encodeCard e) = SUIT ((g.pos2card.get i).get ⟨_, hidx⟩) ∧
+      (VALUE (encodeCard e)).toNat + (p.pileFlute.get i).toNat
+        = (VALUE ((g.pos2card.get i).get ⟨_, hidx⟩)).toNat + 1 := by
+  have hfm := h.flute_match i hd
+  have hnL : (p.pileDepth.get i).toInt.toNat ≤ (s.tableau i).length := (h.depth_match i).1
+  have hpos : 0 < (s.tableau i).length := by omega
+  obtain ⟨hs, hv⟩ := flute_elem h i hd ⟨_, hidx⟩ rfl 0 (by omega) hpos
+  refine ⟨(s.tableau i)[0]'hpos, ?_, hs, by omega⟩
+  rw [List.head?_eq_getElem?, List.getElem?_eq_getElem hpos]
+
+/-- `c` is the source pile's boundary card. -/
+theorem StateMatchesSolverPos.boundary_code {g : Globals} {s : State} {p : SolverPosType}
+    (h : StateMatchesSolverPos g s p) (a : Fin 10) {top rest : Column} {c : Card}
+    (hcol : s.tableau a = top ++ c :: rest)
+    (hrest : rest.length + 1 = (p.pileDepth.get a).toInt.toNat)
+    (hidx : (p.pileDepth.get a).toInt.toNat - 1 < 5) :
+    encodeCard c = (g.pos2card.get a).get ⟨_, hidx⟩ := by
+  have hd : 0 < (p.pileDepth.get a).toInt.toNat := by omega
+  have hnL : (p.pileDepth.get a).toInt.toNat ≤ (s.tableau a).length := (h.depth_match a).1
+  have hlen : (s.tableau a).length = top.length + (rest.length + 1) := by
+    rw [hcol]; simp
+  have hlt : top.length < (s.tableau a).length := by omega
+  have hidxc : (s.tableau a)[top.length]'hlt = c := by
+    have h1 : (s.tableau a)[top.length]? = some c := by
+      rw [hcol, List.getElem?_append_right (Nat.le_refl _)]
+      simp
+    rw [List.getElem?_eq_getElem hlt] at h1
+    exact Option.some.inj h1
+  obtain ⟨hs, hv⟩ := flute_elem h a hd ⟨_, hidx⟩ rfl top.length (by omega) (by omega)
+  rw [hidxc] at hs hv
+  -- same suit and same value ⇒ same code
+  apply UInt8.toNat_inj.mp
+  have h1 := SUIT_toNat (encodeCard c)
+  have h2 := VALUE_toNat (encodeCard c)
+  have h3 := SUIT_toNat ((g.pos2card.get a).get ⟨_, hidx⟩)
+  have h4 := VALUE_toNat ((g.pos2card.get a).get ⟨_, hidx⟩)
+  have h5 := congrArg UInt8.toNat hs
+  omega
+
+/-- **The pile-destination bridge.**  If the destination's flute length is the gap
+between the two boundary cards, the destination exposes `nextCard c`. -/
+theorem StateMatchesSolverPos.head_of_flute_gap {g : Globals} {s : State} {p : SolverPosType}
+    (h : StateMatchesSolverPos g s p) {a b : Fin 10} {top rest : Column} {c : Card}
+    (hcol : s.tableau a = top ++ c :: rest)
+    (hrest : rest.length + 1 = (p.pileDepth.get a).toInt.toNat)
+    (hia : (p.pileDepth.get a).toInt.toNat - 1 < 5)
+    (hdb : 0 < (p.pileDepth.get b).toInt.toNat)
+    (hib : (p.pileDepth.get b).toInt.toNat - 1 < 5)
+    (hsuit : SUIT ((g.pos2card.get b).get ⟨_, hib⟩)
+      = SUIT ((g.pos2card.get a).get ⟨_, hia⟩))
+    (hgap : (VALUE ((g.pos2card.get b).get ⟨_, hib⟩)).toNat
+      = (VALUE ((g.pos2card.get a).get ⟨_, hia⟩)).toNat + (p.pileFlute.get b).toNat) :
+    (s.tableau b).head? = nextCard c := by
+  obtain ⟨e, hhead, hes, hev⟩ := h.head_code b hdb hib
+  have hcb := h.boundary_code a hcol hrest hia
+  rw [hhead]
+  refine (nextCard_of_encode ?_ ?_).symm
+  · rw [hes, hsuit, ← hcb]
+  · rw [hcb]
+    omega
+
+/-- **Phase 1, all destinations, from the solver's own destination facts.**
+
+Neither destination hypothesis mentions the concrete state any more:
+
+* a pile destination needs only that its boundary card sits `pileFlute[toPile]`
+  above the source's, in the same suit — what `solverGetDestination`'s walk
+  establishes together with `flute_maximal`;
+* a king destination needs only `encodeCard c = kings[c.suit]` — the walk's
+  `card == kings[suit]` test.
+
+What is left over (`hne`, `hdb`, `hsum`) is pure bookkeeping about `toPile`. -/
+theorem StateMatchesKingConfig.movePre_run_of_dest {g : Globals} {s : State}
+    {p : SolverPosType} {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
+    {top rest : Column} {c : Card}
+    (hk : StateMatchesKingConfig g s p k)
+    (hcol : s.tableau ⟨pile.toNat, hpile⟩ = top ++ c :: rest)
+    (hrest : rest.length + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
+    (hrun : IsRun (top ++ [c]))
+    (hcellsCol : (toPile.toNat < 10 ∨ ¬ CfgBitSet k c.suit) →
+      (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat - 1 ≤ (freeCells s).length)
+    (hcellsFull : (¬ toPile.toNat < 14 ∨ CfgBitSet k c.suit) →
+      (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat ≤ (freeCells s).length)
+    (hne : toPile.toNat < 10 → pile.toNat ≠ toPile.toNat)
+    (hdb : ∀ h10 : toPile.toNat < 10, 0 < (p.pileDepth.get ⟨toPile.toNat, h10⟩).toNat)
+    (hsum : ∀ h10 : toPile.toNat < 10, (p.pileFlute.get ⟨toPile.toNat, h10⟩).toNat
+      + (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat < 256)
+    -- pile destination: the boundary gap *is* the destination's flute length
+    (hsuitP : ∀ (h10 : toPile.toNat < 10)
+      (hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toInt.toNat - 1 < 5)
+      (hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat - 1 < 5),
+      SUIT ((g.pos2card.get ⟨toPile.toNat, h10⟩).get ⟨_, hib⟩)
+        = SUIT ((g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨_, hia⟩))
+    (hgapP : ∀ (h10 : toPile.toNat < 10)
+      (hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toInt.toNat - 1 < 5)
+      (hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat - 1 < 5),
+      (VALUE ((g.pos2card.get ⟨toPile.toNat, h10⟩).get ⟨_, hib⟩)).toNat
+        = (VALUE ((g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨_, hia⟩)).toNat
+          + (p.pileFlute.get ⟨toPile.toNat, h10⟩).toNat)
+    -- king destination: the frontier test
+    (hsu : ¬ toPile.toNat < 10 → toPile.toNat < 14 → toPile.toNat - 10 = suitToNat c.suit)
+    (hkc : ¬ toPile.toNat < 10 → toPile.toNat < 14 →
+      encodeCard c = p.kings.get (finOfSuit c.suit)) :
+    ∃ v : State, Reach s v ∧
+      StateMatchesSolverPos g v (SolverSpec.movePre pile toPile hpile p) := by
+  have hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat - 1 < 5 := by
+    have := hk.toMatches.depth_lt6 ⟨pile.toNat, hpile⟩; omega
+  refine hk.movePre_run_of_frontier hpile hcol hrest hrun hcellsCol hcellsFull hne hdb
+    (fun h10 => ?_) hsum hsu hkc
+  have hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toInt.toNat - 1 < 5 := by
+    have := hk.toMatches.depth_lt6 ⟨toPile.toNat, h10⟩; omega
+  exact hk.toMatches.head_of_flute_gap hcol hrest hia
+    (by simpa using hdb h10) hib (hsuitP h10 hib hia) (hgapP h10 hib hia)
+
+/-! ## Two of the three leftovers come from the invariant
+
+`hsum` (no `UInt8` wrap when the flutes merge) is just "a flute is at most 13 long",
+and `hne` (a pile is not its own destination) follows from the gap fact, since a
+flute is at least one card long.  `hdb` does *not* follow from the invariant — see
+the note on `movePre_run_of_dest_inv`. -/
+
+/-- **Every flute is at most 13 cards.**  Empty piles carry the trivial flute; on a
+non-empty pile `flute_le_value` bounds it by the boundary card's value. -/
+theorem SolverInvBase.pileFlute_le_13 {g : Globals} {p : SolverPosType}
+    (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (i : Fin 10) :
+    (p.pileFlute.get i).toNat ≤ 13 := by
+  by_cases hd : (p.pileDepth.get i).toNat = 0
+  · have h0 : p.pileDepth.get i = 0 := UInt8.toNat_inj.mp (by simpa using hd)
+    rw [(hb.pileBase i).flute_empty h0]
+    decide
+  · have hd0 : (p.pileDepth.get i).toNat > 0 := by omega
+    have hbnd := hb.pileDepth_bound i
+    have hBreal := hwf.pos2card_real i (⟨(p.pileDepth.get i).toNat - 1, by omega⟩ : Fin 5)
+    have hflv := hb.flute_le_value hwf i hd0
+    have := hBreal.2.2
+    omega
+
+/-- **A pile is never its own destination.**  The gap fact makes the destination
+boundary strictly above the source's, and a flute is at least one card long. -/
+theorem ne_of_flute_gap {g : Globals} {p : SolverPosType} (hb : SolverInvBase g p)
+    {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10) (h10 : toPile.toNat < 10)
+    (hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toInt.toNat - 1 < 5)
+    (hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat - 1 < 5)
+    (hgap : (VALUE ((g.pos2card.get ⟨toPile.toNat, h10⟩).get ⟨_, hib⟩)).toNat
+      = (VALUE ((g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨_, hia⟩)).toNat
+        + (p.pileFlute.get ⟨toPile.toNat, h10⟩).toNat) :
+    pile.toNat ≠ toPile.toNat := by
+  intro heq
+  have hfin : (⟨toPile.toNat, h10⟩ : Fin 10) = ⟨pile.toNat, hpile⟩ := Fin.ext heq.symm
+  have hdeq : (p.pileDepth.get ⟨toPile.toNat, h10⟩) = p.pileDepth.get ⟨pile.toNat, hpile⟩ :=
+    congrArg _ hfin
+  have hsame : ((g.pos2card.get ⟨toPile.toNat, h10⟩).get ⟨_, hib⟩)
+      = ((g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨_, hia⟩) := by
+    have h1 : g.pos2card.get ⟨toPile.toNat, h10⟩ = g.pos2card.get ⟨pile.toNat, hpile⟩ :=
+      congrArg _ hfin
+    rw [h1]
+    exact congrArg _ (Fin.ext (show (p.pileDepth.get ⟨toPile.toNat, h10⟩).toInt.toNat - 1
+      = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat - 1 from by rw [hdeq]))
+  rw [hsame, hfin] at hgap
+  have := (hb.pileBase ⟨pile.toNat, hpile⟩).flute_pos
+  omega
+
+/-- **Phase 1, all destinations, with `hne`/`hsum` discharged from the invariant.**
+
+`hdb` (the destination pile is non-empty) stays a hypothesis on purpose: it does
+*not* follow from `SolverInvBase` plus the gap.  It comes from the walk itself —
+`solverGetDestination` stops only when `posFromTop = pileDepth[toPile] -
+cardDepth[card] > 0`, which gives `pileDepth[toPile] ≥ 1` directly.  (Without it the
+gap alone is satisfiable: a card dealt to an empty pile can sit as another pile's
+flute card, and then the physical destination would be that other pile — exactly the
+case `posFromTop ≤ 0` makes the walk skip.) -/
+theorem StateMatchesKingConfig.movePre_run_of_dest_inv {g : Globals} {s : State}
+    {p : SolverPosType} {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
+    {top rest : Column} {c : Card}
+    (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
+    (hk : StateMatchesKingConfig g s p k)
+    (hcol : s.tableau ⟨pile.toNat, hpile⟩ = top ++ c :: rest)
+    (hrest : rest.length + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
+    (hrun : IsRun (top ++ [c]))
+    (hcellsCol : (toPile.toNat < 10 ∨ ¬ CfgBitSet k c.suit) →
+      (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat - 1 ≤ (freeCells s).length)
+    (hcellsFull : (¬ toPile.toNat < 14 ∨ CfgBitSet k c.suit) →
+      (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat ≤ (freeCells s).length)
+    (hdb : ∀ h10 : toPile.toNat < 10, 0 < (p.pileDepth.get ⟨toPile.toNat, h10⟩).toNat)
+    (hsuitP : ∀ (h10 : toPile.toNat < 10)
+      (hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toInt.toNat - 1 < 5)
+      (hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat - 1 < 5),
+      SUIT ((g.pos2card.get ⟨toPile.toNat, h10⟩).get ⟨_, hib⟩)
+        = SUIT ((g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨_, hia⟩))
+    (hgapP : ∀ (h10 : toPile.toNat < 10)
+      (hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toInt.toNat - 1 < 5)
+      (hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat - 1 < 5),
+      (VALUE ((g.pos2card.get ⟨toPile.toNat, h10⟩).get ⟨_, hib⟩)).toNat
+        = (VALUE ((g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨_, hia⟩)).toNat
+          + (p.pileFlute.get ⟨toPile.toNat, h10⟩).toNat)
+    (hsu : ¬ toPile.toNat < 10 → toPile.toNat < 14 → toPile.toNat - 10 = suitToNat c.suit)
+    (hkc : ¬ toPile.toNat < 10 → toPile.toNat < 14 →
+      encodeCard c = p.kings.get (finOfSuit c.suit)) :
+    ∃ v : State, Reach s v ∧
+      StateMatchesSolverPos g v (SolverSpec.movePre pile toPile hpile p) := by
+  have hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat - 1 < 5 := by
+    have := hk.toMatches.depth_lt6 ⟨pile.toNat, hpile⟩; omega
+  refine hk.movePre_run_of_dest hpile hcol hrest hrun hcellsCol hcellsFull
+    (fun h10 => ?_) hdb (fun h10 => ?_) hsuitP hgapP hsu hkc
+  · have hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toInt.toNat - 1 < 5 := by
+      have := hk.toMatches.depth_lt6 ⟨toPile.toNat, h10⟩; omega
+    exact ne_of_flute_gap hb hpile h10 hib hia (hgapP h10 hib hia)
+  · have h1 := hb.pileFlute_le_13 hwf ⟨toPile.toNat, h10⟩
+    have h2 := hb.pileFlute_le_13 hwf ⟨pile.toNat, hpile⟩
+    omega

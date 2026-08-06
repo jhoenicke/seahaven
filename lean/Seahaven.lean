@@ -29,3 +29,7 @@ import Seahaven.SolverSpecFreedBoundary
 import Seahaven.SolverSpec
 import Seahaven.MoveSim
 import Seahaven.UsedSpaceBound
+import Seahaven.ComputeKingSpaces
+import Seahaven.ComponentKingBits
+import Seahaven.CleanupSim
+import Seahaven.KingConfigSim
