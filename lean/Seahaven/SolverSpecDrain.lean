@@ -103,26 +103,38 @@ private theorem rank_decrease (g : Globals) (game game1 : SolverPosType)
         rw [haeq]
       rw [hf3]; omega
 
+/-- What the drain loop hands to a carried predicate: one `SolverMoveAces` call from a
+merged, still-pending position, with the mask the code intersects in.  `Simulates` is
+carried across it by `Simulates.moveAces` (see `Simulates.drain`). -/
+def DrainStep (g : Globals) (P : UInt16 → SolverPosType → Prop) : Prop :=
+  ∀ (fkAcc fk : UInt16) (game game1 : SolverPosType),
+    SolverInvMerged g game → game.busyAces ≠ 0 →
+    _root_.SolverMoveAces (g, game) = .ok fk (g, game1) →
+    P fkAcc game → P (fkAcc &&& fk) game1
+
 /-- **Exact run of the `busyAces` drain loop, with its invariant.**  By
     induction on a `Nat` bounding `rank game` (which strictly decreases on
-    every continuing iteration via `rank_decrease`/`moveAces_merged`). -/
-private theorem drainBody_run (g : Globals) (hwf : WellFormedLayout g) :
+    every continuing iteration via `rank_decrease`/`moveAces_merged`).  `P` is
+    carried across each iteration by `hstep`. -/
+private theorem drainBody_run (g : Globals) (hwf : WellFormedLayout g)
+    (P : UInt16 → SolverPosType → Prop) (hstep : DrainStep g P) :
     ∀ (n : Nat) (forcedKings : UInt16) (game : SolverPosType),
       rank game < n →
       SolverInvMerged g game →
+      P forcedKings game →
       ∃ (forcedKings' : UInt16) (game' : SolverPosType),
         Loop.forIn Loop.mk forcedKings drainBody (g, game) =
           .ok forcedKings' (g, game') ∧
-        SolverInvMerged g game' ∧ game'.busyAces = 0 := by
+        SolverInvMerged g game' ∧ game'.busyAces = 0 ∧ P forcedKings' game' := by
   intro n
   induction n with
-  | zero => intro forcedKings game hmeas _; omega
+  | zero => intro forcedKings game hmeas _ _; omega
   | succ n ih =>
-    intro forcedKings game hmeas hmerged
+    intro forcedKings game hmeas hmerged hP
     have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × SolverPosType))
       (l := Loop.mk) (b := forcedKings) (f := drainBody)
     by_cases hbz : game.busyAces = 0
-    · refine ⟨forcedKings, game, ?_, hmerged, hbz⟩
+    · refine ⟨forcedKings, game, ?_, hmerged, hbz, hP⟩
       rw [hunf]
       simp only [drainBody, bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get, hbz,
         Bool.false_eq_true, bne_self_eq_false, reduceIte, pure, EStateM.pure]
@@ -132,8 +144,10 @@ private theorem drainBody_run (g : Globals) (hwf : WellFormedLayout g) :
       have hdec : rank game1 < rank game := rank_decrease g game game1 hmerged hmerged1 hbz
         hframe1 hdich1
       have hmeas1 : rank game1 < n := by omega
-      obtain ⟨fk', game', hrun', hmerged', hbz'⟩ := ih (forcedKings &&& fk) game1 hmeas1 hmerged1
-      refine ⟨fk', game', ?_, hmerged', hbz'⟩
+      obtain ⟨fk', game', hrun', hmerged', hbz', hP'⟩ :=
+        ih (forcedKings &&& fk) game1 hmeas1 hmerged1
+          (hstep forcedKings fk game game1 hmerged hbz hrun1' hP)
+      refine ⟨fk', game', ?_, hmerged', hbz', hP'⟩
       rw [hunf]
       simp only [drainBody, bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get, hbz,
         bne_iff_ne, ne_eq, not_false_eq_true, reduceIte, hrun1', pure, EStateM.pure]
@@ -147,7 +161,21 @@ theorem drain_canonical (g : Globals) (p : SolverPosType) (fk0 : UInt16)
     (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p) :
     ∃ fk p', Loop.forIn Loop.mk fk0 drainBody (g, p) = .ok fk (g, p') ∧
       IsCanonicalPos g p' := by
-  obtain ⟨fk, p', hrun, hmerged', hbz⟩ := drainBody_run g hwf (rank p + 1) fk0 p (by omega) hmerged
+  obtain ⟨fk, p', hrun, hmerged', hbz, -⟩ :=
+    drainBody_run g hwf (fun _ _ => True) (by unfold DrainStep; intros; trivial)
+      (rank p + 1) fk0 p (by omega) hmerged trivial
   exact ⟨fk, p', hrun, IsCanonicalPos.of_merged_drained hmerged' hbz⟩
+
+/-- **The drain loop, carrying a predicate across each `SolverMoveAces` call.**  Same
+run as `drain_canonical`; the extra `P` is what lets the simulation ride along with the
+accumulating `forcedKings` mask (`Simulates.drain`). -/
+theorem drain_canonical_of (g : Globals) (p : SolverPosType) (fk0 : UInt16)
+    (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p)
+    (P : UInt16 → SolverPosType → Prop) (hstep : DrainStep g P) (hP : P fk0 p) :
+    ∃ fk p', Loop.forIn Loop.mk fk0 drainBody (g, p) = .ok fk (g, p') ∧
+      IsCanonicalPos g p' ∧ P fk p' := by
+  obtain ⟨fk, p', hrun, hmerged', hbz, hP'⟩ :=
+    drainBody_run g hwf P hstep (rank p + 1) fk0 p (by omega) hmerged hP
+  exact ⟨fk, p', hrun, IsCanonicalPos.of_merged_drained hmerged' hbz, hP'⟩
 
 end SolverSpec
