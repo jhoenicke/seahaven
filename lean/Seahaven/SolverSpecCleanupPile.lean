@@ -76,7 +76,9 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
        (hfstop : p.aces[(SUIT B).toUInt32.toNat]'hs4 = (B - 1 - UInt8.ofNat f) ∨
          ¬ isFreeCard g p (B - 1 - UInt8.ofNat f))
        (hak : ∀ t : Fin 4, SUIT (p.aces.get t) = t.val.toUInt8),
-       (∃ (hframe : ∀ j : Fin 10, j.val ≠ pile.toNat →
+       (∃ (hnk : ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m == 1 &&
+             VALUE (B + UInt8.ofNat m) == 13) = false)
+          (hframe : ∀ j : Fin 10, j.val ≠ pile.toNat →
              (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
                (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth.get j = p.pileDepth.get j)
           (hpc : PileClean g (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
@@ -608,7 +610,7 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
     | false =>
       simp only [hk, Bool.false_eq_true, reduceIte] at hrun
       left
-      exact ⟨fun j hj => preCleanupPile_pileDepth_eq_of_ne pile hpile B
+      exact ⟨rfl, fun j hj => preCleanupPile_pileDepth_eq_of_ne pile hpile B
           (pileHashes[pile.toNat]'hpile) hs4 p m f j hj,
         hpc,
         preCleanupPile_suitClean pile g p hpile hwf hnf B hs4 hd1 hd5 hidx hBdef.symm
@@ -863,7 +865,7 @@ theorem cleanupPile_base (pile : UInt32) (g : Globals) (p : SolverPosType)
     -- chained through `hnfp`) and `busyAces_lt16` need assembling here.
     have hp16 : p.busyAces < 16 := hnf.busyAces_lt16
     rcases hbranch with
-      ⟨hframe, hpc, hsuit, hhash, hused, hrun⟩ |
+      ⟨-, hframe, hpc, hsuit, hhash, hused, hrun⟩ |
       ⟨hd1', K, hKdef, hVK13, hsuiteq, hKeq, hframe, hpc, hsuit, hhash, hused, hrun⟩
     · refine ⟨0xffff, _, hrun, fun i => ?_, hsuit, hhash, hused,
         preCleanupPile_busyAces_lt16 pile hpile B (pileHashes[pile.toNat]'hpile) hs4
@@ -1069,7 +1071,7 @@ theorem cleanupPile_merged (pile : UInt32) (g : Globals) (p : SolverPosType)
     -- `hpmOtherP` (for the others); `freePiles_def` from the two helper
     -- lemmas above plus the branch's own frame/depth facts.
     rcases hbranch with
-      ⟨hframe, hpc, hsuit, hhash, hused, hrun⟩ |
+      ⟨-, hframe, hpc, hsuit, hhash, hused, hrun⟩ |
       ⟨hd1', K, hKdef, hVK13, hsuiteq, hKeq, hframe, hpc, hsuit, hhash, hused, hrun⟩
     · -- NON-KING sub-branch.
       have hbase' : SolverInvBase g (preCleanupPile pile hpile B

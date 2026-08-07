@@ -200,7 +200,7 @@ theorem solverCleanupPile_step (g : Globals) (p : SolverPosType) (k : Nat) (hk :
       -- took the empty branch.
       exact absurd (hfinEq ▸ hd0) hdk
     · rcases hbranch with
-        ⟨hframe, hpc, hsuit, hhash, hused, hrun⟩ |
+        ⟨-, hframe, hpc, hsuit, hhash, hused, hrun⟩ |
         ⟨hd1', K, hKdef, hVK13, hsuiteq, hKeq, hframe, hpc, hsuit, hhash, hused, hrun⟩
       · -- NON-KING sub-branch.
         have hframeNK : ∀ j : Fin 10, j.val ≠ k →

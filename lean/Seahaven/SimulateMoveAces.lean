@@ -1037,7 +1037,8 @@ theorem StateMatchesSolverPos.tailPlaysComplete {g : Globals} {s : State} {p : S
       (∀ c : Card, countState v c = 1) ∧
       (optRankToNat (v.foundations su) = 13 →
         ∀ j : Fin 10, v.tableau j = s.tableau j ∨
-          (v.tableau j = [] ∧ (p.pileDepth.get j).toInt.toNat = 0)) := by
+          (v.tableau j = [] ∧ (p.pileDepth.get j).toInt.toNat = 0 ∧
+            ∀ e ∈ (s.tableau j).getLast?, suitToNat e.suit = suitToNat su)) := by
   obtain ⟨v, hall, hdrop, hcount, hchanged⟩ :=
     exists_playsAll_pending hwf hb h su found s (fun q => ⟨0, by simp⟩) h.cards_count hfree
   refine ⟨v, hall, hcount, fun hdone j => ?_⟩
@@ -1062,7 +1063,6 @@ theorem StateMatchesSolverPos.tailPlaysComplete {g : Globals} {s : State} {p : S
         have hd0 : (p.pileDepth.get j).toInt.toNat = 0 := by
           show (p.pileDepth.get j).toNat = 0
           omega
-        refine Or.inr ⟨?_, hd0⟩
         -- the column is one suit's run, and `d` fixes that suit
         have hne : s.tableau j ≠ [] := by
           intro hnil; rw [hnil] at hdmem; cases hdmem
@@ -1099,13 +1099,17 @@ theorem StateMatchesSolverPos.tailPlaysComplete {g : Globals} {s : State} {p : S
         -- so they are all of suit `su`, hence all already played
         have hesu : suitToNat e.suit = suitToNat su := by
           rw [← hcolsuit d hdmem, hdsu]
-        refine column_nil_of_all_played hcount j (fun c hc => ?_)
-        obtain ⟨kk, hkk⟩ := hdrop j
-        have hcs : c ∈ s.tableau j := by
-          rw [hkk] at hc
-          exact List.mem_of_mem_drop hc
-        have hcsu : c.suit = su := suitToNat_inj (by rw [hcolsuit c hcs, hesu])
-        unfold countFoundation
-        rw [hcsu, if_neg (by
-          have := rankBounded c.rank
-          omega)]
+        refine Or.inr ⟨?_, hd0, fun e' he' => ?_⟩
+        · refine column_nil_of_all_played hcount j (fun c hc => ?_)
+          obtain ⟨kk, hkk⟩ := hdrop j
+          have hcs : c ∈ s.tableau j := by
+            rw [hkk] at hc
+            exact List.mem_of_mem_drop hc
+          have hcsu : c.suit = su := suitToNat_inj (by rw [hcolsuit c hcs, hesu])
+          unfold countFoundation
+          rw [hcsu, if_neg (by
+            have := rankBounded c.rank
+            omega)]
+        · -- the emptied column carried exactly `su`
+          have hee : e' = e := Option.some.inj ((Option.mem_def.1 he').symm.trans he)
+          rw [hee]; exact hesu
