@@ -45,6 +45,13 @@ def moveDestPre (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
   else
     { p with usedSpace := p.usedSpace + (p.pileFlute[pile.toNat]'hpile) }
 
+/-- The destination write touches `pileFlute`/`kings`/`usedSpace` only — never a depth.
+    (The card is not off its source pile yet; that is `removeFlutePre`'s decrement.) -/
+theorem moveDestPre_pileDepth (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
+    (p : SolverPosType) : (moveDestPre pile toPile hpile p).pileDepth = p.pileDepth := by
+  unfold moveDestPre
+  split <;> [skip; split] <;> rfl
+
 /-- The `Int32`-cast boundary index the solver computes is the plain `depth - 1`
     (local twin of `GetDestination.depth_index`, which this file deliberately
     does not import). -/
@@ -1814,7 +1821,12 @@ theorem moveDest_run_eq (pile : UInt32) (toPile : UInt8) (g : Globals) (p : Solv
     `SolverRemoveFlute`), and `drain_canonical` (runs the trailing
     `while busyAces ≠ 0` drain to completion, which is exactly what recovers
     full canonicity — `SolverInvMerged` alone is re-established already after
-    `removeFlute_merged`). -/
+    `removeFlute_merged`).
+
+    It also reports **progress**: `DepthSum p' < DepthSum p`.  Every phase is
+    depth-monotone (`removeFlute_depth_le`, `drain_canonical`), and the source pile
+    loses its whole flute, so the total pile depth strictly drops — the well-founded
+    measure the search's termination (and its freedom from cycles) rests on. -/
 theorem move_merged (g : Globals) (p : SolverPosType) (pile : UInt32) (toPile : UInt8)
     (hwf : WellFormedLayout g) (hcanon : IsCanonicalPos g p)
     (hvalid : MoveValid g p pile toPile)
@@ -1825,7 +1837,7 @@ theorem move_merged (g : Globals) (p : SolverPosType) (pile : UInt32) (toPile : 
       ⟨(p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1, hidx5⟩ = B)
     (hdv : DestValid g p B toPile) :
     ∃ fk p', EStateM.run (_root_.SolverMove pile toPile) (g, p) = .ok fk (g, p') ∧
-      IsCanonicalPos g p' := by
+      IsCanonicalPos g p' ∧ DepthSum p' < DepthSum p := by
   obtain ⟨_, htoPile14, hd0⟩ := hvalid
   have hd1 : 0 < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat := by
     have heq : (⟨pile.toNat % 10, by omega⟩ : Fin 10) = ⟨pile.toNat, hpile⟩ :=
@@ -1835,8 +1847,31 @@ theorem move_merged (g : Globals) (p : SolverPosType) (pile : UInt32) (toPile : 
   have hready := moveDest_cleanupReady g p pile toPile hpile hwf hmerged hd1 B hidx5 hBdef hdv
   obtain ⟨fk1, p1, hrun1, hmerged1, haces1, hbusyMono1⟩ :=
     removeFlute_merged pile g (moveDestPre pile toPile hpile p) hpile hwf hready
-  obtain ⟨fk2, p', hrun2, hcanon'⟩ := drain_canonical g p1 fk1 hwf hmerged1
-  refine ⟨fk2, p', ?_, hcanon'⟩
+  obtain ⟨fk2, p', hrun2, hcanon', hdrainLe⟩ := drain_canonical g p1 fk1 hwf hmerged1
+  -- progress: `moveDestPre` leaves the depths alone, `SolverRemoveFlute` takes exactly
+  -- one card off `pile` (and deepens nothing), the drain deepens nothing.
+  have hqd := moveDestPre_pileDepth pile toPile hpile p
+  obtain ⟨hnfq, -, -⟩ := hready
+  obtain ⟨fk3, p3, hrun3, hle3, hlt3⟩ :=
+    removeFlute_depth_le pile g (moveDestPre pile toPile hpile p) hpile hwf
+      (by rw [show (moveDestPre pile toPile hpile p).pileDepth.get ⟨pile.toNat, hpile⟩
+            = p.pileDepth.get ⟨pile.toNat, hpile⟩ from by rw [hqd]]; omega) hnfq
+  -- both runs of `SolverRemoveFlute` are the same run, so `p3 = p1`
+  have hrun3' : EStateM.run (_root_.SolverRemoveFlute pile)
+      (g, moveDestPre pile toPile hpile p) = .ok fk1 (g, p1) := hrun1
+  injection hrun3.symm.trans hrun3' with _hfk h2
+  injection h2 with _hg hp3
+  rw [hp3] at hle3 hlt3
+  have hdepthLt : DepthSum p' < DepthSum p := by
+    refine DepthLe.sum_lt (DepthLe.trans' ?_ (DepthLe.trans' hle3 hdrainLe))
+      ⟨pile.toNat, hpile⟩ ?_
+    · intro i
+      rw [hqd]
+    · have hpile' := hdrainLe ⟨pile.toNat, hpile⟩
+      rw [show (moveDestPre pile toPile hpile p).pileDepth.get ⟨pile.toNat, hpile⟩
+        = p.pileDepth.get ⟨pile.toNat, hpile⟩ from by rw [hqd]] at hlt3
+      omega
+  refine ⟨fk2, p', ?_, hcanon', hdepthLt⟩
   rw [moveDest_run_eq pile toPile g p hpile htoPile14]
   show (_root_.SolverRemoveFlute pile >>= fun fk =>
       Loop.forIn Loop.mk fk drainBody >>= fun r => pure r)

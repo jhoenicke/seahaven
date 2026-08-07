@@ -56,14 +56,14 @@ strictly longer than `x0`, so no unpiling towards `T` is affordable, and unpilin
 `x0` itself makes no progress.  Against `M` that cannot happen, because `M` holds
 the *longest* runs: a witness inside `M` bounds every candidate outside it.
 
-## What is left
+## The physical steps
 
-Two physical steps, `KingUnpileReachable` and `KingPileReachable` — moving one
-suit's freed king run from an empty column into the cells and back.  Both are
-`parkMoves`/`unparkMoves` work (`FluteMoves`), and they are exactly what
-`SubsetSound` needs too (its downward closure is repeated *piling*, the step with
-no side condition at all).  Given those, `component_configReachable` below is the
-lemma `ComponentSound` is waiting for.
+The two card-level facts are isolated as `KingUnpileReachable` and
+`KingPileReachable` — moving one suit's freed king run from an empty column into
+the cells and back — and **proved in `KingMoveSim`**, which also assembles
+`ComponentSound` from them (`componentSound`).  `SubsetSound` needs only the
+piling half: its downward closure moves *more* kings onto columns, the direction
+with no cell-space side condition at all.
 -/
 
 open Finset

@@ -1,8 +1,14 @@
+import Seahaven.EStateMOrder
+
 inductive Error
 | ArrayOutOfBounds
 | InvalidPointer
 | Assertion
 deriving Repr
+
+-- Witness for `EStateMOrder`'s flat-order bottom; needed at `solverRecCheckSolvable`'s
+-- `partial_fixpoint` definition site below (and by every `Loop.forIn` unfolding).
+instance : Nonempty Error := ⟨.Assertion⟩
 
 def Array.getE {α m} [Monad m] [MonadExcept Error m] (a : Array α) (i : UInt32) : m α := do
   match a[i.toNat]? with
@@ -138,6 +144,10 @@ structure Globals where
   hit : UInt32
   miss : UInt32
 deriving Repr
+
+-- Witnesses for `EStateMOrder`'s flat-order bottom (see `Nonempty Error` above).
+deriving instance Inhabited for SolverPosType
+deriving instance Inhabited for Globals
 
 def pileHashes : Vector UInt32 10 := ⟨#[
   1, 6, 36, 216, 1296, 7776, 46656, 279936, 1679616, 10077696
@@ -423,7 +433,14 @@ def computeComponentKingBits (game : SolverPosType) : EStateM Error Globals UInt
   else
     return 0
 
-partial def solverRecCheckSolvable (game : SolverPosType) : EStateM Error Globals UInt16 := do
+-- Defined by `partial_fixpoint` rather than `partial def`: same code, same compiled
+-- behaviour, but it yields the one-step unfolding equation `solverRecCheckSolvable.eq_def`
+-- (a `partial def` has none).  Reasoning then follows the `busyAces` drain loop
+-- (`SolverSpecDrain.drainBody_run`): induct on a `Nat` bounding the measure — here
+-- `DepthSum game`, which `move_merged` shows strictly drops per child — and unfold one
+-- level per step.  The measure never has to be justified at this definition site, so the
+-- code below is a verbatim transcription of `solver.c`.
+def solverRecCheckSolvable (game : SolverPosType) : EStateM Error Globals UInt16 := do
   if game.hash == 0 then return 1
   let closureInfo ← closureInfos.getE game.freePiles.toInt32.toUInt32
   let cachedValue ← getSlot game.hash
@@ -456,6 +473,7 @@ partial def solverRecCheckSolvable (game : SolverPosType) : EStateM Error Global
       | .error e _ => throw e
   setSlot game.hash solvable
   return solvable
+partial_fixpoint
 
 def SolverConvertFromPilesKings (pilesking : Vector UInt8 11) :
     EStateM Error (Globals × SolverPosType) UInt16 := do

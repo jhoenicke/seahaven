@@ -511,3 +511,139 @@ theorem StateMatchesSolverPos.frameFillCol {g : Globals} {s t : State} {p : Solv
         omega
     · rw [htq q hqj] at hc ⊢; exact h.king_pile q hq c hc
   aces_match su' := by rw [htf]; exact h.aces_match su'
+
+/-! ## A spare column to pile onto -/
+
+/-- **An unassigned empty column, and it is physically empty.**  Fewer suits are
+piled than the position has empty columns, so the assignment misses one; and a
+missed empty column carries nothing — whatever its deepest card's suit were, that
+suit either owns a *different* column (`empty_pile_unique`, so this one would be
+assigned after all) or owns none at all (`no_pile`). -/
+private theorem exists_spare_col {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
+    (hm : SolverInvMerged g p) (hk : StateMatchesKingConfig g s p k)
+    {assign : Suit → Option (Fin 10)}
+    (hassOwn : ∀ su i, assign su = some i → OwnsPile s p su i)
+    (hiff : ∀ su, (assign su).isSome ↔ ¬ CfgBitSet k su)
+    (hcard : (piledSet k).card < p.freePiles.toNat) :
+    ∃ j : Fin 10, (p.pileDepth.get j).toInt.toNat = 0 ∧ s.tableau j = [] ∧
+      ∀ su' : Suit, assign su' ≠ some j := by
+  have hEcard : (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card
+      = p.freePiles.toNat := card_empty_piles_eq_freePiles hm
+  have hImgcard : ((piledSet k).image (fun su => (assign su).getD 0)).card ≤ (piledSet k).card :=
+    Finset.card_image_le
+  have hnsub : ¬ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0))
+      ⊆ (piledSet k).image (fun su => (assign su).getD 0) := by
+    intro hsub
+    have := Finset.card_le_card hsub
+    omega
+  obtain ⟨j, hjE, hjImg⟩ := Finset.not_subset.1 hnsub
+  have hjd : (p.pileDepth.get j).toInt.toNat = 0 := by
+    rw [(Finset.mem_filter.1 hjE).2]; rfl
+  have hjassign : ∀ su' : Suit, assign su' ≠ some j := by
+    intro su' hc
+    exact hjImg (Finset.mem_image.2
+      ⟨su', mem_piledSet.2 ((hiff su').1 (by rw [hc]; rfl)), by rw [hc]; rfl⟩)
+  refine ⟨j, hjd, ?_, hjassign⟩
+  by_contra hne
+  obtain ⟨d, hd⟩ : ∃ d, (s.tableau j).getLast? = some d := by
+    cases hlast : (s.tableau j).getLast? with
+    | none => exact absurd (List.getLast?_eq_none_iff.1 hlast) hne
+    | some d => exact ⟨d, rfl⟩
+  by_cases hbit : CfgBitSet k d.suit
+  · exact (hk.no_pile d.suit hbit j hjd d (Option.mem_def.2 hd)) rfl
+  · obtain ⟨i', hi'⟩ := Option.isSome_iff_exists.1 ((hiff d.suit).2 hbit)
+    obtain ⟨hd0', hphys'⟩ := hassOwn d.suit i' hi'
+    rcases hphys' with ⟨e, he, hesuit, -⟩ | ⟨hnil', h13⟩
+    · exact hjassign d.suit ((hk.toMatches.empty_pile_unique hd0' hjd
+        (Option.mem_def.1 he) (Option.mem_def.2 hd) (by rw [hesuit])) ▸ hi')
+    · have hc := hk.toMatches.king_pile j hjd d (Option.mem_def.2 hd)
+      have hpos : 0 < (s.tableau j).length := List.length_pos_iff_ne_nil.2 hne
+      omega
+
+/-! ## Piling, assembled -/
+
+/-- **The pile step.**  The run is in the cells (`run_card_in_cell`), a spare empty
+column is available (`exists_spare_col`), and `reach_pile_run` drops the cards on
+one at a time.  No cell arithmetic: piling only frees cells. -/
+theorem kingPileReachable : KingPileReachable := by
+  intro g p s k su hwf hm hk hsu hcard
+  have hb := hm.toSolverInvBase
+  obtain ⟨assign, hassOwn, hinj, hiff⟩ := hk.realizes
+  obtain ⟨j, hjd, hjnil, hjassign⟩ := exists_spare_col hm hk hassOwn hiff hcard
+  have hV13 : (VALUE (p.kings.get (finOfSuit su))).toNat ≤ 13 :=
+    (hb.aces_kings_valid (finOfSuit su)).2.2.2.1
+  set V := (VALUE (p.kings.get (finOfSuit su))).toNat with hVdef
+  -- drop the run, card by card, onto the spare column
+  obtain ⟨t, hreach, htj, htq, htf, -⟩ :=
+    reach_pile_run su V (13 - V) s j (by omega)
+      (by rw [hjnil, show V + 1 + (13 - V) = 14 from by omega, kingRun_of_14])
+      (fun m hm1 hm2 => run_card_in_cell hwf hb hk hsu (by omega) (by omega))
+  have hmt : StateMatchesSolverPos g t p :=
+    hk.toMatches.frameFillCol hjd hVdef.symm hV13 hreach htj htq htf
+  -- `su` now owns `j`; every other suit is untouched
+  have hownj : OwnsPile t p su j := by
+    refine ⟨hjd, ?_⟩
+    by_cases hV : V = 13
+    · exact Or.inr ⟨by rw [htj, show V + 1 = 14 from by omega, kingRun_of_14], by
+        rw [← hVdef]; omega⟩
+    · exact Or.inl ⟨cardOf su 13, by rw [htj]; exact kingRun_getLast? su (by omega), rfl, rfl⟩
+  refine ⟨t, hreach, hmt, ⟨fun su' => if su' = su then some j else assign su', ?_, ?_, ?_⟩, ?_⟩
+  · intro su' i' hi'
+    by_cases hc : su' = su
+    · subst hc
+      simp only [reduceIte, Option.some.injEq] at hi'
+      rw [← hi']
+      exact hownj
+    · simp only [hc, if_false] at hi'
+      have hine : i' ≠ j := fun hcc => hjassign su' (hcc ▸ hi')
+      exact (hassOwn su' i' hi').frame rfl rfl (htq i' hine)
+  · intro su' su'' i' h1 h2
+    by_cases hc1 : su' = su
+    · by_cases hc2 : su'' = su
+      · rw [hc1, hc2]
+      · simp only [hc1, reduceIte, Option.some.injEq] at h1
+        simp only [hc2, if_false] at h2
+        exact absurd (h1 ▸ h2) (hjassign su'')
+    · by_cases hc2 : su'' = su
+      · simp only [hc2, reduceIte, Option.some.injEq] at h2
+        simp only [hc1, if_false] at h1
+        exact absurd (h2 ▸ h1) (hjassign su')
+      · simp only [hc1, if_false] at h1
+        simp only [hc2, if_false] at h2
+        exact hinj su' su'' i' h1 h2
+  · intro su'
+    by_cases hc : su' = su
+    · subst hc
+      simp only [reduceIte, Option.isSome_some, true_iff]
+      intro hcon
+      exact ((cfgBitSet_clearCfgBit k su' su').1 hcon).1 rfl
+    · simp only [hc, if_false, hiff su']
+      constructor
+      · exact fun h hb' => h ((cfgBitSet_clearCfgBit k su su').1 hb').2
+      · exact fun h hb' => h ((cfgBitSet_clearCfgBit k su su').2 ⟨hc, hb'⟩)
+  · intro su' hbit
+    obtain ⟨hne, hbit'⟩ := (cfgBitSet_clearCfgBit k su su').1 hbit
+    refine (hk.no_pile su' hbit').frame (fun i hi => ?_)
+    by_cases hij : i = j
+    · subst hij
+      refine Or.inr (fun d hd => ?_)
+      by_cases hV : V = 13
+      · rw [htj, show V + 1 = 14 from by omega, kingRun_of_14] at hd
+        simp at hd
+      · rw [htj, kingRun_getLast? su (by omega), Option.mem_def, Option.some.injEq] at hd
+        rw [← hd]
+        exact fun hc => hne hc.symm
+    · exact Or.inl ⟨hi, htq i hij⟩
+
+/-! ## The obligation, discharged -/
+
+/-- **`ComponentSound`.**  `KingReshuffle`'s reduction, fed with the two physical
+steps.  This is the second of `SoundnessSkeleton`'s named obligations to be
+proved (after `KingSpacesSpec`), and it is what licenses
+`movable'' := movable' ||| component` in `solverRecCheckSolvable`.
+
+`SubsetSound` — the other consumer of these two steps — needs only
+`kingPileReachable`: its `subsetTable` closure moves *more* kings onto columns,
+which is the direction with no cell-space side condition. -/
+theorem componentSound : ComponentSound :=
+  componentSound_of kingUnpileReachable kingPileReachable

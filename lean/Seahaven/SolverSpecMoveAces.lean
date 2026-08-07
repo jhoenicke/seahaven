@@ -1922,7 +1922,8 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
       (∀ s : Fin 4, s.val ≠ ctz p.busyAces → p'.aces.get s = p.aces.get s) ∧
       (∀ s : Fin 4, s.val = ctz p.busyAces →
         (VALUE (p'.aces.get s)).toNat > (VALUE (p.aces.get s)).toNat ∨
-        (p'.aces = p.aces ∧ p'.busyAces.toNat < p.busyAces.toNat)) := by
+        (p'.aces = p.aces ∧ p'.busyAces.toNat < p.busyAces.toNat)) ∧
+      DepthLe p p' := by
   -- `suit := ctz p.busyAces` must be `< 4` for the real function to even
   -- typecheck through (`aces`/`kings` have only 4 entries) — now immediate
   -- from `SolverInvBase.busyAces_lt16` (bits `4..7` are always clear) plus
@@ -1986,10 +1987,43 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
     ⟨hmerged, by rw [hfound0def]; decide, by rw [hfound0def]; decide, hsuitcard0, hval1_0,
       hval14_0, hcard0eqInv, hfoundfree0, hbusybit⟩
   obtain ⟨cardF, forcedKingsF, foundF, gameF, hloopeq, hloopinv, hloopexit, hloopframe,
-      hloopdich, -⟩ :=
-    moveAcesLoop_run g hwf suit suitU32 hsuitU32 (fun _ _ => True)
-      (by unfold MoveAcesSyncStep; intros; trivial)
-      15 card0 0xffff found0 p (by have := hval14_0; omega) hinv0 trivial
+      hloopdich, hloopDepth⟩ :=
+    moveAcesLoop_run g hwf suit suitU32 hsuitU32 (fun _ game => DepthLe p game)
+      (by
+        -- the walk's one position-changing step is a `SolverRemoveFlute` call, and those
+        -- only ever shrink depths (`removeFlute_depth_le`)
+        intro card found _fkAcc fk game gameA q p'' pile' hpile' _hinv hdpos _hbnd _hflute
+          hq hqds hqdne _hqfs _hqfne _hqk _hqas _hqane hready hrunRF hP
+        obtain ⟨hnfq, -, -⟩ := hready
+        subst hq
+        obtain ⟨fk2, p2, hrun2, hle2⟩ :=
+          cleanupPile_depth_le pile' g (removeFlutePre pile' hpile' gameA) hpile' hwf hnfq
+        have hrunRF' : EStateM.run (_root_.SolverRemoveFlute pile') (g, gameA)
+            = .ok fk (g, p'') := hrunRF
+        rw [removeFlute_eq pile' g gameA hpile'] at hrunRF'
+        injection hrun2.symm.trans hrunRF' with h1 h2
+        injection h2 with _hg hp2
+        subst hp2
+        refine hP.trans' (DepthLe.trans' ?_ hle2)
+        -- the cleanup's entry point is one card shallower at `pile'`, unchanged elsewhere
+        intro i
+        by_cases hi : i.val = pile'.toNat
+        · have hii : i = (⟨pile'.toNat, hpile'⟩ : Fin 10) := Fin.ext hi
+          subst hii
+          show ((fluteNorm pile' hpile'
+            (removeFlutePre pile' hpile' gameA)).pileDepth.get _).toNat ≤ _
+          rw [hqds]
+          have hsub : (game.pileDepth.get (⟨pile'.toNat, hpile'⟩ : Fin 10) - 1).toNat
+              = (game.pileDepth.get (⟨pile'.toNat, hpile'⟩ : Fin 10)).toNat - 1 := by
+            refine UInt8.toNat_sub_of_le _ _ ?_
+            rw [UInt8.le_iff_toNat_le]
+            simp only [show ((1 : UInt8).toNat = 1) from rfl]
+            omega
+          omega
+        · show ((fluteNorm pile' hpile'
+            (removeFlutePre pile' hpile' gameA)).pileDepth.get i).toNat ≤ _
+          rw [hqdne i hi])
+      15 card0 0xffff found0 p (by have := hval14_0; omega) hinv0 (DepthLe.rfl' p)
   obtain ⟨hmergedF, hf0F, hf13F, hsuitcardF, hval1F, hval14F, hcardeqF, hfoundfreeF, hbitF⟩ :=
     hloopinv
   have hloopinv' : MoveAcesInv g suit cardF foundF gameF :=
@@ -2567,7 +2601,7 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
     have hVC13 : (VALUE card2).toNat = 13 := by
       have h := hVC; rw [beq_iff_eq] at h
       rw [h]; decide
-    refine ⟨forcedKingsF, _, rfl, ?_, ?_, ?_⟩
+    refine ⟨forcedKingsF, _, rfl, ?_, ?_, ?_, hloopDepth⟩
     set kingsFinal : Vector UInt8 4 :=
       gameF.kings.set suit.val card2 suit.isLt with hkingsFinalDef
     have hkingsFinalEq : kingsFinal = gameF.kings.set suitU32.toNat card2 hidx4 := by
@@ -2626,7 +2660,7 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
       exact hDichotomy
   · simp only [hVC, Bool.false_eq_true, reduceIte, EStateM.bind, EStateM.set, EStateM.pure,
       ← hcard2def]
-    refine ⟨forcedKingsF, _, rfl, ?_, ?_, ?_⟩
+    refine ⟨forcedKingsF, _, rfl, ?_, ?_, ?_, hloopDepth⟩
     have hVCne13 : (VALUE card2).toNat ≠ 13 := by
       intro h13
       apply hVC

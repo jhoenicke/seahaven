@@ -27,11 +27,12 @@ over the pile list.
 
 ## Why the body is duplicated
 
-`solverRecCheckSolvable` is a `partial def`, so it has no equation lemma and its
-body cannot be unfolded in a proof.  `recBody` below is the explicit twin of the
-loop body, with the recursive call abstracted as a parameter `rec` — the same
-device `componentExplicit`/`drainBody` use elsewhere, and the shape the eventual
-`partial_fixpoint` version instantiates with itself.
+`recBody` below is the explicit twin of the loop body, with the recursive call
+abstracted as a parameter `rec` — the same device `componentExplicit`/`drainBody`
+use elsewhere.  `solverRecCheckSolvable` is defined by `partial_fixpoint`, so it
+*does* have an unfolding equation, and `recCheck_eq` below identifies its pile
+loop with `recBody solverRecCheckSolvable …`; the twin is what lets the loop
+lemmas be stated and proved before that identification.
 -/
 
 open Lean Lean.Order
@@ -304,11 +305,10 @@ theorem recLoop_sound_zero (hSS : SubsetSound) (hMS : MoveSimulated)
 
 /-! ## The loop body of `solverRecCheckSolvable`
 
-`solverRecCheckSolvable` is a `partial def`, so it has no equation lemma and its
-body cannot be unfolded in a proof.  `recBody` is the explicit twin of
-`Solver.lean:436-456`, with the recursive call abstracted as `rec` — the device
-`componentExplicit`/`drainBody` use elsewhere, and the shape a `partial_fixpoint`
-version would instantiate with itself. -/
+`recBody` is the explicit twin of the pile loop's body (`Solver.lean:449-473`),
+with the recursive call abstracted as `rec` — the device
+`componentExplicit`/`drainBody` use elsewhere.  `recCheck_eq` below instantiates
+it with `solverRecCheckSolvable` itself. -/
 
 def recBody (rec : SolverPosType → EStateM Error Globals UInt16) (game : SolverPosType)
     (ci : ClosureInfo) (kingInfo : KingInfo) (component allkings : UInt16) :
@@ -337,6 +337,37 @@ def recBody (rec : SolverPosType → EStateM Error Globals UInt16) (game : Solve
       | .error e _ => throw e
     else
       return .yield solvable
+
+/-- **The real function, one level unfolded**, with its pile loop presented as
+`forIn … (recBody solverRecCheckSolvable …)` so that `recLoop_body_sound` applies
+to it.
+
+This is what `partial_fixpoint` buys: a `partial def` has no unfolding equation at
+all, so no statement about `solverRecCheckSolvable` was provable.  With the
+equation in hand, the recursion is handled exactly as the `busyAces` drain loop is
+(`SolverSpec.drainBody_run`): induct on a `Nat` bounding the measure — here
+`DepthSum game`, which `move_merged` shows strictly drops at every child — and
+rewrite with this lemma once per level.  The measure therefore never appears at
+the definition site, which is why `Solver.lean` can stay a verbatim transcription.
+
+`conv_lhs` is needed because a bare `rw` would also unfold the copy of
+`solverRecCheckSolvable` on the right-hand side. -/
+theorem recCheck_eq (game : SolverPosType) :
+    solverRecCheckSolvable game = (do
+      if game.hash == 0 then return 1
+      let closureInfo ← closureInfos.getE game.freePiles.toInt32.toUInt32
+      let cachedValue ← getSlot game.hash
+      if cachedValue != 0xff then
+        return cachedValue.toUInt16
+      let kingInfo ← computeKingSpaces closureInfo.shiftValue closureInfo.numBits game
+      let allkings := (← kingInfo.possibleKings.getE 0).toUInt16
+      let component := (← computeComponentKingBits game).toUInt16
+      let solvable ← forIn (List.range 10) (0 : UInt16)
+        (recBody solverRecCheckSolvable game closureInfo kingInfo component allkings)
+      setSlot game.hash solvable
+      return solvable) := by
+  conv_lhs => rw [solverRecCheckSolvable.eq_def]
+  rfl
 
 /-- **The one syntactic obligation left**: reading the body off the code.  Every
 branch of `recBody` either returns the accumulator unchanged or ORs in the

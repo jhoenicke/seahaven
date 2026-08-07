@@ -12,6 +12,10 @@ import Seahaven.LayoutProofs
 import Seahaven.MatchesPos
 import Seahaven.SolvableBits
 import Seahaven.SoundnessSkeleton
+import Seahaven.RecStepSound
+import Seahaven.KingReshuffle
+import Seahaven.KingMoveSim
+import Seahaven.RecLoopSound
 import Seahaven.SolverInvariant
 import Seahaven.GetDestination
 import Seahaven.SolverModel

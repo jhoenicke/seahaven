@@ -337,10 +337,19 @@ def SubsetSound : Prop :=
 
 /-- **(2) Component soundness.**  `computeComponentKingBits` returns a set of
 mutually reachable configurations, which is what justifies
-`movable'' := movable' ||| component` (`Solver.lean:398`) adding bits. -/
+`movable'' := movable' ||| component` (`Solver.lean:398`) adding bits.
+
+The invariants are hypotheses because the reachability is realized by physically
+moving king runs between the cells and empty columns: the cell budget the
+component is computed from (`usedSpace`, `kings`) has to describe `s`, and the
+count of empty columns has to be `freePiles`.  Both are available at the call
+site (`WellFormedLayout` globally, `IsCanonicalPos` for the position the
+recursion is at).  No separate `StateMatchesSolverPos` clause is needed —
+`KingConfigReachable` already supplies a matching state.  (Proved:
+`componentSound_of` in `KingReshuffle`, from the two physical steps.) -/
 def ComponentSound : Prop :=
   ∀ (g : Globals) (p : SolverPosType) (s : State) (comp : UInt8) (i j : Nat),
-    StateMatchesSolverPos g s p →
+    WellFormedLayout g → SolverInvMerged g p →
     EStateM.run (computeComponentKingBits p) g = .ok comp g →
     i < (closureInfoOf p).numBits.toNat → j < (closureInfoOf p).numBits.toNat →
     BitSet comp.toUInt16 ⟨min i 15, by omega⟩ → BitSet comp.toUInt16 ⟨min j 15, by omega⟩ →

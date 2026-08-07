@@ -138,7 +138,7 @@ private theorem drainBody_run (g : Globals) (hwf : WellFormedLayout g)
       rw [hunf]
       simp only [drainBody, bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get, hbz,
         Bool.false_eq_true, bne_self_eq_false, reduceIte, pure, EStateM.pure]
-    · obtain ⟨fk, game1, hrun1, hmerged1, hframe1, hdich1⟩ :=
+    · obtain ⟨fk, game1, hrun1, hmerged1, hframe1, hdich1, -⟩ :=
         moveAces_merged g game hwf hmerged hbz
       have hrun1' : _root_.SolverMoveAces (g, game) = .ok fk (g, game1) := hrun1
       have hdec : rank game1 < rank game := rank_decrease g game game1 hmerged hmerged1 hbz
@@ -160,11 +160,20 @@ private theorem drainBody_run (g : Globals) (hwf : WellFormedLayout g)
 theorem drain_canonical (g : Globals) (p : SolverPosType) (fk0 : UInt16)
     (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p) :
     ∃ fk p', Loop.forIn Loop.mk fk0 drainBody (g, p) = .ok fk (g, p') ∧
-      IsCanonicalPos g p' := by
-  obtain ⟨fk, p', hrun, hmerged', hbz, -⟩ :=
-    drainBody_run g hwf (fun _ _ => True) (by unfold DrainStep; intros; trivial)
-      (rank p + 1) fk0 p (by omega) hmerged trivial
-  exact ⟨fk, p', hrun, IsCanonicalPos.of_merged_drained hmerged' hbz⟩
+      IsCanonicalPos g p' ∧ DepthLe p p' := by
+  obtain ⟨fk, p', hrun, hmerged', hbz, hle⟩ :=
+    drainBody_run g hwf (fun _ game => DepthLe p game)
+      (by
+        -- each iteration is one `SolverMoveAces`, and those never deepen a pile
+        intro _fkAcc fk game game1 hm hbz hrunMA hP
+        obtain ⟨fk2, p2, hrun2, -, -, -, hle2⟩ := moveAces_merged g game hwf hm hbz
+        have hrunMA' : EStateM.run _root_.SolverMoveAces (g, game) = .ok fk (g, game1) := hrunMA
+        injection hrun2.symm.trans hrunMA' with h1 h2
+        injection h2 with _hg hp2
+        subst hp2
+        exact hP.trans' hle2)
+      (rank p + 1) fk0 p (by omega) hmerged (DepthLe.rfl' p)
+  exact ⟨fk, p', hrun, IsCanonicalPos.of_merged_drained hmerged' hbz, hle⟩
 
 /-- **The drain loop, carrying a predicate across each `SolverMoveAces` call.**  Same
 run as `drain_canonical`; the extra `P` is what lets the simulation ride along with the
