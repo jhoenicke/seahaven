@@ -1009,6 +1009,99 @@ total, since the vacate moves nothing. -/
 theorem rank_king_of_13 {r : Rank} (h : rankToNat r = 13) : r = Rank.king := by
   cases r <;> simp_all [rankToNat]
 
+/-- **The lone-king branch owns its suit outright.**  When cleanup's merge leaves a
+single dealt card on `pile` and that card is a king (exactly the branch's own test),
+that king is *physically* the deepest card of `pile`'s column — `pos2card[pile][0]` by
+`merge_chain`, and `PileMatches`' bottom-`n` clause puts it at the bottom of the column.
+Any *other* solver-empty pile's deepest card is its own suit's king
+(`empty_pile_king`), so it cannot carry `B`'s suit: that would be one card sitting in
+two columns, and every card occurs exactly once.
+
+This is why `cleanupRunResult_sim` need not take the side condition as a hypothesis.
+It would be the wrong thing to assume in general — a suit may perfectly well have its
+top cards freed onto an empty column while a lower card of it is still some pile's
+boundary — and it is only ever *used* in the lone-king branch, where it is free. -/
+theorem StateMatchesSolverPos.noshare_of_king {g : Globals} {s : State} {p : SolverPosType}
+    (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
+    {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {m : Nat}
+    (hidx : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat - 1 < 5)
+    (hB : (g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨_, hidx⟩ = B)
+    (hm : m + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat)
+    (hchain : ∀ j, (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat - m ≤ j →
+      j < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat →
+      ∀ (hj1 : j - 1 < 5) (hj : j < 5),
+      (g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨j - 1, hj1⟩
+        = (g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨j, hj⟩ + 1)
+    (hkingval : (VALUE B).toNat + m = 13) :
+    ∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ →
+      (p.pileDepth.get i).toInt.toNat = 0 →
+      ∀ d ∈ (s.tableau i).getLast?, suitToNat d.suit ≠ (SUIT B).toNat := by
+  set a : Fin 10 := ⟨pile.toNat, hpile⟩ with hadef
+  have hd1 : 1 ≤ (p.pileDepth.get a).toInt.toNat := by omega
+  have hBreal : IsRealCard B := by rw [← hB]; exact hwf.pos2card_real a _
+  have hzero5 : (0 : Nat) < 5 := by omega
+  have hmof : (UInt8.ofNat m).toNat = m := by rw [UInt8.toNat_ofNat']; omega
+  -- the pile's single remaining dealt card is the suit's king (as in `cleanupPileSimKing`)
+  have hkingcode : (g.pos2card.get a).get ⟨0, hzero5⟩ = B + UInt8.ofNat m := by
+    have h5' : (p.pileDepth.get a).toInt.toNat ≤ 5 := by
+      have := hb.pileDepth_bound a
+      simp only [UInt8.toInt_toNat]
+      exact this
+    obtain ⟨hcs, hcv⟩ := merge_chain (a := a) (n₀ := (p.pileDepth.get a).toInt.toNat)
+      (n₁ := (p.pileDepth.get a).toInt.toNat - m) hwf h5' (by omega) (by omega)
+      hchain m (by omega) (by omega) (by omega)
+    have hi1 : (⟨(p.pileDepth.get a).toInt.toNat - m - 1 + m, by omega⟩ : Fin 5)
+        = ⟨(p.pileDepth.get a).toInt.toNat - 1, hidx⟩ :=
+      Fin.ext (show (p.pileDepth.get a).toInt.toNat - m - 1 + m
+        = (p.pileDepth.get a).toInt.toNat - 1 from by omega)
+    have hi2 : (⟨(p.pileDepth.get a).toInt.toNat - m - 1, by omega⟩ : Fin 5) = ⟨0, hzero5⟩ :=
+      Fin.ext (show (p.pileDepth.get a).toInt.toNat - m - 1 = 0 from by omega)
+    rw [hi1, hi2, hB] at hcs hcv
+    apply UInt8.toNat_inj.mp
+    have h1 := SUIT_toNat ((g.pos2card.get a).get ⟨0, hzero5⟩)
+    have h2 := VALUE_toNat ((g.pos2card.get a).get ⟨0, hzero5⟩)
+    have h3 := SUIT_toNat B
+    have h4 := VALUE_toNat B
+    have h5 := congrArg UInt8.toNat hcs
+    have h6 : (B + UInt8.ofNat m).toNat = B.toNat + m := by
+      rw [UInt8.toNat_add, hmof]
+      have := hBreal.1
+      omega
+    omega
+  -- and it is physically the deepest card of `pile`'s column
+  obtain ⟨e, hemem, hesuit, herank⟩ :
+      ∃ e : Card, e ∈ s.tableau a ∧ suitToNat e.suit = (SUIT B).toNat
+        ∧ rankToNat e.rank = 13 := by
+    obtain ⟨-, hbot, -⟩ := h.depth_match a
+    have h0 : ((s.tableau a).reverse[0]?).map encodeCard
+        = some ((g.pos2card.get a).get ⟨0, hzero5⟩) := hbot ⟨0, hd1⟩
+    cases hr : (s.tableau a).reverse[0]? with
+    | none => rw [hr] at h0; exact absurd h0 (by simp)
+    | some e =>
+      rw [hr] at h0
+      simp only [Option.map_some] at h0
+      have hecode : encodeCard e = B + UInt8.ofNat m :=
+        (Option.some.inj h0).trans hkingcode
+      have hcodeNat : (encodeCard e).toNat = B.toNat + m := by
+        rw [hecode, UInt8.toNat_add, hmof]
+        have := hBreal.1; have := SUIT_toNat B; have := VALUE_toNat B
+        omega
+      have hse : (SUIT (encodeCard e)).toNat = suitToNat e.suit := by
+        rw [encodeCard_SUIT, UInt8.toNat_ofNat']
+        have := suitToNat_lt e.suit; omega
+      have hve : (VALUE (encodeCard e)).toNat = rankToNat e.rank := encodeCard_VALUE e
+      have h1 := SUIT_toNat (encodeCard e); have h2 := VALUE_toNat (encodeCard e)
+      have h3 := SUIT_toNat B; have h4 := VALUE_toNat B
+      have h5 := hBreal.1
+      exact ⟨e, List.mem_reverse.1 (List.mem_of_getElem? hr), by omega, by omega⟩
+  -- a second solver-empty pile of the same suit would hold that same king
+  intro i hi hdi d hd hcon
+  have hdlast : (s.tableau i).getLast? = some d := hd
+  have hde : d = e :=
+    Card.ext (suitToNat_inj (by rw [hcon, hesuit]))
+      (by rw [h.empty_pile_king i hdi hdlast, rank_king_of_13 herank])
+  exact hi (h.noDup.pile_unique (hde ▸ List.mem_of_getLast? hdlast) hemem)
+
 /-- **A whole lone-king `SolverCleanupPile` is simulated**, again by just the `f`
 cell→pile moves of the extension.  `hkingval` is the branch's own test
 (`VALUE (B + m) = 13`), and `hqk_self` is its `kings` write. -/
@@ -1294,10 +1387,7 @@ theorem StateMatchesSolverPos.cleanupRunResult_sim {g : Globals} {s : State}
       p.aces.get ⟨(SUIT B).toNat, hs⟩ < B - UInt8.ofNat l)
     (hBflute1 : ∀ (j : Fin 10), 0 < (p.pileDepth.get j).toInt.toNat →
       ∀ hidxj : (p.pileDepth.get j).toInt.toNat - 1 < 5,
-      (g.pos2card.get j).get ⟨_, hidxj⟩ = B → p.pileFlute.get j = 1)
-    (hnoshare : ∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ →
-      (p.pileDepth.get i).toInt.toNat = 0 →
-      ∀ d ∈ (s.tableau i).getLast?, suitToNat d.suit ≠ (SUIT B).toNat) :
+      (g.pos2card.get j).get ⟨_, hidxj⟩ = B → p.pileFlute.get j = 1) :
     ∃ v : State, Reach s v ∧
       (∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ → v.tableau i = s.tableau i) ∧
       StateMatchesSolverPos g v
@@ -1413,7 +1503,7 @@ theorem StateMatchesSolverPos.cleanupRunResult_sim {g : Globals} {s : State}
       show (p.kings.set (SUIT B).toUInt32.toNat _ hs4')[(finOfSuit d.suit).val] = _
       refine Vector.getElem_set_ne hs4' (finOfSuit d.suit).isLt (fun hc => ?_)
       rw [UInt8.toNat_toUInt32] at hc
-      exact hnoshare i hi hdi d hd hc.symm
+      exact h.noshare_of_king hwf hb hpile hidx hB hdepth1 hchain hkingval i hi hdi d hd hc.symm
     obtain ⟨v, hreach, hframe, hmatch, hexport⟩ :=
       h.cleanupPileSimKing hwf hb hpile hidx hfl1 hB hdepth1 hchain hkingval hf hfree
         haces hBflute1 hd0 hdne hfne (by rw [hqa]) hkself hkne

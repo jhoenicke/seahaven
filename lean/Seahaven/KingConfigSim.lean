@@ -531,10 +531,7 @@ theorem Simulates.ofCleanupRun {g : Globals} {s : State} {p : SolverPosType} {k 
       p.aces.get ⟨(SUIT B).toNat, hs⟩ < B - UInt8.ofNat l)
     (hBflute1 : ∀ (j : Fin 10), 0 < (p.pileDepth.get j).toInt.toNat →
       ∀ hidxj : (p.pileDepth.get j).toInt.toNat - 1 < 5,
-      (g.pos2card.get j).get ⟨_, hidxj⟩ = B → p.pileFlute.get j = 1)
-    (hnoshare : ∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ →
-      (p.pileDepth.get i).toInt.toNat = 0 →
-      ∀ d ∈ (s.tableau i).getLast?, suitToNat d.suit ≠ (SUIT B).toNat) :
+      (g.pos2card.get j).get ⟨_, hidxj⟩ = B → p.pileFlute.get j = 1) :
     ∃ (v : State) (k' : Fin 16) (FK : Finset Suit),
       Simulates g s p k v
         (cleanupRunResult pile hpile B ph hs4'
@@ -544,7 +541,7 @@ theorem Simulates.ofCleanupRun {g : Globals} {s : State} {p : SolverPosType} {k 
           (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).1 := by
   obtain ⟨v, hreach, hframe, hmatch, hexport⟩ :=
     hk.toMatches.cleanupRunResult_sim hwf hb hpile hs4' hidx hd1 hfl1 hB hm hchain hf hfree
-      haces hBflute1 hnoshare
+      haces hBflute1
   have hd5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat ≤ 5 :=
     hb.pileDepth_bound ⟨pile.toNat, hpile⟩
   have hmN : m < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat := hm

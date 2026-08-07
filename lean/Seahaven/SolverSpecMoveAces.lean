@@ -42,7 +42,7 @@ private theorem ctz_bit_self_nat :
   native_decide
 
 /-- `UInt8` form: `x`'s own `ctz`-th bit is set in `x`, whenever `x ≠ 0`. -/
-private theorem ctz_bit_self (x : UInt8) (hx : x ≠ 0) :
+theorem ctz_bit_self (x : UInt8) (hx : x ≠ 0) :
     x &&& ((1 : UInt8) <<< UInt8.ofNat (ctz x)) ≠ 0 := by
   have h256 : x.toNat < 256 := x.toNat_lt
   have h := ctz_bit_self_nat x.toNat h256 (by rwa [UInt8.ofNat_toNat])
@@ -91,7 +91,7 @@ def MoveAcesInv (g : Globals) (suit : Fin 4) (card : UInt8) (found : UInt8)
     foundation top `A` (`foundation_cards_free` would make it free), and it
     can't be one of the `found`-many already-walked candidates either (the
     invariant's own freeness fact would make it free). -/
-private theorem moveAces_lt_of_not_free (g : Globals) (suit : Fin 4) (card : UInt8)
+theorem moveAces_lt_of_not_free (g : Globals) (suit : Fin 4) (card : UInt8)
     (found : UInt8) (game : SolverPosType) (hinv : MoveAcesInv g suit card found game)
     (X : UInt8) (hSuitX : SUIT X = suit.val.toUInt8) (hXreal : 1 ≤ (VALUE X).toNat)
     (hXnotfree : ¬ isFreeCard g game X) (hXne : X ≠ card) :
@@ -138,7 +138,7 @@ private theorem uint8_eq_add_ofNat_of_toNat_eq {A X : UInt8} {l : Nat}
   rw [UInt8.toNat_add, hlA, Nat.mod_eq_of_lt hAl]
   omega
 
-private theorem finVal_toUInt8_toNat (s : Fin 4) : (s.val.toUInt8).toNat = s.val := by
+theorem finVal_toUInt8_toNat (s : Fin 4) : (s.val.toUInt8).toNat = s.val := by
   have h : (s.val.toUInt8).toNat = s.val % 2 ^ 8 := UInt8.toNat_ofNat'
   have := s.isLt
   omega
@@ -243,6 +243,39 @@ private theorem not_free_gt_ace {g : Globals} {p : SolverPosType} (h : SolverInv
   have hsa := SUIT_toNat (p.aces.get t); have hva := VALUE_toNat (p.aces.get t)
   omega
 
+/-- **The only step of the walk that changes the position**, packaged so that a
+    predicate carried through `moveAcesLoop_run` (the drain's `Simulates`, say)
+    only has to survive *this* one step.
+
+    At a sync point (`cardDepth = 0`) `card` is exactly `pile`'s current boundary;
+    the solver writes `aces[suit] := card` (giving `gameA`) and calls
+    `SolverRemoveFlute pile`, which runs `SolverCleanupPile` from `q`, the
+    composed `fluteNorm ∘ removeFlutePre` point.  Everything the loop proof
+    establishes about that step on the way is handed over: the walk invariant,
+    the boundary identification, the pile's flute (`= found + 1`, the walked run
+    plus the boundary), `q`'s fields, `CleanupReady` at `q`, and the run itself.
+    The counting steps need no clause — they leave the position untouched. -/
+def MoveAcesSyncStep (g : Globals) (suit : Fin 4) (P : UInt16 → SolverPosType → Prop) : Prop :=
+  ∀ (card found : UInt8) (forcedKings fk : UInt16) (game gameA q p' : SolverPosType)
+    (pile : UInt32) (hpile : pile.toNat < 10),
+    MoveAcesInv g suit card found game →
+    0 < (game.pileDepth.get ⟨pile.toNat, hpile⟩).toNat →
+    (∀ hidx : (game.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5,
+      (g.pos2card.get ⟨pile.toNat, hpile⟩).get
+        ⟨(game.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1, hidx⟩ = card) →
+    (game.pileFlute.get ⟨pile.toNat, hpile⟩).toNat = found.toNat + 1 →
+    q = fluteNorm pile hpile (removeFlutePre pile hpile gameA) →
+    (q.pileDepth.get ⟨pile.toNat, hpile⟩) = (game.pileDepth.get ⟨pile.toNat, hpile⟩) - 1 →
+    (∀ i : Fin 10, i.val ≠ pile.toNat → q.pileDepth.get i = game.pileDepth.get i) →
+    (q.pileFlute.get ⟨pile.toNat, hpile⟩) = 1 →
+    (∀ i : Fin 10, i.val ≠ pile.toNat → q.pileFlute.get i = game.pileFlute.get i) →
+    q.kings = game.kings →
+    q.aces.get suit = card →
+    (∀ t : Fin 4, t ≠ suit → q.aces.get t = game.aces.get t) →
+    CleanupReady g q pile →
+    _root_.SolverRemoveFlute pile (g, gameA) = .ok fk (g, p') →
+    P forcedKings game → P (forcedKings &&& fk) p'
+
 set_option maxHeartbeats 4000000 in
 /-- **Exact run of the `SolverMoveAces` foundation walk, with its invariant.**
     By induction on a `Nat` bounding `14 - VALUE(card)` (which strictly
@@ -253,11 +286,13 @@ set_option maxHeartbeats 4000000 in
     step (`card += 1, found += 1`, `game` untouched) — the *easy* half of this
     proof.  The `cardDepth == 0` case (`card` is exactly its pile's current
     boundary) is the genuinely novel half. -/
-private theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
-    (suitU32 : UInt32) (hsuitU32 : suitU32.toNat = suit.val) :
+theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
+    (suitU32 : UInt32) (hsuitU32 : suitU32.toNat = suit.val)
+    (P : UInt16 → SolverPosType → Prop) (hsync : MoveAcesSyncStep g suit P) :
     ∀ (n : Nat) (card : UInt8) (forcedKings : UInt16) (found : UInt8) (game : SolverPosType),
       14 - (VALUE card).toNat < n →
       MoveAcesInv g suit card found game →
+      P forcedKings game →
       ∃ (card' : UInt8) (forcedKings' : UInt16) (found' : UInt8) (game' : SolverPosType),
         Loop.forIn Loop.mk
             (⟨card, forcedKings, found, game, g⟩ : MoveAcesAcc) (moveAcesBody suitU32)
@@ -271,12 +306,13 @@ private theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit 
                 (game'.pileDepth[(cardPile g card').toNat]'hp64).toNat)) ∧
         (∀ t : Fin 4, t ≠ suit → game'.aces.get t = game.aces.get t) ∧
         ((card' = card ∧ forcedKings' = forcedKings ∧ found' = found ∧ game' = game) ∨
-          card.toNat < card'.toNat) := by
+          card.toNat < card'.toNat) ∧
+        P forcedKings' game' := by
   intro n
   induction n with
-  | zero => intro card _ _ _ hmeas _; omega
+  | zero => intro card _ _ _ hmeas _ _; omega
   | succ n ih =>
-    intro card forcedKings found game hmeas hinv
+    intro card forcedKings found game hmeas hinv hP
     have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × SolverPosType))
       (l := Loop.mk) (b := (⟨card, forcedKings, found, game, g⟩ : MoveAcesAcc))
       (f := moveAcesBody suitU32)
@@ -412,14 +448,14 @@ private theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit 
             hnewfoundfree, hbit⟩
         have hnewmeas : 14 - (VALUE (card + 1)).toNat < n := by
           have := VALUE_succ card hcardVal15; omega
-        obtain ⟨card', fk', found', game', heq, hinv', hexit', hframe', hdich'⟩ :=
-          ih (card + 1) forcedKings (found + 1) game hnewmeas hnewinv
+        obtain ⟨card', fk', found', game', heq, hinv', hexit', hframe', hdich', hP'⟩ :=
+          ih (card + 1) forcedKings (found + 1) game hnewmeas hnewinv hP
         have hdich : card.toNat < card'.toNat := by
           rcases hdich' with ⟨hce, _, _, _⟩ | hgt
           · have h2 := congrArg UInt8.toNat hce
             omega
           · omega
-        exact ⟨card', fk', found', game', heq, hinv', hexit', hframe', Or.inr hdich⟩
+        exact ⟨card', fk', found', game', heq, hinv', hexit', hframe', Or.inr hdich, hP'⟩
       · -- NOT `> 0`: either `card` is exactly its pile's boundary (`== 0`, the
         -- genuinely novel case, below) or genuinely buried (`< 0`, `.done`,
         -- unchanged accumulator).
@@ -1780,8 +1816,41 @@ private theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit 
                 hnewcard1eq, hnewfoundfree0, hp'busybit⟩
             have hnewmeas : 14 - (VALUE (card + 1)).toNat < n := by
               have := VALUE_succ card hcardVal15; omega
-            obtain ⟨card', fk', found', game', heq, hinv', hexit', hframe'', hdich''⟩ :=
-              ih (card + 1) (forcedKings &&& fk) 0 p' hnewmeas hnewinv2
+            -- the carried predicate crosses the one position-changing step
+            have hdepthPos32 :
+                0 < (game.pileDepth.get (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)).toNat := by
+              rw [← hpileFinEqP32]; omega
+            have hfluteEq32 :
+                (game.pileFlute.get (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)).toNat
+                  = found.toNat + 1 := by
+              rw [← hpileFinEqP32, ← hpileFlutedef]
+              have hb : found.toInt.toNat = found.toNat := rfl
+              omega
+            have hboundary32 : ∀ hidx :
+                (game.pileDepth.get (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)).toNat - 1 < 5,
+                (g.pos2card.get (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)).get
+                  ⟨(game.pileDepth.get (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)).toNat - 1,
+                    hidx⟩ = card := by
+              intro hidx
+              have hvec : g.pos2card.get (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)
+                  = g.pos2card.get pileFin := by rw [hpileFinEqP32]
+              have hidxP : (game.pileDepth.get pileFin).toNat - 1 < 5 := by
+                rw [hpileFinEqP32]; exact hidx
+              have hfin : (⟨(game.pileDepth.get
+                    (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)).toNat - 1, hidx⟩ : Fin 5)
+                  = ⟨(game.pileDepth.get pileFin).toNat - 1, hidxP⟩ :=
+                Fin.ext (show (game.pileDepth.get
+                    (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)).toNat - 1
+                  = (game.pileDepth.get pileFin).toNat - 1 from by rw [hpileFinEqP32])
+              rw [hvec, hfin]
+              exact hboundaryEq
+            have hPnew : P (forcedKings &&& fk) p' :=
+              hsync card found forcedKings fk game gameA p1 p' pile.toUInt32 hp10
+                hinvBundle hdepthPos32 hboundary32 hfluteEq32 hp1def hp1_pileDepth_self
+                hp1_pileDepth_ne hp1_pileFlute_self hp1_pileFlute_ne hp1_kings hp1AcesSuit
+                hp1AcesNe hready hrunEq' hP
+            obtain ⟨card', fk', found', game', heq, hinv', hexit', hframe'', hdich'', hP'⟩ :=
+              ih (card + 1) (forcedKings &&& fk) 0 p' hnewmeas hnewinv2 hPnew
             have hp'AcesNe : ∀ t : Fin 4, t ≠ suit → p'.aces.get t = game.aces.get t := by
               intro t ht
               rw [hacesEq', ← hp1_aces]
@@ -1795,7 +1864,7 @@ private theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit 
               · have h2 := congrArg UInt8.toNat hce
                 omega
               · omega
-            exact ⟨card', fk', found', game', heq, hinv', hexit', hframe, Or.inr hdich⟩
+            exact ⟨card', fk', found', game', heq, hinv', hexit', hframe, Or.inr hdich, hP'⟩
         · -- BURIED (`< 0`): `.done`, unchanged accumulator; `card` not free.
           have hcd0' : cd1.toUInt32.toInt32 + 1 - cd2.toInt32 ≠ 0 := by
             intro heq; exact hcd0 (by rw [heq]; decide)
@@ -1813,7 +1882,7 @@ private theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit 
             exact heq
           refine ⟨card, forcedKings, found, game, ?_,
             ⟨hmerged, hf0, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩,
-            Or.inr ⟨?_, hp64, ?_⟩, fun _ _ => rfl, Or.inl ⟨rfl, rfl, rfl, rfl⟩⟩
+            Or.inr ⟨?_, hp64, ?_⟩, fun _ _ => rfl, Or.inl ⟨rfl, rfl, rfl, rfl⟩, hP⟩
           · simp only [hcdpos, hcd0, reduceIte, EStateM.pure, Bool.false_eq_true]
           · intro hfree
             have hge := isFree_to_cardDepth_ge g game hwf card hc64' hp64 hfree
@@ -1827,7 +1896,7 @@ private theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit 
       have hgProp' : ¬ (VALUE card ≤ (13 : UInt8)) := fun h => hg (hgIff.mp h)
       refine ⟨card, forcedKings, found, game, ?_,
         ⟨hmerged, hf0, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩,
-        Or.inl (by omega), fun _ _ => rfl, Or.inl ⟨rfl, rfl, rfl, rfl⟩⟩
+        Or.inl (by omega), fun _ _ => rfl, Or.inl ⟨rfl, rfl, rfl, rfl⟩, hP⟩
       rw [hunf]
       simp only [moveAcesBody, hgProp', decide_false, bind, EStateM.bind, pure, EStateM.pure,
         Bool.false_eq_true, reduceIte]
@@ -1917,9 +1986,10 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
     ⟨hmerged, by rw [hfound0def]; decide, by rw [hfound0def]; decide, hsuitcard0, hval1_0,
       hval14_0, hcard0eqInv, hfoundfree0, hbusybit⟩
   obtain ⟨cardF, forcedKingsF, foundF, gameF, hloopeq, hloopinv, hloopexit, hloopframe,
-      hloopdich⟩ :=
-    moveAcesLoop_run g hwf suit suitU32 hsuitU32 15 card0 0xffff found0 p
-      (by have := hval14_0; omega) hinv0
+      hloopdich, -⟩ :=
+    moveAcesLoop_run g hwf suit suitU32 hsuitU32 (fun _ _ => True)
+      (by unfold MoveAcesSyncStep; intros; trivial)
+      15 card0 0xffff found0 p (by have := hval14_0; omega) hinv0 trivial
   obtain ⟨hmergedF, hf0F, hf13F, hsuitcardF, hval1F, hval14F, hcardeqF, hfoundfreeF, hbitF⟩ :=
     hloopinv
   have hloopinv' : MoveAcesInv g suit cardF foundF gameF :=
