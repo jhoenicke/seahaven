@@ -38,3 +38,4 @@ import Seahaven.ComponentKingBits
 import Seahaven.CleanupSim
 import Seahaven.KingConfigSim
 import Seahaven.SimulateMoveAces
+import Seahaven.RecCheckSound

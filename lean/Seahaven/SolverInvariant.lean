@@ -2299,7 +2299,7 @@ theorem UInt8_eq_of_toNat_eq {x y : UInt8} (hx : (0 : UInt8) ≤ x) (hy : (0 : U
     ten digits each in `{0,…,5}` agree as `UInt32`, the digits agree.  The sum is
     at most `6^10 - 1 = 60466175 < 2^32`, so the `UInt32` reduction never wraps and
     the equation is a genuine `Nat` equation, decided by `omega`. -/
-private theorem hash_dot_inj (d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 : Nat) (hd0 : d0 ≤ 5) (hd1 : d1 ≤ 5) (hd2 : d2 ≤ 5) (hd3 : d3 ≤ 5) (hd4 : d4 ≤ 5) (hd5 : d5 ≤ 5) (hd6 : d6 ≤ 5) (hd7 : d7 ≤ 5) (hd8 : d8 ≤ 5) (hd9 : d9 ≤ 5) (he0 : e0 ≤ 5) (he1 : e1 ≤ 5) (he2 : e2 ≤ 5) (he3 : e3 ≤ 5) (he4 : e4 ≤ 5) (he5 : e5 ≤ 5) (he6 : e6 ≤ 5) (he7 : e7 ≤ 5) (he8 : e8 ≤ 5) (he9 : e9 ≤ 5)
+theorem hash_dot_inj (d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 : Nat) (hd0 : d0 ≤ 5) (hd1 : d1 ≤ 5) (hd2 : d2 ≤ 5) (hd3 : d3 ≤ 5) (hd4 : d4 ≤ 5) (hd5 : d5 ≤ 5) (hd6 : d6 ≤ 5) (hd7 : d7 ≤ 5) (hd8 : d8 ≤ 5) (hd9 : d9 ≤ 5) (he0 : e0 ≤ 5) (he1 : e1 ≤ 5) (he2 : e2 ≤ 5) (he3 : e3 ≤ 5) (he4 : e4 ≤ 5) (he5 : e5 ≤ 5) (he6 : e6 ≤ 5) (he7 : e7 ≤ 5) (he8 : e8 ≤ 5) (he9 : e9 ≤ 5)
     (h : (0 + 1 * d0.toUInt32 + 6 * d1.toUInt32 + 36 * d2.toUInt32 + 216 * d3.toUInt32 + 1296 * d4.toUInt32 + 7776 * d5.toUInt32 + 46656 * d6.toUInt32 + 279936 * d7.toUInt32 + 1679616 * d8.toUInt32 + 10077696 * d9.toUInt32 : UInt32) =
          (0 + 1 * e0.toUInt32 + 6 * e1.toUInt32 + 36 * e2.toUInt32 + 216 * e3.toUInt32 + 1296 * e4.toUInt32 + 7776 * e5.toUInt32 + 46656 * e6.toUInt32 + 279936 * e7.toUInt32 + 1679616 * e8.toUInt32 + 10077696 * e9.toUInt32 : UInt32)) :
     d0 = e0 ∧ d1 = e1 ∧ d2 = e2 ∧ d3 = e3 ∧ d4 = e4 ∧ d5 = e5 ∧ d6 = e6 ∧ d7 = e7 ∧ d8 = e8 ∧ d9 = e9 := by
