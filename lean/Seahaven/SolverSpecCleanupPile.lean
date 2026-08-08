@@ -49,25 +49,25 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
     ∨
     (∃ (B : UInt8) (hs4 : (SUIT B).toUInt32.toNat < 4)
        (hd : p.pileDepth[pile.toNat]'hpile ≠ 0)
-       (hd1 : 0 < (p.pileDepth[pile.toNat]'hpile).toInt)
-       (hd5 : (p.pileDepth[pile.toNat]'hpile).toInt ≤ 5)
-       (hidx : ((p.pileDepth[pile.toNat]'hpile).toInt32 - 1).toUInt32.toNat < 5)
-       (hBdef : (g.pos2card[pile.toNat]'hpile)[((p.pileDepth[pile.toNat]'hpile).toInt32 - 1
+       (hd1 : 0 < (p.pileDepth[pile.toNat]'hpile).toNat)
+       (hd5 : (p.pileDepth[pile.toNat]'hpile).toNat ≤ 5)
+       (hidx : ((p.pileDepth[pile.toNat]'hpile) - 1).toUInt32.toNat < 5)
+       (hBdef : (g.pos2card[pile.toNat]'hpile)[((p.pileDepth[pile.toNat]'hpile) - 1
            ).toUInt32.toNat]'hidx = B)
        (hBrange : 1 ≤ B.toNat ∧ B.toNat ≤ 61)
        (hnfp : ∀ i : Fin 10, i.val ≠ pile.toNat → PileBase g p i)
        (m f : Nat)
-       (hm_le : (m : Int) ≤ (p.pileDepth[pile.toNat]'hpile).toInt - 1)
-       (hmcards : ∀ k, k ≤ m → ∃ h5 : ((p.pileDepth[pile.toNat]'hpile).toInt32 -
-             Int32.ofNat k - 1).toUInt32.toNat < 5,
-         (g.pos2card[pile.toNat]'hpile)[((p.pileDepth[pile.toNat]'hpile).toInt32 -
-             Int32.ofNat k - 1).toUInt32.toNat]'h5 = B + UInt8.ofNat k)
-       (hmstop : (p.pileDepth[pile.toNat]'hpile).toInt - m ≤ 1 ∨
-         (1 < (p.pileDepth[pile.toNat]'hpile).toInt - m ∧
-           ∃ h5 : ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m - 2
+       (hm_le : m + 1 ≤ (p.pileDepth[pile.toNat]'hpile).toNat)
+       (hmcards : ∀ k, k ≤ m → ∃ h5 : ((p.pileDepth[pile.toNat]'hpile) -
+             UInt8.ofNat k - 1).toUInt32.toNat < 5,
+         (g.pos2card[pile.toNat]'hpile)[((p.pileDepth[pile.toNat]'hpile) -
+             UInt8.ofNat k - 1).toUInt32.toNat]'h5 = B + UInt8.ofNat k)
+       (hmstop : (p.pileDepth[pile.toNat]'hpile).toNat - m ≤ 1 ∨
+         (m + 1 < (p.pileDepth[pile.toNat]'hpile).toNat ∧
+           ∃ h5 : ((p.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m - 2
              ).toUInt32.toNat < 5,
-             (g.pos2card[pile.toNat]'hpile)[((p.pileDepth[pile.toNat]'hpile).toInt32 -
-               Int32.ofNat m - 2).toUInt32.toNat]'h5 ≠ B + UInt8.ofNat (m + 1)))
+             (g.pos2card[pile.toNat]'hpile)[((p.pileDepth[pile.toNat]'hpile) -
+               UInt8.ofNat m - 2).toUInt32.toNat]'h5 ≠ B + UInt8.ofNat (m + 1)))
        (hf_le : f ≤ B.toNat - 1)
        (hf_le_tight : f ≤ (VALUE B).toNat - 1)
        (hffree : ∀ l, 1 ≤ l → l ≤ f →
@@ -76,42 +76,42 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
        (hfstop : p.aces[(SUIT B).toUInt32.toNat]'hs4 = (B - 1 - UInt8.ofNat f) ∨
          ¬ isFreeCard g p (B - 1 - UInt8.ofNat f))
        (hak : ∀ t : Fin 4, SUIT (p.aces.get t) = t.val.toUInt8),
-       (∃ (hnk : ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m == 1 &&
+       (∃ (hnk : ((p.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m == 1 &&
              VALUE (B + UInt8.ofNat m) == 13) = false)
           (hframe : ∀ j : Fin 10, j.val ≠ pile.toNat →
              (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-               (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth.get j = p.pileDepth.get j)
+               (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth.get j = p.pileDepth.get j)
           (hpc : PileClean g (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p) ⟨pile.toNat, hpile⟩)
+              (p.pileDepth[pile.toNat]'hpile) m f p) ⟨pile.toNat, hpile⟩)
           (hsuit : ∀ s : Fin 4, SuitClean g (preCleanupPile pile hpile B
-              (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile).toInt32 m f p) s
+              (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile) m f p) s
               (preCleanupPile_pileDepth_bound_all pile g p hpile hwf hnf B hs4 hd1 hd5 hidx hBdef
                 m f hm_le hmcards hf_le hffree))
           (hhash : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).hash =
+              (p.pileDepth[pile.toNat]'hpile) m f p).hash =
             (List.finRange 10).foldl (fun acc i => acc + pileHashes.get i *
               ((preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth.get i
-                ).toInt.toNat.toUInt32) 0)
+                (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth.get i
+                ).toNat.toUInt32) 0)
           (hused : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).usedSpace.toInt =
+              (p.pileDepth[pile.toNat]'hpile) m f p).usedSpace.toInt =
             (52 : Int)
             - ((preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                (p.pileDepth[pile.toNat]'hpile).toInt32 m f p
-                ).pileDepth.toList.foldl (fun acc d => acc + d.toInt.toNat) 0 : Nat)
+                (p.pileDepth[pile.toNat]'hpile) m f p
+                ).pileDepth.toList.foldl (fun acc d => acc + d.toNat) 0 : Nat)
             - (p.aces.toList.foldl (fun acc a => acc + (VALUE a).toNat) 0 : Nat)
             - (List.zipWith (fun d f => if d ≠ (0 : UInt8) then f.toNat - 1 else 0)
                 (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                  (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth.toList
+                  (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth.toList
                 (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                  (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileFlute.toList
+                  (p.pileDepth[pile.toNat]'hpile) m f p).pileFlute.toList
                 |>.foldl (·+·) 0 : Nat)),
           EStateM.run (_root_.SolverCleanupPile pile) (g, p) = .ok 0xffff
             (g, preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                  (p.pileDepth[pile.toNat]'hpile).toInt32 m f p))
+                  (p.pileDepth[pile.toNat]'hpile) m f p))
        ∨
        (∃ (hd1' : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-             (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth[pile.toNat]'hpile = 1)
+             (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth[pile.toNat]'hpile = 1)
           (K : UInt8) (hKdef : K = (g.pos2card[pile.toNat]'hpile)[0]'(by omega))
           (hVK13 : (VALUE K).toNat = 13)
           (hsuiteq : SUIT B = SUIT K)
@@ -119,50 +119,50 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
           (hframe : ∀ j : Fin 10, j.val ≠ pile.toNat →
             (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
               (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileDepth.get j = p.pileDepth.get j)
+                (p.pileDepth[pile.toNat]'hpile) m f p)).pileDepth.get j = p.pileDepth.get j)
           (hpc : PileClean g (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
               (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)) ⟨pile.toNat, hpile⟩)
+                (p.pileDepth[pile.toNat]'hpile) m f p)) ⟨pile.toNat, hpile⟩)
           (hsuit : ∀ s : Fin 4, SuitClean g (kingMove pile hpile (SUIT B) hs4
               (pileHashes[pile.toNat]'hpile)
               (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)) s
+                (p.pileDepth[pile.toNat]'hpile) m f p)) s
               (fun i => le_trans (kingMove_pileDepth_le pile hpile (SUIT B) hs4
                   (pileHashes[pile.toNat]'hpile)
                   (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                    (p.pileDepth[pile.toNat]'hpile).toInt32 m f p) i)
+                    (p.pileDepth[pile.toNat]'hpile) m f p) i)
                 (preCleanupPile_pileDepth_bound_all pile g p hpile hwf hnf B hs4 hd1 hd5 hidx hBdef
                   m f hm_le hmcards hf_le hffree i)))
           (hhash : (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
               (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).hash =
+                (p.pileDepth[pile.toNat]'hpile) m f p)).hash =
             (List.finRange 10).foldl (fun acc i => acc + pileHashes.get i *
               ((kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
                 (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                  (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileDepth.get i
-                ).toInt.toNat.toUInt32) 0)
+                  (p.pileDepth[pile.toNat]'hpile) m f p)).pileDepth.get i
+                ).toNat.toUInt32) 0)
           (hused : (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
               (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).usedSpace.toInt =
+                (p.pileDepth[pile.toNat]'hpile) m f p)).usedSpace.toInt =
             (52 : Int)
             - ((kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
                 (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                  (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)
-                ).pileDepth.toList.foldl (fun acc d => acc + d.toInt.toNat) 0 : Nat)
+                  (p.pileDepth[pile.toNat]'hpile) m f p)
+                ).pileDepth.toList.foldl (fun acc d => acc + d.toNat) 0 : Nat)
             - (p.aces.toList.foldl (fun acc a => acc + (VALUE a).toNat) 0 : Nat)
             - ((List.zipWith (fun d f => if d ≠ (0 : UInt8) then f.toNat - 1 else 0)
                 (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
                   (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                    (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileDepth.toList
+                    (p.pileDepth[pile.toNat]'hpile) m f p)).pileDepth.toList
                 (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
                   (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                    (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileFlute.toList
+                    (p.pileDepth[pile.toNat]'hpile) m f p)).pileFlute.toList
                 |>.foldl (·+·) 0 : Nat))),
           EStateM.run (_root_.SolverCleanupPile pile) (g, p) = .ok
             (0xffff &&& kingOnPileMap[(SUIT B).toUInt32.toNat]'hs4)
             (g, kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
                   (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                    (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)))) := by
+                    (p.pileDepth[pile.toNat]'hpile) m f p)))) := by
   by_cases hd : p.pileDepth[pile.toNat]'hpile = 0
   · -- Empty pile: transplanted verbatim from `cleanupPile_base`'s old empty case.
     left
@@ -177,35 +177,27 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
     right
     have hnn : (0 : UInt8) ≤ p.pileDepth[pile.toNat]'hpile :=
       hnf.pileDepth_nonneg ⟨pile.toNat, hpile⟩
-    have hd1 : 0 < (p.pileDepth[pile.toNat]'hpile).toInt := by
-      rw [UInt8.le_iff_toInt_le, show ((0 : UInt8).toInt = 0) from rfl] at hnn
-      have hne : (p.pileDepth[pile.toNat]'hpile).toInt ≠ 0 :=
-        fun h => hd (UInt8.toInt_inj.mp h)
+    have hd1 : 0 < (p.pileDepth[pile.toNat]'hpile).toNat := by
+      have hne : (p.pileDepth[pile.toNat]'hpile).toNat ≠ 0 :=
+        fun h => hd (UInt8.toNat_inj.mp h)
       omega
-    have hd5 : (p.pileDepth[pile.toNat]'hpile).toInt ≤ 5 := by
-      have hb := hnf.pileDepth_bound ⟨pile.toNat, hpile⟩
-      have : (p.pileDepth[pile.toNat]'hpile).toNat ≤ 5 := hb
-      simp only [UInt8.toInt_eq]
-      omega
-    have h1le : (1 : Int32) ≤ (p.pileDepth[pile.toNat]'hpile).toInt32 := by
-      rw [Int32.le_iff_toInt_le, Int32.toInt_one, UInt8.toInt_toInt32]; omega
-    have hsubd : ((p.pileDepth[pile.toNat]'hpile).toInt32 - 1).toInt =
-        (p.pileDepth[pile.toNat]'hpile).toInt - 1 := by
-      rw [Int32.toInt_sub_of_le _ _ (by decide) h1le, Int32.toInt_one, UInt8.toInt_toInt32]
-    have hidx : ((p.pileDepth[pile.toNat]'hpile).toInt32 - 1).toUInt32.toNat < 5 := by
-      rw [Int32.toNat_toUInt32_of_le (by
-        rw [Int32.le_iff_toInt_le, hsubd, show ((0 : Int32).toInt = 0) from by decide]; omega)]
-      show ((p.pileDepth[pile.toNat]'hpile).toInt32 - 1).toInt.toNat < 5
-      rw [hsubd]
-      simp only [UInt8.toInt_eq] at *
+    have hd5 : (p.pileDepth[pile.toNat]'hpile).toNat ≤ 5 :=
+      hnf.pileDepth_bound ⟨pile.toNat, hpile⟩
+    have h1le : (1 : UInt8) ≤ (p.pileDepth[pile.toNat]'hpile) := by
+      rw [UInt8.le_iff_toNat_le]; show 1 ≤ _; omega
+    have hsubd : ((p.pileDepth[pile.toNat]'hpile) - 1).toNat =
+        (p.pileDepth[pile.toNat]'hpile).toNat - 1 :=
+      UInt8.toNat_sub_of_le _ _ h1le
+    have hidx : ((p.pileDepth[pile.toNat]'hpile) - 1).toUInt32.toNat < 5 := by
+      rw [UInt8.toNat_toUInt32, hsubd]
       omega
     -- The boundary card is a real card (WellFormedLayout).
     have hreal : IsRealCard ((g.pos2card[pile.toNat]'hpile)[
-        ((p.pileDepth[pile.toNat]'hpile).toInt32 - 1).toUInt32.toNat]'hidx) :=
+        ((p.pileDepth[pile.toNat]'hpile) - 1).toUInt32.toNat]'hidx) :=
       hwf.pos2card_real ⟨pile.toNat, hpile⟩
-        ⟨((p.pileDepth[pile.toNat]'hpile).toInt32 - 1).toUInt32.toNat, hidx⟩
+        ⟨((p.pileDepth[pile.toNat]'hpile) - 1).toUInt32.toNat, hidx⟩
     set B := (g.pos2card[pile.toNat]'hpile)[
-      ((p.pileDepth[pile.toNat]'hpile).toInt32 - 1).toUInt32.toNat]'hidx with hBdef
+      ((p.pileDepth[pile.toNat]'hpile) - 1).toUInt32.toNat]'hidx with hBdef
     have hs4 : (SUIT B).toUInt32.toNat < 4 := by
       rw [UInt8.toNat_toUInt32]; exact hreal.1
     have hBrange : 1 ≤ B.toNat ∧ B.toNat ≤ 61 := by
@@ -236,15 +228,8 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
       omega
     have haces_lt_B : p.aces[(SUIT B).toUInt32.toNat]'hs4 < B := by
       by_contra hge
-      rw [UInt8.lt_iff_toInt_lt] at hge
-      rw [not_lt] at hge
-      have htiB : B.toInt = (B.toNat : Int) := uint8_toInt8_toInt_of_lt128 (by omega)
-      have h1 : (B.toNat : Int) ≤ (p.aces[(SUIT B).toUInt32.toNat]'hs4).toInt := by
-        rwa [htiB] at hge
-      have hgeNat : B.toNat ≤ (p.aces[(SUIT B).toUInt32.toNat]'hs4).toNat := by
-        have hbdg : (p.aces[(SUIT B).toUInt32.toNat]'hs4).toNat =
-            (p.aces[(SUIT B).toUInt32.toNat]'hs4).toInt.toNat := rfl
-        omega
+      rw [UInt8.lt_iff_toNat_lt, not_lt] at hge
+      have hgeNat : B.toNat ≤ (p.aces[(SUIT B).toUInt32.toNat]'hs4).toNat := hge
       have hacesEq : (fluteNorm pile hpile p).aces = p.aces := rfl
       have hak := hacesEq ▸ hnf.aces_kings_valid ⟨(SUIT B).toUInt32.toNat, hs4⟩
       have hgetEq : p.aces.get (⟨(SUIT B).toUInt32.toNat, hs4⟩ : Fin 4) =
@@ -264,16 +249,10 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
       have hnfB : ¬ isFreeCard g (fluteNorm pile hpile p) B := by
         rw [hBdef]
         exact depth_card_not_free hwf hnf ⟨pile.toNat, hpile⟩
-          ⟨((p.pileDepth[pile.toNat]'hpile).toInt32 - 1).toUInt32.toNat, hidx⟩ (by
-            show ((p.pileDepth[pile.toNat]'hpile).toInt32 - 1).toUInt32.toNat <
+          ⟨((p.pileDepth[pile.toNat]'hpile) - 1).toUInt32.toNat, hidx⟩ (by
+            show ((p.pileDepth[pile.toNat]'hpile) - 1).toUInt32.toNat <
               (p.pileDepth[pile.toNat]'hpile).toNat
-            rw [Int32.toNat_toUInt32_of_le (by
-              rw [Int32.le_iff_toInt_le, hsubd, show ((0 : Int32).toInt = 0) from by decide]
-              omega)]
-            show ((p.pileDepth[pile.toNat]'hpile).toInt32 - 1).toInt.toNat <
-              (p.pileDepth[pile.toNat]'hpile).toNat
-            rw [hsubd]
-            simp only [UInt8.toInt_eq] at *
+            rw [UInt8.toNat_toUInt32, hsubd]
             omega)
       exact hnfB hfree
     -- Every same-suit card `aces[SUIT B]` represents lies within `SUIT B`'s
@@ -326,16 +305,12 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
       push Not at hgt
       have hg := (hmg ((p.pileDepth[pile.toNat]'hpile).toNat - 1) (by omega)).1
       simp only [mergeIter_eq] at hg
-      rw [Int32.lt_iff_toInt_lt, Int32.toInt_one] at hg
-      have hofk : (Int32.ofNat ((p.pileDepth[pile.toNat]'hpile).toNat - 1)).toInt =
-          (((p.pileDepth[pile.toNat]'hpile).toNat - 1 : Nat) : Int) := by
-        rw [Int32.toInt_ofNat', show Int32.size = 4294967296 from rfl]
-        exact Int.bmod_eq_of_le (by omega) (by simp only [UInt8.toInt_eq] at *; omega)
-      rw [Int32.toInt_sub_of_le _ _
-        (by rw [Int32.le_iff_toInt_le, hofk, show ((0 : Int32).toInt = 0) from by decide]; omega)
-        (by rw [Int32.le_iff_toInt_le, hofk, UInt8.toInt_toInt32]; simp only [UInt8.toInt_eq]; omega),
-        hofk, UInt8.toInt_toInt32] at hg
-      simp only [UInt8.toInt_eq] at hg
+      rw [UInt8.lt_iff_toNat_lt] at hg
+      have hofk : (UInt8.ofNat ((p.pileDepth[pile.toNat]'hpile).toNat - 1)).toNat =
+          (p.pileDepth[pile.toNat]'hpile).toNat - 1 := by
+        rw [UInt8.toNat_ofNat']; omega
+      rw [UInt8.toNat_sub_of_le _ _ (by rw [UInt8.le_iff_toNat_le, hofk]; omega), hofk,
+        show ((1 : UInt8).toNat = 1) from rfl] at hg
       omega
     have hpdCast : (p.pileDepth[pile.toNat]'hpile).toInt =
         ((p.pileDepth[pile.toNat]'hpile).toNat : Int) := rfl
@@ -355,8 +330,7 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
         omega
       have hg := (hfg (B.toNat - 1) (by omega)).1 hs4
       simp only [freedIter_eq, hprev0] at hg
-      rw [UInt8.lt_iff_toInt_lt, show ((0 : UInt8).toInt = 0) from rfl] at hg
-      rw [UInt8.le_iff_toInt_le, show ((0 : UInt8).toInt = 0) from rfl] at haces0
+      rw [UInt8.lt_iff_toNat_lt, show ((0 : UInt8).toNat = 0) from rfl] at hg
       omega
     -- Weaker form (mirrors the old monolithic proof exactly): the freed loop
     -- never crosses into a lower suit's card block either — at step
@@ -386,47 +360,30 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
       have hcardnat : (UInt8.ofNat (16 * (SUIT B).toUInt32.toNat)).toNat =
           16 * (SUIT B).toUInt32.toNat := by
         rw [UInt8.toNat_ofNat', Nat.mod_eq_of_lt h16x]
-      have hti : (UInt8.ofNat (16 * (SUIT B).toUInt32.toNat)).toInt =
-          ((UInt8.ofNat (16 * (SUIT B).toUInt32.toNat)).toNat : Int) :=
-        uint8_toInt8_toInt_of_lt128 (by omega)
-      have hlt := UInt8.lt_iff_toInt_lt.mp hg
-      rw [hti, hcardnat] at hlt
-      have hacesNat : (p.aces[(SUIT B).toUInt32.toNat]'hs4).toNat =
-          (p.aces[(SUIT B).toUInt32.toNat]'hs4).toInt.toNat :=
-        rfl
-      rw [UInt8.le_iff_toInt_le, show ((0 : UInt8).toInt = 0) from rfl] at haces0
+      have hlt := UInt8.lt_iff_toNat_lt.mp hg
+      rw [hcardnat] at hlt
       omega
     -- ------------------------------------------------------------------
     -- Semantic bridges: raw `mergeGuard`/`freedGuard` facts (`hmg`/`hmx`/
     -- `hfg`/`hfx`) restated in the shape the modular `preCleanupPile_*`
     -- lemmas expect (`hmcards`/`hffree`/`hmstop`/`hfstop`).
     -- ------------------------------------------------------------------
-    have hmofI : (Int32.ofNat m).toInt = (m : Int) := by
-      rw [Int32.toInt_ofNat', show Int32.size = 4294967296 from rfl]
-      exact Int.bmod_eq_of_le (by omega) (by omega)
-    have hdepth1I : ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m).toInt =
-        (p.pileDepth[pile.toNat]'hpile).toInt - m := by
-      rw [Int32.toInt_sub_of_le _ _
-        (by rw [Int32.le_iff_toInt_le, hmofI, show ((0 : Int32).toInt = 0) from by decide]; omega)
-        (by rw [Int32.le_iff_toInt_le, hmofI, UInt8.toInt_toInt32]; omega),
-        hmofI, UInt8.toInt_toInt32]
-    have hmcards : ∀ k, k ≤ m → ∃ h5 : ((p.pileDepth[pile.toNat]'hpile).toInt32 -
-          Int32.ofNat k - 1).toUInt32.toNat < 5,
-        (g.pos2card[pile.toNat]'hpile)[((p.pileDepth[pile.toNat]'hpile).toInt32 -
-          Int32.ofNat k - 1).toUInt32.toNat]'h5 = B + UInt8.ofNat k := by
+    have hdepth1I : ((p.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m).toNat =
+        (p.pileDepth[pile.toNat]'hpile).toNat - m :=
+      depth_sub_ofNat_eq hd5 (by omega)
+    have hmcards : ∀ k, k ≤ m → ∃ h5 : ((p.pileDepth[pile.toNat]'hpile) -
+          UInt8.ofNat k - 1).toUInt32.toNat < 5,
+        (g.pos2card[pile.toNat]'hpile)[((p.pileDepth[pile.toNat]'hpile) -
+          UInt8.ofNat k - 1).toUInt32.toNat]'h5 = B + UInt8.ofNat k := by
       intro k hkm
       rcases Nat.eq_zero_or_pos k with hk0 | hkpos
       · subst hk0
         refine ⟨by simpa using hidx, ?_⟩
-        simp only [show Int32.ofNat 0 = 0 from rfl, Int32.sub_zero,
+        simp only [show UInt8.ofNat 0 = 0 from rfl, UInt8.sub_zero,
           show UInt8.ofNat 0 = 0 from rfl, UInt8.add_zero]
         exact hBdef.symm
-      · have hd0 : ((p.pileDepth[pile.toNat]'hpile).toInt32).toInt ≤ 5 := by
-          rw [UInt8.toInt_toInt32]; exact hd5
-        have hmlt : (m : Int) < ((p.pileDepth[pile.toNat]'hpile).toInt32).toInt := by
-          rw [UInt8.toInt_toInt32]; omega
-        exact merge_pos_chain g pile hpile (pileHashes[pile.toNat]'hpile) B
-          (p.pileDepth[pile.toNat]'hpile).toInt32 m p hd0 hmlt hmg k hkpos hkm
+      · exact merge_pos_chain g pile hpile (pileHashes[pile.toNat]'hpile) B
+          (p.pileDepth[pile.toNat]'hpile) m p hd5 (by omega) hmg k hkpos hkm
     -- The freed-loop guard held for every step below `f`: unfold each into the
     -- semantic per-`l` fact `hffree` needs.
     have hffree : ∀ l, 1 ≤ l → l ≤ f →
@@ -461,39 +418,31 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
     -- The merge loop stopped either because depth (after `m` steps) reached
     -- `≤ 1`, or because the card two below the new boundary doesn't continue
     -- the ascending run.
-    have hmstop : (p.pileDepth[pile.toNat]'hpile).toInt - m ≤ 1 ∨
-        (1 < (p.pileDepth[pile.toNat]'hpile).toInt - m ∧
-          ∃ h5 : ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m - 2
+    have hmstop : (p.pileDepth[pile.toNat]'hpile).toNat - m ≤ 1 ∨
+        (m + 1 < (p.pileDepth[pile.toNat]'hpile).toNat ∧
+          ∃ h5 : ((p.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m - 2
             ).toUInt32.toNat < 5,
-            (g.pos2card[pile.toNat]'hpile)[((p.pileDepth[pile.toNat]'hpile).toInt32 -
-              Int32.ofNat m - 2).toUInt32.toNat]'h5 ≠ B + UInt8.ofNat (m + 1)) := by
-      by_cases hle1 : (p.pileDepth[pile.toNat]'hpile).toInt - m ≤ 1
+            (g.pos2card[pile.toNat]'hpile)[((p.pileDepth[pile.toNat]'hpile) -
+              UInt8.ofNat m - 2).toUInt32.toNat]'h5 ≠ B + UInt8.ofNat (m + 1)) := by
+      by_cases hle1 : (p.pileDepth[pile.toNat]'hpile).toNat - m ≤ 1
       · exact Or.inl hle1
       · push_neg at hle1
         right
-        have h1lt : (1 : Int32) < (p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m := by
-          rw [Int32.lt_iff_toInt_lt, Int32.toInt_one, hdepth1I]; omega
-        have hidx2 : ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m - 2
+        have h1lt : (1 : UInt8) < (p.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m := by
+          rw [UInt8.lt_iff_toNat_lt, hdepth1I, show ((1 : UInt8).toNat = 1) from rfl]; omega
+        have hidx2 : ((p.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m - 2
             ).toUInt32.toNat < 5 := by
-          have hik : ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m - 2).toInt =
-              (p.pileDepth[pile.toNat]'hpile).toInt - m - 2 := by
-            rw [depth_sub_ofNat_sub_two_eq (by rw [UInt8.toInt_toInt32]; exact hd5)
-              (by rw [UInt8.toInt_toInt32]; omega), UInt8.toInt_toInt32]
-          have hikn : (0 : Int32) ≤
-              (p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m - 2 := by
-            rw [Int32.le_iff_toInt_le, hik, show ((0 : Int32).toInt = 0) from by decide]; omega
-          rw [Int32.toNat_toUInt32_of_le hikn]
-          show ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m - 2).toInt.toNat < 5
-          rw [hik]; omega
-        refine ⟨hle1, hidx2, ?_⟩
+          rw [UInt8.toNat_toUInt32, depth_sub_ofNat_sub_two_eq hd5 (by omega)]
+          omega
+        refine ⟨by omega, hidx2, ?_⟩
         intro heq
         apply hmx
         rw [mergeIter_eq]
         refine ⟨h1lt, fun h10 h5 => ?_⟩
         have hSame : (g.pos2card[pile.toNat]'hpile)[
-            ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m - 2).toUInt32.toNat]'h5 =
+            ((p.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m - 2).toUInt32.toNat]'h5 =
             (g.pos2card[pile.toNat]'hpile)[
-            ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m - 2).toUInt32.toNat]'hidx2 := by
+            ((p.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m - 2).toUInt32.toNat]'hidx2 := by
           congr 1
         have hstepB : B + UInt8.ofNat m + 1 = B + UInt8.ofNat (m + 1) := by
           rw [UInt8.ofNat_add, UInt8.ofNat_one, UInt8.add_assoc]
@@ -517,15 +466,13 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
             omega
           rw [UInt8.toNat_sub_of_le _ _ hle3, UInt8.toNat_sub_of_le _ _ h1B, hfof, show ((1 : UInt8).toNat = 1) from rfl]
           omega
-        rw [UInt8.toInt_toInt32]
         exact isFree_to_card2depth_ge g p hwf (B - 1 - UInt8.ofNat f) hXnat64 hfree
       · left
         have hcase : (B - 1 - UInt8.ofNat f) ≤ p.aces[(SUIT B).toUInt32.toNat]'hs4 := by
-          rw [UInt8.le_iff_toInt_le]
-          by_contra hlt
-          rw [not_le] at hlt
-          exact ‹¬ p.aces[(SUIT B).toUInt32.toNat]'hs4 < (B - 1 - UInt8.ofNat f)›
-            (UInt8.lt_iff_toInt_lt.mpr hlt)
+          rw [UInt8.le_iff_toNat_le]
+          have h := ‹¬ p.aces[(SUIT B).toUInt32.toNat]'hs4 < (B - 1 - UInt8.ofNat f)›
+          rw [UInt8.lt_iff_toNat_lt] at h
+          omega
         have h1B : (1 : UInt8) ≤ B := by
           rw [UInt8.le_iff_toNat_le]; show 1 ≤ B.toNat; omega
         have hfle : f ≤ B.toNat - 1 := hf_le
@@ -539,13 +486,8 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
             (B - 1 - UInt8.ofNat f).toNat := by
           rcases Nat.eq_zero_or_pos f with hf0 | hfpos
           · subst hf0
-            have hlt := UInt8.lt_iff_toInt_lt.mp haces_lt_B
             have hacesB : (p.aces[(SUIT B).toUInt32.toNat]'hs4).toNat < B.toNat :=
               UInt8.lt_iff_toNat_lt.mp haces_lt_B
-            rw [uint8_toInt8_toInt_of_lt128 (by omega)] at hlt
-            have hacesNat : (p.aces[(SUIT B).toUInt32.toNat]'hs4).toNat =
-                (p.aces[(SUIT B).toUInt32.toNat]'hs4).toInt.toNat :=
-              rfl
             rw [hXnat]
             omega
           · have hf' := (hffree f hfpos (le_refl f)).2
@@ -553,32 +495,14 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
             have hfBle : UInt8.ofNat f ≤ B := by rw [UInt8.le_iff_toNat_le, hfof]; omega
             have hBf : (B - UInt8.ofNat f).toNat = B.toNat - f := by
               rw [UInt8.toNat_sub_of_le _ _ hfBle, hfof]
-            have hlt := UInt8.lt_iff_toInt_lt.mp hf'
-            rw [uint8_toInt8_toInt_of_lt128 (show (B - UInt8.ofNat f).toNat < 128 by omega), hBf] at hlt
-            have hacesNat : (p.aces[(SUIT B).toUInt32.toNat]'hs4).toNat =
-                (p.aces[(SUIT B).toUInt32.toNat]'hs4).toInt.toNat :=
-              rfl
+            have hlt := UInt8.lt_iff_toNat_lt.mp hf'
+            rw [hBf] at hlt
             rw [hXnat]
             omega
         have hgeNat : (B - 1 - UInt8.ofNat f).toNat ≤
-            (p.aces[(SUIT B).toUInt32.toNat]'hs4).toNat := by
-          have hle := UInt8.le_iff_toInt_le.mp hcase
-          rw [uint8_toInt8_toInt_of_lt128 (by
-            have := hXnat; omega)] at hle
-          have hacesNat : (p.aces[(SUIT B).toUInt32.toNat]'hs4).toNat =
-              (p.aces[(SUIT B).toUInt32.toNat]'hs4).toInt.toNat :=
-            rfl
-          omega
-        apply UInt8.toInt_inj.mp
-        rw [uint8_toInt8_toInt_of_lt128
-            (show (p.aces[(SUIT B).toUInt32.toNat]'hs4).toNat < 128 by omega),
-          uint8_toInt8_toInt_of_lt128
-            (show (B - 1 - UInt8.ofNat f).toNat < 128 by have := hXnat; omega)]
-        have hacesNat : (p.aces[(SUIT B).toUInt32.toNat]'hs4).toNat =
-            (p.aces[(SUIT B).toUInt32.toNat]'hs4).toInt.toNat :=
-          rfl
-        have haces0' : (0 : Int) ≤ (p.aces[(SUIT B).toUInt32.toNat]'hs4).toInt :=
-          UInt8.le_iff_toInt_le.mp haces0
+            (p.aces[(SUIT B).toUInt32.toNat]'hs4).toNat :=
+          UInt8.le_iff_toNat_le.mp hcase
+        apply UInt8.toNat_inj.mp
         omega
     have hmf128 : (1 + (m : Int) + f) < 128 := by
       have h1 := hm4
@@ -590,7 +514,7 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
     -- on the non-king/king split, so they're computed once here and reused
     -- by both sub-branches below).
     -- ------------------------------------------------------------------
-    have hm_le_int : (m : Int) ≤ (p.pileDepth[pile.toNat]'hpile).toInt - 1 := by omega
+    have hm_le_int : m + 1 ≤ (p.pileDepth[pile.toNat]'hpile).toNat := by omega
     have hak : ∀ t : Fin 4, SUIT (p.aces.get t) = t.val.toUInt8 :=
       fun t => (hnf.suitClean t).aces_kings_valid.1
     have hpc := preCleanupPile_pileClean_self pile g p hpile hwf hnf B hs4 hd1 hd5 hidx
@@ -604,8 +528,8 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
     -- on the lone-king condition.
     -- ------------------------------------------------------------------
     rw [cleanupRunResult_eq pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-      (p.pileDepth[pile.toNat]'hpile).toInt32 m f p hmf128] at hrun
-    cases hk : ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m == 1 &&
+      (p.pileDepth[pile.toNat]'hpile) m f p] at hrun
+    cases hk : ((p.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m == 1 &&
         VALUE (B + UInt8.ofNat m) == 13) with
     | false =>
       simp only [hk, Bool.false_eq_true, reduceIte] at hrun
@@ -626,21 +550,21 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
       have hk1 := hk.1
       have hk2 := hk.2
       have hpdEq : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-          (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth[pile.toNat]'hpile =
-          ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m).toUInt32.toUInt8 := by
+          (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth[pile.toNat]'hpile =
+          ((p.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m) := by
         simp only [preCleanupPile]
         rw [Vector.getElem_set_self]
       have hpfEq : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-          (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileFlute[pile.toNat]'hpile =
-          (1 + Int32.ofNat m + Int32.ofNat f).toUInt32.toUInt8 := by
+          (p.pileDepth[pile.toNat]'hpile) m f p).pileFlute[pile.toNat]'hpile =
+          (1 + UInt8.ofNat m + UInt8.ofNat f) := by
         simp only [preCleanupPile]
         rw [Vector.getElem_set_self]
       have hd1' : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-          (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth[pile.toNat]'hpile = 1 := by
-        rw [hpdEq, eq_of_beq hk1]; decide
+          (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth[pile.toNat]'hpile = 1 := by
+        rw [hpdEq, eq_of_beq hk1]
       have hVK13 : (VALUE (B + UInt8.ofNat m)).toNat = 13 := by
         rw [eq_of_beq hk2]; decide
-      have hrcm := merge_real_chain' g pile hpile hwf B (p.pileDepth[pile.toNat]'hpile).toInt32 m
+      have hrcm := merge_real_chain' g pile hpile hwf B (p.pileDepth[pile.toNat]'hpile) m
         hreal hmcards m (le_refl m)
       have hSm : SUIT (B + UInt8.ofNat m) = SUIT B := by
         apply UInt8.toNat_inj.mp
@@ -654,7 +578,7 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
           rw [UInt8.toNat_add, hmB, Nat.mod_eq_of_lt hlt256]
         have hvm := hrcm.2
         omega
-      have hidx0 : ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m - 1
+      have hidx0 : ((p.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m - 1
           ).toUInt32.toNat = 0 := by
         have he1 := eq_of_beq hk1
         rw [he1]
@@ -667,16 +591,16 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
       · intro j hj
         rw [kingMove_pileDepth_eq_of_ne pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
             (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p) j hj,
+              (p.pileDepth[pile.toNat]'hpile) m f p) j hj,
           preCleanupPile_pileDepth_eq_of_ne pile hpile B (pileHashes[pile.toNat]'hpile) hs4 p m f
             j hj]
       · exact kingMove_pileClean_self pile g hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
           (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)
+            (p.pileDepth[pile.toNat]'hpile) m f p)
       · exact fun s => kingMove_suitClean pile g hpile hwf (SUIT B) hs4
           (pileHashes[pile.toNat]'hpile)
           (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)
+            (p.pileDepth[pile.toNat]'hpile) m f p)
           hpdb_all hd1' (B + UInt8.ofNat m) hKeq hVK13 hSm.symm hak hpc s
           (preCleanupPile_suitClean pile g p hpile hwf hnf B hs4 hd1 hd5 hidx hBdef.symm
             m f hm_le_int hmcards hmstop hf_le hf_le_tight hffree hfstop s)
@@ -685,26 +609,26 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
         -- term (now `0`) via `hash_foldl_set`.
         have hqhash := preCleanupPile_hash_def pile g p hpile hnf B hs4 hd5 m f hm_le_int
         show (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).hash -
+              (p.pileDepth[pile.toNat]'hpile) m f p).hash -
             (pileHashes[pile.toNat]'hpile) =
           (List.finRange 10).foldl (fun acc i => acc + pileHashes.get i *
             ((kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
               (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileDepth.get i
-              ).toInt.toNat.toUInt32) 0
+                (p.pileDepth[pile.toNat]'hpile) m f p)).pileDepth.get i
+              ).toNat.toUInt32) 0
         have hpdeq : (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
               (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileDepth =
+                (p.pileDepth[pile.toNat]'hpile) m f p)).pileDepth =
             (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth.set
+              (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth.set
               pile.toNat (0 : UInt8) hpile := by
           simp only [kingMove]
         rw [hpdeq, hqhash]
         have hadd := hash_foldl_set (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile)
-          hs4 (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth pile.toNat hpile (0 : UInt8)
+          hs4 (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth pile.toNat hpile (0 : UInt8)
         rw [hd1'] at hadd
-        simp only [show ((1 : UInt8).toInt.toNat = 1) from rfl,
-          show ((0 : UInt8).toInt.toNat = 0) from rfl,
+        simp only [show ((1 : UInt8).toNat = 1) from rfl,
+          show ((0 : UInt8).toNat = 0) from rfl,
           show (Nat.toUInt32 0 = 0) from rfl, show (Nat.toUInt32 1 = 1) from rfl,
           UInt32.mul_one, UInt32.mul_zero, UInt32.add_zero] at hadd
         rw [← hadd, UInt32.add_sub_cancel]
@@ -713,92 +637,75 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
         -- `pile`'s own depth/flute terms (now `0`/`1`) the same way.
         have hqused := preCleanupPile_usedSpace_def pile g p hpile hwf hnf B hs4 hd hd1 hd5
           hidx hBdef.symm m f hm_le_int hf_le hf_le_tight hffree hBrange.2
-        have hfl8 : ((1 + Int32.ofNat m + Int32.ofNat f).toUInt32.toUInt8).toNat = 1 + m + f := by
-          have hmofI : (Int32.ofNat m).toInt = (m : Int) := by
-            rw [Int32.toInt_ofNat', show Int32.size = 4294967296 from rfl]
-            exact Int.bmod_eq_of_le (by omega) (by omega)
-          have hfofI : (Int32.ofNat f).toInt = (f : Int) := by
-            rw [Int32.toInt_ofNat', show Int32.size = 4294967296 from rfl]
-            exact Int.bmod_eq_of_le (by omega) (by omega)
-          have h1mI : ((1 : Int32) + Int32.ofNat m).toInt = 1 + (m : Int) := by
-            rw [Int32.toInt_add, Int32.toInt_one, hmofI]
-            exact Int.bmod_eq_of_le (by omega) (by omega)
-          have hfl32I : ((1 : Int32) + Int32.ofNat m + Int32.ofNat f).toInt =
-              1 + (m : Int) + f := by
-            rw [Int32.toInt_add, h1mI, hfofI]
-            exact Int.bmod_eq_of_le (by omega) (by omega)
-          have hflnn : (0 : Int32) ≤ 1 + Int32.ofNat m + Int32.ofNat f := by
-            rw [Int32.le_iff_toInt_le, hfl32I, show ((0 : Int32).toInt = 0) from by decide]
-            omega
-          rw [UInt32.toNat_toUInt8, Int32.toNat_toUInt32_of_le hflnn]
-          show ((1 + Int32.ofNat m + Int32.ofNat f).toInt.toNat) % 2 ^ 8 = 1 + m + f
-          rw [hfl32I]
+        have hfl8 : (1 + UInt8.ofNat m + UInt8.ofNat f).toNat = 1 + m + f := by
+          have hmof8 : (UInt8.ofNat m).toNat = m := by rw [UInt8.toNat_ofNat']; omega
+          have hfof8 : (UInt8.ofNat f).toNat = f := by rw [UInt8.toNat_ofNat']; omega
+          rw [UInt8.toNat_add, UInt8.toNat_add, hmof8, hfof8,
+            show ((1 : UInt8).toNat = 1) from rfl]
           omega
         have hds := depth_sum_foldl_set (preCleanupPile pile hpile B
-          (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile).toInt32 m f p
+          (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile) m f p
           ).pileDepth pile.toNat hpile (0 : UInt8)
         rw [hd1'] at hds
-        simp only [show ((1 : UInt8).toInt.toNat = 1) from rfl,
-          show ((0 : UInt8).toInt.toNat = 0) from rfl] at hds
+        simp only [show ((1 : UInt8).toNat = 1) from rfl,
+          show ((0 : UInt8).toNat = 0) from rfl] at hds
         have hft := usedSpace_term_foldl_set (preCleanupPile pile hpile B
-            (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile).toInt32 m f p
+            (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile) m f p
             ).pileDepth
           (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileFlute
+            (p.pileDepth[pile.toNat]'hpile) m f p).pileFlute
           pile.toNat hpile (0 : UInt8) (1 : UInt8)
         rw [hd1', hpfEq] at hft
         simp only [show ((0 : UInt8) ≠ (0 : UInt8)) = False from by simp,
           show ((1 : UInt8) ≠ (0 : UInt8)) = True from by simp, reduceIte] at hft
         rw [hfl8] at hft
         show ((preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).usedSpace +
+              (p.pileDepth[pile.toNat]'hpile) m f p).usedSpace +
             ((preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileFlute[pile.toNat]'hpile
+              (p.pileDepth[pile.toNat]'hpile) m f p).pileFlute[pile.toNat]'hpile
               )).toInt =
           (52 : Int)
           - ((kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
               (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)
-              ).pileDepth.toList.foldl (fun acc d => acc + d.toInt.toNat) 0 : Nat)
+                (p.pileDepth[pile.toNat]'hpile) m f p)
+              ).pileDepth.toList.foldl (fun acc d => acc + d.toNat) 0 : Nat)
           - (p.aces.toList.foldl (fun acc a => acc + (VALUE a).toNat) 0 : Nat)
           - ((List.zipWith (fun d f => if d ≠ (0 : UInt8) then f.toNat - 1 else 0)
               (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
                 (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                  (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileDepth.toList
+                  (p.pileDepth[pile.toNat]'hpile) m f p)).pileDepth.toList
               (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
                 (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                  (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileFlute.toList
+                  (p.pileDepth[pile.toNat]'hpile) m f p)).pileFlute.toList
               |>.foldl (·+·) 0 : Nat))
         have hpdeqL : (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
               (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileDepth.toList =
+                (p.pileDepth[pile.toNat]'hpile) m f p)).pileDepth.toList =
             ((preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth.set
+              (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth.set
               pile.toNat (0 : UInt8) hpile).toList := by
           simp only [kingMove]
         have hpfeqL : (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
               (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-                (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileFlute.toList =
+                (p.pileDepth[pile.toNat]'hpile) m f p)).pileFlute.toList =
             ((preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileFlute.set
+              (p.pileDepth[pile.toNat]'hpile) m f p).pileFlute.set
               pile.toNat (1 : UInt8) hpile).toList := by
           simp only [kingMove]
-          congr 1
         rw [hpdeqL, hpfeqL]
         have hfl8Int : ((preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileFlute[pile.toNat]'hpile
+            (p.pileDepth[pile.toNat]'hpile) m f p).pileFlute[pile.toNat]'hpile
             ).toInt = (1 + (m : Int) + f) := by
           rw [hpfEq]
-          have hb128 : (((1 : Int32) + Int32.ofNat m + Int32.ofNat f).toUInt32.toUInt8
-              ).toNat < 128 := by rw [hfl8]; omega
-          rw [uint8_toInt8_toInt_of_lt128 hb128, hfl8]
+          show (((1 + UInt8.ofNat m + UInt8.ofNat f).toNat : Nat) : Int) = _
+          rw [hfl8]
           push_cast
           ring
         rw [UInt8.toInt_add, hfl8Int]
         have hxcast : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).usedSpace.toInt =
+            (p.pileDepth[pile.toNat]'hpile) m f p).usedSpace.toInt =
             (((preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).usedSpace.toNat : Int)) := rfl
+              (p.pileDepth[pile.toNat]'hpile) m f p).usedSpace.toNat : Int)) := rfl
         omega
 
 /-- `1 <<< x < 16` whenever the shift amount `x.toNat < 4` (the bit set sits
@@ -819,8 +726,8 @@ private theorem uint8_one_shl_lt16_of_lt4 (x : UInt8) (hx : x.toNat < 4) :
     did. -/
 theorem preCleanupPile_busyAces_lt16 (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (d32 : Int32) (m f : Nat) (p : SolverPosType) (hp16 : p.busyAces < 16) :
-    (preCleanupPile pile hpile B ph hs4 d32 m f p).busyAces < 16 := by
+    (d : UInt8) (m f : Nat) (p : SolverPosType) (hp16 : p.busyAces < 16) :
+    (preCleanupPile pile hpile B ph hs4 d m f p).busyAces < 16 := by
   have hs4' : (SUIT B).toNat < 4 := by rwa [UInt8.toNat_toUInt32] at hs4
   simp only [preCleanupPile]
   split
@@ -869,7 +776,7 @@ theorem cleanupPile_base (pile : UInt32) (g : Globals) (p : SolverPosType)
       ⟨hd1', K, hKdef, hVK13, hsuiteq, hKeq, hframe, hpc, hsuit, hhash, hused, hrun⟩
     · refine ⟨0xffff, _, hrun, fun i => ?_, hsuit, hhash, hused,
         preCleanupPile_busyAces_lt16 pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-          (p.pileDepth[pile.toNat]'hpile).toInt32 m f p hp16⟩
+          (p.pileDepth[pile.toNat]'hpile) m f p hp16⟩
       by_cases hij : i.val = pile.toNat
       · have hii : i = ⟨pile.toNat, hpile⟩ := Fin.ext hij
         subst hii
@@ -886,7 +793,7 @@ theorem cleanupPile_base (pile : UInt32) (g : Globals) (p : SolverPosType)
               hd5 (by omega) i hij (hnfp i hij))
       · rw [kingMove_busyAces_eq]
         exact preCleanupPile_busyAces_lt16 pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-          (p.pileDepth[pile.toNat]'hpile).toInt32 m f p hp16
+          (p.pileDepth[pile.toNat]'hpile) m f p hp16
 
 /-- Pure combinatorics: splitting a `List.finRange n`-indexed count at one
     excluded index `k` into the filtered count (over `j ≠ k`) plus the
@@ -1075,10 +982,10 @@ theorem cleanupPile_merged (pile : UInt32) (g : Globals) (p : SolverPosType)
       ⟨hd1', K, hKdef, hVK13, hsuiteq, hKeq, hframe, hpc, hsuit, hhash, hused, hrun⟩
     · -- NON-KING sub-branch.
       have hbase' : SolverInvBase g (preCleanupPile pile hpile B
-          (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile).toInt32 m f p) := by
+          (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile) m f p) := by
         refine ⟨fun i => ?_, hsuit, hhash, hused,
           preCleanupPile_busyAces_lt16 pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p hp16⟩
+            (p.pileDepth[pile.toNat]'hpile) m f p hp16⟩
         by_cases hij : i.val = pile.toNat
         · have hii : i = ⟨pile.toNat, hpile⟩ := Fin.ext hij
           subst hii
@@ -1086,7 +993,7 @@ theorem cleanupPile_merged (pile : UInt32) (g : Globals) (p : SolverPosType)
         · exact preCleanupPile_pileBase_ne pile g hpile B (pileHashes[pile.toNat]'hpile) hs4 p
             m f hd5 (by omega) i hij (hnfp i hij)
       have hpmAll : ∀ i : Fin 10, PileMerged g (preCleanupPile pile hpile B
-          (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile).toInt32 m f p) i
+          (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile) m f p) i
           (hbase'.pileDepth_bound i) := by
         intro i
         by_cases hij : i.val = pile.toNat
@@ -1096,50 +1003,39 @@ theorem cleanupPile_merged (pile : UInt32) (g : Globals) (p : SolverPosType)
         · exact preCleanupPile_pileMerged_ne pile g hpile hwf B (pileHashes[pile.toNat]'hpile) hs4
             p m f hd5 hm_le hmcards hak i hij (hnfp i hij) (hpmOtherP i hij)
       have hpdEqNK : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-          (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth[pile.toNat]'hpile =
-          ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m).toUInt32.toUInt8 := by
+          (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth[pile.toNat]'hpile =
+          ((p.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m) := by
         simp only [preCleanupPile]
         rw [Vector.getElem_set_self]
       have hpdNeNK : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-          (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth.get
+          (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth.get
             (⟨pile.toNat, hpile⟩ : Fin 10) ≠ 0 := by
         show (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth[pile.toNat]'hpile ≠ 0
+            (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth[pile.toNat]'hpile ≠ 0
         rw [hpdEqNK]
         intro heq
-        have h' := congrArg UInt8.toInt heq
-        have hmofI : (Int32.ofNat m).toInt = (m : Int) := by
-          rw [Int32.toInt_ofNat', show Int32.size = 4294967296 from rfl]
-          exact Int.bmod_eq_of_le (by omega) (by omega)
-        have hdepth1I : ((p.pileDepth[pile.toNat]'hpile).toInt32 - Int32.ofNat m).toInt =
-            (p.pileDepth[pile.toNat]'hpile).toInt - m := by
-          rw [Int32.toInt_sub_of_le _ _
-            (by rw [Int32.le_iff_toInt_le, hmofI, show ((0 : Int32).toInt = 0) from by decide]
-                omega)
-            (by rw [Int32.le_iff_toInt_le, hmofI, UInt8.toInt_toInt32]; omega),
-            hmofI, UInt8.toInt_toInt32]
-        rw [UInt8.toInt_eq,
-          Int32.toUInt8_toNat_of_lt256 _ (by rw [hdepth1I]; omega) (by rw [hdepth1I]; omega),
-          hdepth1I, show ((0 : UInt8).toInt = 0) from rfl] at h'
+        have h' := congrArg UInt8.toNat heq
+        rw [depth_sub_ofNat_eq hd5 (by omega),
+          show ((0 : UInt8).toNat = 0) from rfl] at h'
         omega
       have hfp : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-          (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).freePiles.toInt =
+          (p.pileDepth[pile.toNat]'hpile) m f p).freePiles.toInt =
           ((preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth.toList.countP (· == 0) :
+            (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth.toList.countP (· == 0) :
             Nat) := by
         have hfeq2 : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).freePiles = p.freePiles := by
+            (p.pileDepth[pile.toNat]'hpile) m f p).freePiles = p.freePiles := by
           simp only [preCleanupPile]
         have hframeEq := cleanupReady_freePiles_frame_eq pile p
           (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p) hframe
+            (p.pileDepth[pile.toNat]'hpile) m f p) hframe
         have hsplit := cleanupReady_freePiles_split pile hpile
           (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)
+            (p.pileDepth[pile.toNat]'hpile) m f p)
           ((List.finRange 10).countP (fun j => j.val != pile.toNat && (p.pileDepth.get j == 0)))
           hframeEq.symm
         have hind : (if (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth.get
+            (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth.get
             (⟨pile.toNat, hpile⟩ : Fin 10) == (0 : UInt8) then (1 : Nat) else 0) = 0 := by
           simp [beq_eq_false_iff_ne.mpr hpdNeNK]
         rw [hind] at hsplit
@@ -1149,7 +1045,7 @@ theorem cleanupPile_merged (pile : UInt32) (g : Globals) (p : SolverPosType)
       -- ORs in one more bit, so an already-set bit stays set.
       have hbusyMonoNK : ∀ mask : UInt8, p.busyAces &&& mask ≠ 0 →
           (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).busyAces &&& mask ≠ 0 := by
+            (p.pileDepth[pile.toNat]'hpile) m f p).busyAces &&& mask ≠ 0 := by
         intro mask hmask
         show (if p.aces[(SUIT B).toUInt32.toNat]'hs4 == (B - 1 - UInt8.ofNat f) then
             p.busyAces ||| (1 : UInt8) <<< SUIT B else p.busyAces) &&& mask ≠ 0
@@ -1164,12 +1060,12 @@ theorem cleanupPile_merged (pile : UInt32) (g : Globals) (p : SolverPosType)
     · -- KING sub-branch.
       have hbase' : SolverInvBase g (kingMove pile hpile (SUIT B) hs4
           (pileHashes[pile.toNat]'hpile) (preCleanupPile pile hpile B
-            (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)) := by
+            (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile) m f p)) := by
         refine ⟨fun i => ?_, hsuit, hhash, hused, ?_⟩
         swap
         · rw [kingMove_busyAces_eq]
           exact preCleanupPile_busyAces_lt16 pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p hp16
+            (p.pileDepth[pile.toNat]'hpile) m f p hp16
         by_cases hij : i.val = pile.toNat
         · have hii : i = ⟨pile.toNat, hpile⟩ := Fin.ext hij
           subst hii
@@ -1179,7 +1075,7 @@ theorem cleanupPile_merged (pile : UInt32) (g : Globals) (p : SolverPosType)
               hd5 (by omega) i hij (hnfp i hij))
       have hpmAll : ∀ i : Fin 10, PileMerged g (kingMove pile hpile (SUIT B) hs4
           (pileHashes[pile.toNat]'hpile) (preCleanupPile pile hpile B
-            (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)) i
+            (pileHashes[pile.toNat]'hpile) hs4 (p.pileDepth[pile.toNat]'hpile) m f p)) i
           (hbase'.pileDepth_bound i) := by
         intro i
         by_cases hij : i.val = pile.toNat
@@ -1194,35 +1090,35 @@ theorem cleanupPile_merged (pile : UInt32) (g : Globals) (p : SolverPosType)
                 p m f hd5 hm_le hmcards hak i hij (hnfp i hij) (hpmOtherP i hij))
       have hkmfp : (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
           (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).freePiles = p.freePiles + 1 := by
+            (p.pileDepth[pile.toNat]'hpile) m f p)).freePiles = p.freePiles + 1 := by
         simp only [kingMove, preCleanupPile]
       have hkd0 : (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
           (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileDepth.get
+            (p.pileDepth[pile.toNat]'hpile) m f p)).pileDepth.get
             (⟨pile.toNat, hpile⟩ : Fin 10) = 0 :=
         kingMove_pileDepth_self pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
           (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)
+            (p.pileDepth[pile.toNat]'hpile) m f p)
       have hfp : (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
           (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).freePiles.toInt =
+            (p.pileDepth[pile.toNat]'hpile) m f p)).freePiles.toInt =
           ((kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
             (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileDepth.toList.countP (· == 0) :
+              (p.pileDepth[pile.toNat]'hpile) m f p)).pileDepth.toList.countP (· == 0) :
             Nat) := by
         have hframeEq := cleanupReady_freePiles_frame_eq pile p
           (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
             (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)) hframe
+              (p.pileDepth[pile.toNat]'hpile) m f p)) hframe
         have hsplit := cleanupReady_freePiles_split pile hpile
           (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
             (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p))
+              (p.pileDepth[pile.toNat]'hpile) m f p))
           ((List.finRange 10).countP (fun j => j.val != pile.toNat && (p.pileDepth.get j == 0)))
           hframeEq.symm
         have hind : (if (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
             (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).pileDepth.get
+              (p.pileDepth[pile.toNat]'hpile) m f p)).pileDepth.get
             (⟨pile.toNat, hpile⟩ : Fin 10) == (0 : UInt8) then (1 : Nat) else 0) = 1 := by
           simp [hkd0]
         rw [hind] at hsplit
@@ -1233,7 +1129,7 @@ theorem cleanupPile_merged (pile : UInt32) (g : Globals) (p : SolverPosType)
         omega
       have hbusyMonoNK : ∀ mask : UInt8, p.busyAces &&& mask ≠ 0 →
           (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-            (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).busyAces &&& mask ≠ 0 := by
+            (p.pileDepth[pile.toNat]'hpile) m f p).busyAces &&& mask ≠ 0 := by
         intro mask hmask
         show (if p.aces[(SUIT B).toUInt32.toNat]'hs4 == (B - 1 - UInt8.ofNat f) then
             p.busyAces ||| (1 : UInt8) <<< SUIT B else p.busyAces) &&& mask ≠ 0
@@ -1247,7 +1143,7 @@ theorem cleanupPile_merged (pile : UInt32) (g : Globals) (p : SolverPosType)
       have hbusyMonoK : ∀ mask : UInt8, p.busyAces &&& mask ≠ 0 →
           (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
             (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-              (p.pileDepth[pile.toNat]'hpile).toInt32 m f p)).busyAces &&& mask ≠ 0 := by
+              (p.pileDepth[pile.toNat]'hpile) m f p)).busyAces &&& mask ≠ 0 := by
         intro mask hmask
         rw [kingMove_busyAces_eq]
         exact hbusyMonoNK mask hmask

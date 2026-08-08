@@ -644,10 +644,8 @@ theorem IsCanonicalPos.kings_value_pos {g : Globals} {p : SolverPosType}
   -- `aces ≤ kings` within one suit forces `VALUE(aces) = 0` as well.
   have hna : (0 : UInt8) ≤ p.aces.get s := int8_nonneg_of_suit hsa
   have hnk : (0 : UInt8) ≤ p.kings.get s := int8_nonneg_of_suit hsk
-  have hle : (p.aces.get s).toNat ≤ (p.kings.get s).toNat := by
-    have := UInt8.le_iff_toInt_le.mp hak
-    show (p.aces.get s).toInt.toNat ≤ (p.kings.get s).toInt.toNat
-    omega
+  have hle : (p.aces.get s).toNat ≤ (p.kings.get s).toNat :=
+    UInt8.le_iff_toNat_le.mp hak
   have hsuits : (p.aces.get s).toNat / 16 = (p.kings.get s).toNat / 16 := by
     have h1 := congrArg UInt8.toNat hsa
     have h2 := congrArg UInt8.toNat hsk
@@ -1467,8 +1465,10 @@ theorem freePiles_bound {g : Globals} {p : SolverPosType} (h : SolverInvMerged g
   omega
 
 theorem freePiles_toNat_le {g : Globals} {p : SolverPosType} (h : SolverInvMerged g p) :
-    p.freePiles.toInt.toNat ≤ 10 := by
-  have := freePiles_bound h; omega
+    p.freePiles.toNat ≤ 10 := by
+  have := freePiles_bound h
+  have hc : p.freePiles.toInt = (p.freePiles.toNat : Int) := rfl
+  omega
 
 /-- **`usedSpace ∈ [0, 52]`**, derived from `usedSpace_def` + the counting
     injection `cardOf_injective` (no longer a base-invariant field — see
@@ -2288,13 +2288,10 @@ theorem IsCanonicalPos_unique (g : Globals) (p q : SolverPosType)
 -- Hash injectivity
 -- ---------------------------------------------------------------------------
 
-/-- An `UInt8` that is nonnegative is determined by `x.toInt.toNat`. -/
+/-- An `UInt8` that is nonnegative is determined by `x.toNat`. -/
 theorem UInt8_eq_of_toNat_eq {x y : UInt8} (hx : (0 : UInt8) ≤ x) (hy : (0 : UInt8) ≤ y)
-    (h : x.toInt.toNat = y.toInt.toNat) : x = y := by
-  apply UInt8.toInt_inj.mp
-  have hx' : (0 : Int) ≤ x.toInt := UInt8.le_iff_toInt_le.mp hx
-  have hy' : (0 : Int) ≤ y.toInt := UInt8.le_iff_toInt_le.mp hy
-  omega
+    (h : x.toNat = y.toNat) : x = y :=
+  UInt8.toNat_inj.mp h
 
 /-- **Base-6 hash injectivity, arithmetic core.**  If two base-6 dot products of
     ten digits each in `{0,…,5}` agree as `UInt32`, the digits agree.  The sum is
@@ -2380,7 +2377,7 @@ theorem IsCanonicalPos_hash_inj (g : Globals) (p q : SolverPosType)
   obtain ⟨k0, k1, k2, k3, k4, k5, k6, k7, k8, k9⟩ := key
   -- Each component follows from its digit equality (`k0 … k9`, found by `assumption` once
   -- `interval_cases` has fixed the index) plus nonnegativity.  `UInt8_eq_of_toNat_eq` does
-  -- the `.toInt.toNat → .toInt → UInt8` bridge that `omega` cannot do on `UInt8` directly.
+  -- the `.toNat → .toInt → UInt8` bridge that `omega` cannot do on `UInt8` directly.
   apply Vector.ext
   intro i hi
   interval_cases i <;>

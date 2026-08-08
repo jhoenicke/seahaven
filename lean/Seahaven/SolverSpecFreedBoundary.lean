@@ -25,7 +25,7 @@ theorem freed_below_other_boundary (g : Globals) (p : SolverPosType)
     (hwf : WellFormedLayout g) (hnf : SolverInvBase g p)
     (suit B : UInt8) (hBreal : IsRealCard B) (f : Nat)
     (hfg : ∀ k, k < f → freedGuard g suit
-      (freedIter k (⟨(1 : Int32), p, B - 1⟩ : FreedAcc)))
+      (freedIter k (⟨(1 : UInt8), p, B - 1⟩ : FreedAcc)))
     (j : Fin 10) (hdj : (p.pileDepth.get j).toNat > 0)
     (hBjlt : ((g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1,
         by have := hnf.pileDepth_bound j; omega⟩ : UInt8).toNat < B.toNat) :
@@ -73,18 +73,12 @@ theorem freed_below_other_boundary (g : Globals) (p : SolverPosType)
         (g.card2depth.get ⟨Bj.toNat, hBj64⟩).toNat := by
       have : g.card2depth[Bj.toUInt32.toNat]'hBj64u = g.card2depth.get ⟨Bj.toNat, hBj64⟩ := rfl
       rw [this]
-    have keyEqV : p.pileDepth[(g.card2pile[Bj.toUInt32.toNat]'hBj64u).toUInt32.toNat]'
-        (by rw [hpileEqGE]; exact hpile64) = p.pileDepth[(cardPile g Bj).toNat]'hpile64 := by
-      congr 1
     have keyEq : (p.pileDepth[(g.card2pile[Bj.toUInt32.toNat]'hBj64u).toUInt32.toNat]'
-        (by rw [hpileEqGE]; exact hpile64)).toInt32.toInt.toNat =
-      (p.pileDepth.get ⟨(cardPile g Bj).toNat, hpile64⟩).toInt.toNat := by
-      rw [keyEqV]
-      show (p.pileDepth.get ⟨(cardPile g Bj).toNat, hpile64⟩).toInt32.toInt.toNat =
-        (p.pileDepth.get ⟨(cardPile g Bj).toNat, hpile64⟩).toInt.toNat
-      rw [UInt8.toInt_toInt32]
+        (by rw [hpileEqGE]; exact hpile64)).toNat =
+      (p.pileDepth.get ⟨(cardPile g Bj).toNat, hpile64⟩).toNat := by
+      congr 2
     show (g.card2depth.get ⟨Bj.toNat, hBj64⟩).toNat ≥
-      (p.pileDepth.get ⟨(cardPile g Bj).toNat, hpile64⟩).toInt.toNat
+      (p.pileDepth.get ⟨(cardPile g Bj).toNat, hpile64⟩).toNat
     rw [← hdepthEqGE, ← keyEq]
     exact hg2'
   exact free_card_ne_boundary hwf hnf j hdj Bj hfree rfl

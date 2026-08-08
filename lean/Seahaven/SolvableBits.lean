@@ -65,7 +65,7 @@ never fires (`freePiles ≤ 10`, and `offset + v` stays inside the table). -/
 
 /-- `closureInfos` entry for a position's free-pile count. -/
 def closureInfoOf (p : SolverPosType) : ClosureInfo :=
-  closureInfos.get ⟨min p.freePiles.toInt.toNat 10, by omega⟩
+  closureInfos.get ⟨min p.freePiles.toNat 10, by omega⟩
 
 /-- `subsetTable` lookup. -/
 def subsetAt (idx : Nat) : UInt16 := subsetTable.get ⟨min idx 99, by omega⟩
@@ -145,7 +145,7 @@ The second disjunct must carry that side condition.  Without it any suit could
 reserve any empty pile — including one a flute move just emptied — and claim a
 `computeKingSpaces` refund for a stack that is really still in the cells. -/
 def OwnsPile (s : State) (p : SolverPosType) (su : Suit) (i : Fin 10) : Prop :=
-  (p.pileDepth.get i).toInt.toNat = 0 ∧
+  (p.pileDepth.get i).toNat = 0 ∧
     ((∃ c ∈ (s.tableau i).getLast?, c.suit = su ∧ c.rank = Rank.king) ∨
       (s.tableau i = [] ∧ (VALUE (p.kings.get (finOfSuit su))).toNat = 13))
 
@@ -170,7 +170,7 @@ carries a card of that suit.  The exact negation of the physical half of
 `OwnsPile` — a genuinely empty column reserved for a suit is *not* excluded, since
 nothing of the suit sits on it. -/
 def NoKingPile (s : State) (p : SolverPosType) (su : Suit) : Prop :=
-  ∀ i : Fin 10, (p.pileDepth.get i).toInt.toNat = 0 →
+  ∀ i : Fin 10, (p.pileDepth.get i).toNat = 0 →
     ∀ d ∈ (s.tableau i).getLast?, d.suit ≠ su
 
 /-- **A state matched against a position *and* a king configuration.**

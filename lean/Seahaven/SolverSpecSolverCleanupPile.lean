@@ -205,15 +205,15 @@ theorem solverCleanupPile_step (g : Globals) (p : SolverPosType) (k : Nat) (hk :
       · -- NON-KING sub-branch.
         have hframeNK : ∀ j : Fin 10, j.val ≠ k →
             (preCleanupPile (UInt32.ofNat k) hk_ B (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p).pileDepth.get j =
+              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p).pileDepth.get j =
             p.pileDepth.get j :=
           fun j hj => hframe j (by rw [hpkn]; exact hj)
         refine ⟨0xffff, preCleanupPile (UInt32.ofNat k) hk_ B (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-            (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p, hrun, ⟨?_, ?_, ?_, ?_⟩, ?_⟩
+            (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p, hrun, ⟨?_, ?_, ?_, ?_⟩, ?_⟩
         · refine ⟨fun i => ?_, hsuit, hhash, hused,
             preCleanupPile_busyAces_lt16 (UInt32.ofNat k) hk_ B
               (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p hp16⟩
+              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p hp16⟩
           by_cases hij : i.val = (UInt32.ofNat k).toNat
           · have hii : i = ⟨(UInt32.ofNat k).toNat, hk_⟩ := Fin.ext hij
             subst hii
@@ -224,35 +224,24 @@ theorem solverCleanupPile_step (g : Globals) (p : SolverPosType) (k : Nat) (hk :
           -- `freePiles`, and pile `k` stays occupied (`m ≤ depth−1`), so the
           -- prefix count over the first `k+1` piles is unchanged.
           have hpfEq2 : (preCleanupPile (UInt32.ofNat k) hk_ B (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p).freePiles = p.freePiles := by
+              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p).freePiles = p.freePiles := by
             simp only [preCleanupPile]
           have hpdEqNK : (preCleanupPile (UInt32.ofNat k) hk_ B (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p).pileDepth[(UInt32.ofNat k).toNat]'hk_ =
-              ((p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 - Int32.ofNat m).toUInt32.toUInt8 := by
+              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p).pileDepth[(UInt32.ofNat k).toNat]'hk_ =
+              ((p.pileDepth[(UInt32.ofNat k).toNat]'hk_) - UInt8.ofNat m) := by
             simp only [preCleanupPile]
             rw [Vector.getElem_set_self]
           have hpdNeNK : (preCleanupPile (UInt32.ofNat k) hk_ B (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p).pileDepth.get
+              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p).pileDepth.get
                 (⟨k, hk⟩ : Fin 10) ≠ 0 := by
             rw [← hfinEq]
             show (preCleanupPile (UInt32.ofNat k) hk_ B (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p).pileDepth[(UInt32.ofNat k).toNat]'hk_ ≠ 0
+                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p).pileDepth[(UInt32.ofNat k).toNat]'hk_ ≠ 0
             rw [hpdEqNK]
             intro heq
-            have h' := congrArg UInt8.toInt heq
-            have hmofI : (Int32.ofNat m).toInt = (m : Int) := by
-              rw [Int32.toInt_ofNat', show Int32.size = 4294967296 from rfl]
-              exact Int.bmod_eq_of_le (by omega) (by omega)
-            have hdepth1I : ((p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 - Int32.ofNat m).toInt =
-                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt - m := by
-              rw [Int32.toInt_sub_of_le _ _
-                (by rw [Int32.le_iff_toInt_le, hmofI, show ((0 : Int32).toInt = 0) from by decide]
-                    omega)
-                (by rw [Int32.le_iff_toInt_le, hmofI, UInt8.toInt_toInt32]; omega),
-                hmofI, UInt8.toInt_toInt32]
-            rw [UInt8.toInt_eq,
-              Int32.toUInt8_toNat_of_lt256 _ (by rw [hdepth1I]; omega) (by rw [hdepth1I]; omega),
-              hdepth1I, show ((0 : UInt8).toInt = 0) from rfl] at h'
+            have h' := congrArg UInt8.toNat heq
+            rw [depth_sub_ofNat_eq hd5 (by omega),
+              show ((0 : UInt8).toNat = 0) from rfl] at h'
             omega
           have hstepEq := hfreePilesStep0 _ hframeNK hpdNeNK
           rw [hpfEq2, hstepEq]
@@ -280,19 +269,19 @@ theorem solverCleanupPile_step (g : Globals) (p : SolverPosType) (k : Nat) (hk :
         have hframeK : ∀ j : Fin 10, j.val ≠ k →
             (kingMove (UInt32.ofNat k) hk_ (SUIT B) hs4 (pileHashes[(UInt32.ofNat k).toNat]'hk_)
               (preCleanupPile (UInt32.ofNat k) hk_ B (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p)).pileDepth.get j =
+                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p)).pileDepth.get j =
             p.pileDepth.get j :=
           fun j hj => hframe j (by rw [hpkn]; exact hj)
         refine ⟨0xffff &&& kingOnPileMap[(SUIT B).toUInt32.toNat]'hs4,
           kingMove (UInt32.ofNat k) hk_ (SUIT B) hs4 (pileHashes[(UInt32.ofNat k).toNat]'hk_)
             (preCleanupPile (UInt32.ofNat k) hk_ B (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p), hrun, ⟨?_, ?_, ?_, ?_⟩, ?_⟩
+              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p), hrun, ⟨?_, ?_, ?_, ?_⟩, ?_⟩
         · refine ⟨fun i => ?_, hsuit, hhash, hused, ?_⟩
           swap
           · rw [kingMove_busyAces_eq]
             exact preCleanupPile_busyAces_lt16 (UInt32.ofNat k) hk_ B
               (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p hp16
+              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p hp16
           by_cases hij : i.val = (UInt32.ofNat k).toNat
           · have hii : i = ⟨(UInt32.ofNat k).toNat, hk_⟩ := Fin.ext hij
             subst hii
@@ -300,24 +289,24 @@ theorem solverCleanupPile_step (g : Globals) (p : SolverPosType) (k : Nat) (hk :
           · exact kingMove_pileBase_ne (UInt32.ofNat k) g hk_ (SUIT B) hs4
               (pileHashes[(UInt32.ofNat k).toNat]'hk_)
               (preCleanupPile (UInt32.ofNat k) hk_ B (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p) i hij
+                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p) i hij
               (preCleanupPile_pileBase_ne (UInt32.ofNat k) g hk_ B
                 (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4 p m f hd5 (by omega) i hij (hnfp i hij))
         · -- (2) prefix free-piles count: `kingMove` empties pile `k` and bumps
           -- `freePiles` by one — mirrors the base case's `hadd`/`hle`/`hge` block.
           have hkmfp : (kingMove (UInt32.ofNat k) hk_ (SUIT B) hs4 (pileHashes[(UInt32.ofNat k).toNat]'hk_)
               (preCleanupPile (UInt32.ofNat k) hk_ B (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p)).freePiles = p.freePiles + 1 := by
+                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p)).freePiles = p.freePiles + 1 := by
             simp only [kingMove, preCleanupPile]
           have hkd0 : (kingMove (UInt32.ofNat k) hk_ (SUIT B) hs4 (pileHashes[(UInt32.ofNat k).toNat]'hk_)
               (preCleanupPile (UInt32.ofNat k) hk_ B (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p)).pileDepth.get
+                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p)).pileDepth.get
                 (⟨k, hk⟩ : Fin 10) = 0 := by
             rw [← hfinEq]
             exact kingMove_pileDepth_self (UInt32.ofNat k) hk_ (SUIT B) hs4
               (pileHashes[(UInt32.ofNat k).toNat]'hk_)
               (preCleanupPile (UInt32.ofNat k) hk_ B (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p)
+                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p)
           have haddFP : (p.freePiles + 1).toInt = p.freePiles.toInt + 1 := by
             rw [UInt8.toInt_add, UInt8.toInt_one]
             omega
@@ -325,7 +314,7 @@ theorem solverCleanupPile_step (g : Globals) (p : SolverPosType) (k : Nat) (hk :
           show (p.freePiles + 1).toInt = (freePilesUpTo (kingMove (UInt32.ofNat k) hk_ (SUIT B) hs4
             (pileHashes[(UInt32.ofNat k).toNat]'hk_)
             (preCleanupPile (UInt32.ofNat k) hk_ B (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p)) (k + 1) : Nat)
+              (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p)) (k + 1) : Nat)
           rw [hstepEq, haddFP, hfp]
           push_cast
           ring
@@ -339,7 +328,7 @@ theorem solverCleanupPile_step (g : Globals) (p : SolverPosType) (k : Nat) (hk :
             exact kingMove_pileMerged_ne (UInt32.ofNat k) g hk_ hwf (SUIT B) hs4
               (pileHashes[(UInt32.ofNat k).toNat]'hk_)
               (preCleanupPile (UInt32.ofNat k) hk_ B (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p)
+                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p)
               hd1' K hKdef hVK13 hak i hijk
               (preCleanupPile_pileBase_ne (UInt32.ofNat k) g hk_ B
                 (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4 p m f hd5 (by omega) i hijk
@@ -357,7 +346,7 @@ theorem solverCleanupPile_step (g : Globals) (p : SolverPosType) (k : Nat) (hk :
           rw [kingMove_pileFlute_eq_of_ne (UInt32.ofNat k) hk_ (SUIT B) hs4
               (pileHashes[(UInt32.ofNat k).toNat]'hk_)
               (preCleanupPile (UInt32.ofNat k) hk_ B (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4
-                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_).toInt32 m f p) i hine,
+                (p.pileDepth[(UInt32.ofNat k).toNat]'hk_) m f p) i hine,
             preCleanupPile_pileFlute_eq_of_ne (UInt32.ofNat k) hk_ B
               (pileHashes[(UInt32.ofNat k).toNat]'hk_) hs4 p m f i hine]
           exact hfluteRest i (by omega)

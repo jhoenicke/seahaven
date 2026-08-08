@@ -488,16 +488,16 @@ private theorem card_piledSet_add_popCount (k : Fin 16) :
 theorem card_piledSet_globalCfg (p : SolverPosType) (i : Nat)
     (hi : i < (closureInfoOf p).numBits.toNat) :
     (piledSet (globalCfg (closureInfoOf p) i)).card = numPiledKings p := by
-  have hf : (closureInfoOf p) = closureInfos.get ⟨min p.freePiles.toInt.toNat 10, by omega⟩ := rfl
+  have hf : (closureInfoOf p) = closureInfos.get ⟨min p.freePiles.toNat 10, by omega⟩ := rfl
   have hble : (closureInfoOf p).shiftValue.toNat + (closureInfoOf p).numBits.toNat ≤ 16 :=
-    closureInfo_shift_add_numBits ⟨min p.freePiles.toInt.toNat 10, by omega⟩
+    closureInfo_shift_add_numBits ⟨min p.freePiles.toNat 10, by omega⟩
   have hval : (globalCfg (closureInfoOf p) i).val = (closureInfoOf p).shiftValue.toNat + i :=
     globalCfg_val _ _ (by omega)
-  have hblock := (closureInfo_block ⟨min p.freePiles.toInt.toNat 10, by omega⟩
+  have hblock := (closureInfo_block ⟨min p.freePiles.toNat 10, by omega⟩
     (globalCfg (closureInfoOf p) i)).1 (by rw [hval, ← hf]; omega)
   have hcard := card_piledSet_add_popCount (globalCfg (closureInfoOf p) i)
-  rw [show (↑(⟨min p.freePiles.toInt.toNat 10, by omega⟩ : Fin 11) : Nat)
-      = min p.freePiles.toInt.toNat 10 from rfl] at hblock
+  rw [show (↑(⟨min p.freePiles.toNat 10, by omega⟩ : Fin 11) : Nat)
+      = min p.freePiles.toNat 10 from rfl] at hblock
   rw [hblock] at hcard
   have hmin := numPiledKings_eq p
   omega
@@ -556,7 +556,7 @@ private theorem comp_sem_16 : ∀ (T : Fin 64) (j : Fin 4),
             = globalCfg (closureInfos.get (2 : Fin 11)) il.val := by decide
 
 private theorem freePiles_bridge (p : SolverPosType) :
-    p.freePiles.toInt.toNat = p.freePiles.toNat := rfl
+    p.freePiles.toNat = p.freePiles.toNat := rfl
 
 /-- **The three blocks, uniformly.**  A set component bit at local index `j` comes
 from a block-`f-1` configuration `il` that is `j`'s configuration with one suit
@@ -572,7 +572,7 @@ private theorem comp_bit_semantics (p : SolverPosType) (hfp1 : 1 ≤ p.freePiles
   have hcases : p.freePiles.toNat = 1 ∨ p.freePiles.toNat = 2 ∨ p.freePiles.toNat = 3 := by omega
   rcases hcases with h | h | h
   · have hc : closureInfoOf p = closureInfos.get (1 : Fin 11) :=
-      congrArg closureInfos.get (Fin.ext (show min p.freePiles.toInt.toNat 10 = 1 by rw [hbr, h]; decide))
+      congrArg closureInfos.get (Fin.ext (show min p.freePiles.toNat 10 = 1 by rw [hbr, h]; decide))
     have hp : prevInfo p = closureInfos.get (0 : Fin 11) :=
       congrArg closureInfos.get (Fin.ext (show min (p.freePiles.toNat - 1) 10 = 0 by rw [h]; decide))
     rw [hc, show (closureInfos.get (1 : Fin 11)).numBits.toNat = 4 from by decide] at hj
@@ -582,7 +582,7 @@ private theorem comp_bit_semantics (p : SolverPosType) (hfp1 : 1 ≤ p.freePiles
     obtain ⟨il, hilbit, su, hsu, heq⟩ := comp_sem_98 ⟨T, by omega⟩ ⟨j, hj⟩ hbit
     exact ⟨il.val, il.isLt, hilbit, su, hsu, heq⟩
   · have hc : closureInfoOf p = closureInfos.get (2 : Fin 11) :=
-      congrArg closureInfos.get (Fin.ext (show min p.freePiles.toInt.toNat 10 = 2 by rw [hbr, h]; decide))
+      congrArg closureInfos.get (Fin.ext (show min p.freePiles.toNat 10 = 2 by rw [hbr, h]; decide))
     have hp : prevInfo p = closureInfos.get (1 : Fin 11) :=
       congrArg closureInfos.get (Fin.ext (show min (p.freePiles.toNat - 1) 10 = 1 by rw [h]; decide))
     rw [hc, show (closureInfos.get (2 : Fin 11)).numBits.toNat = 6 from by decide] at hj
@@ -592,7 +592,7 @@ private theorem comp_bit_semantics (p : SolverPosType) (hfp1 : 1 ≤ p.freePiles
     obtain ⟨il, hilbit, su, hsu, heq⟩ := comp_sem_0 ⟨T, by omega⟩ ⟨j, hj⟩ hbit
     exact ⟨il.val, il.isLt, hilbit, su, hsu, heq⟩
   · have hc : closureInfoOf p = closureInfos.get (3 : Fin 11) :=
-      congrArg closureInfos.get (Fin.ext (show min p.freePiles.toInt.toNat 10 = 3 by rw [hbr, h]; decide))
+      congrArg closureInfos.get (Fin.ext (show min p.freePiles.toNat 10 = 3 by rw [hbr, h]; decide))
     have hp : prevInfo p = closureInfos.get (2 : Fin 11) :=
       congrArg closureInfos.get (Fin.ext (show min (p.freePiles.toNat - 1) 10 = 2 by rw [h]; decide))
     rw [hc, show (closureInfos.get (3 : Fin 11)).numBits.toNat = 4 from by decide] at hj
@@ -614,7 +614,7 @@ theorem inComponent_of_component_bit {g : Globals} {p : SolverPosType} {comp : U
     InComponent p (globalCfg (closureInfoOf p) i) := by
   obtain ⟨result, hchar, hbound, hcomp⟩ := component_run_eq g p comp hfp1 hfp3 hrun
   have hcb : (closureInfoOf p).shiftValue.toNat + (closureInfoOf p).numBits.toNat ≤ 16 :=
-    closureInfo_shift_add_numBits ⟨min p.freePiles.toInt.toNat 10, by omega⟩
+    closureInfo_shift_add_numBits ⟨min p.freePiles.toNat 10, by omega⟩
   have hpb : (prevInfo p).shiftValue.toNat + (prevInfo p).numBits.toNat ≤ 16 :=
     closureInfo_shift_add_numBits ⟨min (p.freePiles.toNat - 1) 10, by omega⟩
   -- the bit, as a `testBit` of the table entry
@@ -636,15 +636,14 @@ returns `0` — no component bits, so the widening is vacuous there. -/
 theorem component_eq_zero_of_range {g : Globals} {p : SolverPosType} {comp : UInt8}
     (hout : p.freePiles.toNat = 0 ∨ 4 ≤ p.freePiles.toNat)
     (hrun : EStateM.run (computeComponentKingBits p) g = .ok comp g) : comp = 0 := by
-  have hfi : (p.freePiles.toInt32).toInt = (p.freePiles.toNat : Int) := uint8_toInt32_toInt _
-  have hguard : ((p.freePiles.toInt32 ≥ (1 : Int32)) && (p.freePiles.toInt32 ≤ (3 : Int32)))
+  have hguard : ((p.freePiles ≥ (1 : UInt8)) && (p.freePiles ≤ (3 : UInt8)))
       = false := by
     rcases hout with h | h
-    · have : ¬ ((1 : Int32) ≤ p.freePiles.toInt32) := by
-        rw [Int32.le_iff_toInt_le, show ((1 : Int32)).toInt = 1 from by decide, hfi]; omega
+    · have : ¬ ((1 : UInt8) ≤ p.freePiles) := by
+        rw [UInt8.le_iff_toNat_le]; show ¬ 1 ≤ _; omega
       simp [ge_iff_le, this]
-    · have : ¬ (p.freePiles.toInt32 ≤ (3 : Int32)) := by
-        rw [Int32.le_iff_toInt_le, show ((3 : Int32)).toInt = 3 from by decide, hfi]; omega
+    · have : ¬ (p.freePiles ≤ (3 : UInt8)) := by
+        rw [UInt8.le_iff_toNat_le, show ((3 : UInt8).toNat = 3) from rfl]; omega
       simp [this]
   rw [component_eq_explicit] at hrun
   simp only [componentExplicit, EStateM.run, bind, pure, EStateM.pure,
@@ -692,7 +691,7 @@ theorem localMask_component {g : Globals} {p : SolverPosType} {comp : UInt8}
     LocalMask p comp.toUInt16 := by
   by_cases hfp : 1 ≤ p.freePiles.toNat ∧ p.freePiles.toNat ≤ 3
   · obtain ⟨result, -, hres, hcompeq⟩ := component_run_eq g p comp hfp.1 hfp.2 hrun
-    have htoInt : p.freePiles.toInt.toNat = p.freePiles.toNat := rfl
+    have htoInt : p.freePiles.toNat = p.freePiles.toNat := rfl
     -- Name the block index *once*: two `by omega` proofs of `_ < 11` are different terms,
     -- so `closureInfos.get ⟨n, h₁⟩` and `closureInfos.get ⟨n, h₂⟩` are distinct `omega` atoms.
     obtain ⟨f, hfval⟩ : ∃ f : Fin 11, f.val = p.freePiles.toNat - 1 :=
@@ -707,7 +706,7 @@ theorem localMask_component {g : Globals} {p : SolverPosType} {comp : UInt8}
       unfold closureInfoOf
       congr 1
       refine Fin.ext ?_
-      show min p.freePiles.toInt.toNat 10 = f.val + 1
+      show min p.freePiles.toNat 10 = f.val + 1
       rw [htoInt]
       omega
     rw [hprev] at hres hcompeq
@@ -724,13 +723,11 @@ theorem localMask_component {g : Globals} {p : SolverPosType} {comp : UInt8}
     exact hbound
   · -- the guard is false, so the function returns `0`
     have hz : comp = 0 := by
-      have hguard : ((1 : Int32) ≤ p.freePiles.toInt32 && p.freePiles.toInt32 ≤ (3 : Int32))
+      have hguard : ((1 : UInt8) ≤ p.freePiles && p.freePiles ≤ (3 : UInt8))
           = false := by
-        have hfi : (p.freePiles.toInt32).toInt = (p.freePiles.toNat : Int) :=
-          uint8_toInt32_toInt _
-        simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, Int32.le_iff_toInt_le, hfi,
-          show ((1 : Int32)).toInt = 1 from by decide,
-          show ((3 : Int32)).toInt = 3 from by decide]
+        simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, UInt8.le_iff_toNat_le,
+          show ((1 : UInt8).toNat = 1) from rfl,
+          show ((3 : UInt8).toNat = 3) from rfl]
         omega
       simp only [EStateM.run, computeComponentKingBits, hguard, Bool.false_eq_true,
         reduceIte, pure, EStateM.pure] at hrun
@@ -810,7 +807,7 @@ which is exactly the column budget the piling steps consume. -/
 theorem subsetSound_of (hP : KingPileReachable) : SubsetSound := by
   intro g p s T c hloc hwf hm hreach hbit
   have hcb : (closureInfoOf p).shiftValue.toNat + (closureInfoOf p).numBits.toNat ≤ 16 :=
-    closureInfo_shift_add_numBits ⟨min p.freePiles.toInt.toNat 10, by omega⟩
+    closureInfo_shift_add_numBits ⟨min p.freePiles.toNat 10, by omega⟩
   obtain ⟨i, hi, hbits, hmask⟩ := (subsetAt_spec_pos p hloc c).1 hbit
   refine ⟨i, hi, ?_, ?_⟩
   · rw [BitSet_toNat,

@@ -139,7 +139,7 @@ argument needs. -/
 theorem StateMatchesSolverPos.mem_of_not_isFreeCard {g : Globals} {s : State}
     {p : SolverPosType} (hwf : WellFormedLayout g) (h : StateMatchesSolverPos g s p)
     (d : Card) (hnf : ¬ isFreeCard g p (encodeCard d)) :
-    ∃ i : Fin 10, d ∈ s.tableau i ∧ 0 < (p.pileDepth.get i).toInt.toNat := by
+    ∃ i : Fin 10, d ∈ s.tableau i ∧ 0 < (p.pileDepth.get i).toNat := by
   have hreal : IsRealCard (encodeCard d) := encodeCard_real d
   have hc64 : (encodeCard d).toNat < 64 := IsRealCard_lt64 hreal
   have hp10 : (cardPile g (encodeCard d)).toNat < 10 := hwf.pile_lt _ hreal
@@ -150,16 +150,15 @@ theorem StateMatchesSolverPos.mem_of_not_isFreeCard {g : Globals} {s : State}
     refine hnf (SolverSpec.isFree_of_cardDepth_ge g p hwf _ hc64 hp10 ?_)
     rw [hPeq]
     omega
-  have hd6 : (p.pileDepth.get P).toInt.toNat < 6 := h.depth_lt6 P
+  have hd6 : (p.pileDepth.get P).toNat < 6 := h.depth_lt6 P
   have hd5 : (cardDepth g (encodeCard d)).toNat < 5 := by
-    simp only [UInt8.toInt_toNat] at hd6
     omega
   obtain ⟨pos, hpos⟩ := StateMatchesLayout.card_in_pile (g := g) (s := s)
     P ⟨(cardDepth g (encodeCard d)).toNat, hd5⟩
-    ⟨⟨(p.pileDepth.get P).toInt.toNat, hd6⟩, h.depth_match P, by
-      simp only [UInt8.toInt_toNat]; exact hlt⟩
+    ⟨⟨(p.pileDepth.get P).toNat, hd6⟩, h.depth_match P, by
+      exact hlt⟩
   have hround := hwf.round_trip (encodeCard d) hreal hd5
-  refine ⟨P, ?_, by simp only [UInt8.toInt_toNat]; omega⟩
+  refine ⟨P, ?_, by omega⟩
   have hcode : encodeCard ((s.tableau P).get pos) = encodeCard d := by
     rw [hpos]
     show (g.pos2card.get P).get ⟨(cardDepth g (encodeCard d)).toNat, hd5⟩ = encodeCard d
@@ -178,7 +177,7 @@ theorem StateMatchesSolverPos.isFreeCard_of_cell {g : Globals} {s : State} {p : 
 /-- A card on a pile the solver treats as empty is free. -/
 theorem StateMatchesSolverPos.isFreeCard_of_empty_pile {g : Globals} {s : State}
     {p : SolverPosType} (hwf : WellFormedLayout g) (h : StateMatchesSolverPos g s p)
-    {d : Card} {i : Fin 10} (hd0 : (p.pileDepth.get i).toInt.toNat = 0)
+    {d : Card} {i : Fin 10} (hd0 : (p.pileDepth.get i).toNat = 0)
     (hmem : d ∈ s.tableau i) : isFreeCard g p (encodeCard d) := by
   by_contra hnf
   obtain ⟨j, hmemj, hdj⟩ := h.mem_of_not_isFreeCard hwf d hnf
@@ -216,19 +215,19 @@ theorem StateMatchesSolverPos.aces_lt {g : Globals} {s : State} {p : SolverPosTy
 boundary — which by `flute_match` is really sitting there. -/
 theorem StateMatchesSolverPos.flute_interior_mem {g : Globals} {s : State} {p : SolverPosType}
     (h : StateMatchesSolverPos g s p) (j : Fin 10)
-    (hdj : 0 < (p.pileDepth.get j).toInt.toNat)
-    (hidx : (p.pileDepth.get j).toInt.toNat - 1 < 5)
+    (hdj : 0 < (p.pileDepth.get j).toNat)
+    (hidx : (p.pileDepth.get j).toNat - 1 < 5)
     (m : Nat) (hm1 : 1 ≤ m) (hm2 : m < (p.pileFlute.get j).toNat) :
     ∃ d ∈ s.tableau j, encodeCard d
-      = (g.pos2card.get j).get ⟨(p.pileDepth.get j).toInt.toNat - 1, hidx⟩ - UInt8.ofNat m := by
+      = (g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidx⟩ - UInt8.ofNat m := by
   obtain ⟨B, hBeq⟩ : ∃ B, (g.pos2card.get j).get
-      ⟨(p.pileDepth.get j).toInt.toNat - 1, hidx⟩ = B := ⟨_, rfl⟩
+      ⟨(p.pileDepth.get j).toNat - 1, hidx⟩ = B := ⟨_, rfl⟩
   have hfm := h.flute_match j hdj
-  have hnL : (p.pileDepth.get j).toInt.toNat ≤ (s.tableau j).length := (h.depth_match j).1
+  have hnL : (p.pileDepth.get j).toNat ≤ (s.tableau j).length := (h.depth_match j).1
   -- the flute card `m` above the boundary sits at index `L - depth - m`
   obtain ⟨idx, hidxeq⟩ : ∃ idx,
-      (s.tableau j).length - (p.pileDepth.get j).toInt.toNat - m = idx := ⟨_, rfl⟩
-  obtain ⟨hs, hv⟩ := flute_elem h j hdj ⟨(p.pileDepth.get j).toInt.toNat - 1, hidx⟩ rfl
+      (s.tableau j).length - (p.pileDepth.get j).toNat - m = idx := ⟨_, rfl⟩
+  obtain ⟨hs, hv⟩ := flute_elem h j hdj ⟨(p.pileDepth.get j).toNat - 1, hidx⟩ rfl
     idx (by omega) (by omega)
   rw [hBeq] at hs hv
   refine ⟨(s.tableau j)[idx], List.getElem_mem _, ?_⟩
@@ -267,7 +266,7 @@ def cellList (s : State) : List Card := (List.finRange 4).filterMap s.cells
 /-- The cards sitting on piles the solver treats as empty (the king stacks). -/
 def kingList (s : State) (p : SolverPosType) : List Card :=
   ((List.finRange 10).filter
-    (fun i => decide ((p.pileDepth.get i).toInt.toNat = 0))).flatMap s.tableau
+    (fun i => decide ((p.pileDepth.get i).toNat = 0))).flatMap s.tableau
 
 /-- Everything outside the piles proper. -/
 def outsideList (s : State) (p : SolverPosType) : List Card := cellList s ++ kingList s p
@@ -277,7 +276,7 @@ def outsideList (s : State) (p : SolverPosType) : List Card := cellList s ++ kin
   simp only [cellList, List.mem_filterMap, List.mem_finRange, true_and]
 
 @[simp] theorem mem_kingList {s : State} {p : SolverPosType} {d : Card} :
-    d ∈ kingList s p ↔ ∃ i : Fin 10, (p.pileDepth.get i).toInt.toNat = 0 ∧ d ∈ s.tableau i := by
+    d ∈ kingList s p ↔ ∃ i : Fin 10, (p.pileDepth.get i).toNat = 0 ∧ d ∈ s.tableau i := by
   simp only [kingList, List.mem_flatMap, List.mem_filter, List.mem_finRange, true_and,
     decide_eq_true_eq]
 
@@ -302,14 +301,14 @@ theorem cellList_length_add_freeCells (s : State) :
 theorem kingList_length (s : State) (p : SolverPosType) :
     (kingList s p).length
       = (((List.finRange 10).filter
-          (fun i => decide ((p.pileDepth.get i).toInt.toNat = 0))).map
+          (fun i => decide ((p.pileDepth.get i).toNat = 0))).map
         (fun i => (s.tableau i).length)).sum := by
   rw [kingList, List.length_flatMap]
 
 theorem mem_outsideList {s : State} {p : SolverPosType} {d : Card}
     (hd : d ∈ outsideList s p) :
     (∃ i : Fin 4, s.cells i = some d) ∨
-      (∃ i : Fin 10, (p.pileDepth.get i).toInt.toNat = 0 ∧ d ∈ s.tableau i) := by
+      (∃ i : Fin 10, (p.pileDepth.get i).toNat = 0 ∧ d ∈ s.tableau i) := by
   rw [outsideList, List.mem_append] at hd
   rcases hd with hc | hp
   · exact Or.inl (mem_cellList.1 hc)
@@ -344,7 +343,7 @@ theorem StateMatchesSolverPos.usedSpace_ge_outside {g : Globals} {s : State} {p 
   -- each listed card is in a cell or on an empty pile
   have hcases : ∀ k : Fin (outsideList s p).length,
       (∃ i : Fin 4, s.cells i = some (outsideList s p)[k.val]) ∨
-      (∃ i : Fin 10, (p.pileDepth.get i).toInt.toNat = 0 ∧
+      (∃ i : Fin 10, (p.pileDepth.get i).toNat = 0 ∧
         (outsideList s p)[k.val] ∈ s.tableau i) :=
     fun k => mem_outsideList (List.getElem_mem _)
   refine usedSpace_ge_of_free_above hwf hb
@@ -366,9 +365,8 @@ theorem StateMatchesSolverPos.usedSpace_ge_outside {g : Globals} {s : State} {p 
     · exact hnd.foundation_lt_of_mem_column hi
   · -- not a flute interior
     intro k j hdj m hm1 hm2 heq
-    have hidx : (p.pileDepth.get j).toInt.toNat - 1 < 5 := by
+    have hidx : (p.pileDepth.get j).toNat - 1 < 5 := by
       have h6 := h.depth_lt6 j
-      simp only [UInt8.toInt_toNat] at h6 ⊢
       omega
     obtain ⟨e, hemem, hecode⟩ := h.flute_interior_mem j hdj hidx m hm1 hm2
     have hcard : e = (outsideList s p)[k.val] := encodeCard_inj (hecode.trans heq)
@@ -376,7 +374,6 @@ theorem StateMatchesSolverPos.usedSpace_ge_outside {g : Globals} {s : State} {p 
     rcases hcases k with ⟨i, hi⟩ | ⟨i, hd0, hi⟩
     · exact hnd.not_mem_column_of_cell hi j hemem
     · rw [hnd.pile_unique hi hemem] at hd0
-      simp only [UInt8.toInt_toNat] at hd0 hdj
       omega
 
 /-- **The concrete free-cell bound.**  `usedSpace` pays for the cards in cells and
@@ -464,7 +461,7 @@ theorem StateMatchesKingConfig.kingRefund_le {g : Globals} {s : State} {p : Solv
   rw [← Finset.sum_image (f := fun i : Fin 10 => (s.tableau i).length) hinjOn]
   have hsubset : Finset.image (fun su : Fin 4 => (assign (natToSuit su)).getD 0)
       (Finset.univ.filter (fun su : Fin 4 => ¬ CfgBitSet k (natToSuit su)))
-      ⊆ Finset.univ.filter (fun i : Fin 10 => (p.pileDepth.get i).toInt.toNat = 0) := by
+      ⊆ Finset.univ.filter (fun i : Fin 10 => (p.pileDepth.get i).toNat = 0) := by
     intro i hi
     obtain ⟨su, hsu, rfl⟩ := Finset.mem_image.1 hi
     have h1 : ¬ CfgBitSet k (natToSuit su) := (Finset.mem_filter.1 hsu).2

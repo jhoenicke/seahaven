@@ -1074,27 +1074,23 @@ theorem localMask_of_possibleKings {p : SolverPosType} {ki : KingInfo}
 set_option linter.unusedSimpArgs false in
 theorem component_run_exists {g : Globals} {p : SolverPosType} (h : SolverInvMerged g p) :
     ∃ comp : UInt8, EStateM.run (computeComponentKingBits p) g = .ok comp g := by
-  have hfi : (p.freePiles.toInt32).toInt = (p.freePiles.toNat : Int) := uint8_toInt32_toInt _
-  have hone : ((1 : Int32)).toInt = 1 := by decide
-  have hthree : ((3 : Int32)).toInt = 3 := by decide
   have hfpb := freePiles_bound h
   have hfpn : p.freePiles.toInt = (p.freePiles.toNat : Int) := rfl
   by_cases hfp : 1 ≤ p.freePiles.toNat ∧ p.freePiles.toNat ≤ 3
   · -- the enumerating branch: block index, loop, table lookup
-    have hg1 : ((1 : Int32) ≤ p.freePiles.toInt32) := by
-      rw [Int32.le_iff_toInt_le, hone, hfi]; omega
-    have hg3 : (p.freePiles.toInt32 ≤ (3 : Int32)) := by
-      rw [Int32.le_iff_toInt_le, hthree, hfi]; omega
-    have hsub : (p.freePiles.toInt32 - 1).toInt = (p.freePiles.toNat : Int) - 1 := by
-      rw [int32_toInt_sub _ _ (by rw [hone, hfi]; omega) (by rw [hone, hfi]; omega), hone, hfi]
-    have hidx : (p.freePiles.toInt32 - 1).toUInt32.toNat = p.freePiles.toNat - 1 := by
-      rw [int32_toUInt32_toNat _ (by rw [hsub]; omega), hsub]
-      omega
-    have hidx11 : (p.freePiles.toInt32 - 1).toUInt32.toNat < 11 := by rw [hidx]; omega
-    have hinfo : closureInfos[(p.freePiles.toInt32 - 1).toUInt32.toNat]? = some (prevInfo p) := by
-      rw [getElem?_pos closureInfos ((p.freePiles.toInt32 - 1).toUInt32.toNat) hidx11]
+    have hg1 : ((1 : UInt8) ≤ p.freePiles) := by
+      rw [UInt8.le_iff_toNat_le]; show 1 ≤ _; omega
+    have hg3 : (p.freePiles ≤ (3 : UInt8)) := by
+      rw [UInt8.le_iff_toNat_le, show ((3 : UInt8).toNat = 3) from rfl]; omega
+    have hidx : (p.freePiles - 1).toUInt32.toNat = p.freePiles.toNat - 1 := by
+      rw [UInt8.toNat_toUInt32, UInt8.toNat_sub_of_le _ _
+        (by rw [UInt8.le_iff_toNat_le]; show 1 ≤ _; omega)]
+      rfl
+    have hidx11 : (p.freePiles - 1).toUInt32.toNat < 11 := by rw [hidx]; omega
+    have hinfo : closureInfos[(p.freePiles - 1).toUInt32.toNat]? = some (prevInfo p) := by
+      rw [getElem?_pos closureInfos ((p.freePiles - 1).toUInt32.toNat) hidx11]
       exact congrArg some (congrArg closureInfos.get
-        (Fin.ext (show (p.freePiles.toInt32 - 1).toUInt32.toNat
+        (Fin.ext (show (p.freePiles - 1).toUInt32.toNat
           = min (p.freePiles.toNat - 1) 10 from by rw [hidx]; omega)))
     have hfitsp : (prevInfo p).shiftValue.toNat + (prevInfo p).numBits.toNat ≤ 16 := by
       unfold prevInfo; exact closureInfo_shift_add_numBits _
@@ -1151,10 +1147,10 @@ theorem component_run_exists {g : Globals} {p : SolverPosType} (h : SolverInvMer
     simp only [componentExplicit, EStateM.run, bind, EStateM.bind, pure, EStateM.pure,
       Vector.getE, hg1, hg3, decide_true, Bool.and_self, reduceIte, hinfo, hres, hct]
   · -- the guard fails and the function returns `0`
-    have hguard : ((1 : Int32) ≤ p.freePiles.toInt32 && p.freePiles.toInt32 ≤ (3 : Int32))
+    have hguard : ((1 : UInt8) ≤ p.freePiles && p.freePiles ≤ (3 : UInt8))
         = false := by
-      simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, Int32.le_iff_toInt_le, hfi,
-        hone, hthree]
+      simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, UInt8.le_iff_toNat_le,
+        show ((1 : UInt8).toNat = 1) from rfl, show ((3 : UInt8).toNat = 3) from rfl]
       omega
     refine ⟨0, ?_⟩
     simp only [EStateM.run, computeComponentKingBits, hguard, Bool.false_eq_true,
@@ -1226,7 +1222,7 @@ theorem pftVal_one_depth {g : Globals} {p : SolverPosType} (c : UInt8)
   omega
 
 /-- `getDest_spec` restated in the `.toNat` spelling `move_merged` uses (the two are
-definitionally equal, but `omega` treats `x.toInt.toNat` and `x.toNat` as unrelated
+definitionally equal, but `omega` treats `x.toNat` and `x.toNat` as unrelated
 atoms — see the note in `lean-proof-gotchas`). -/
 theorem getDest_spec' {g : Globals} {p : SolverPosType} {pile : UInt32}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p) (hp : pile.toNat < 10)
@@ -1495,12 +1491,12 @@ theorem component_indep {p : SolverPosType} {comp : UInt8} {s t : Globals}
     (h : EStateM.run (computeComponentKingBits p) s = .ok comp s) :
     EStateM.run (computeComponentKingBits p) t = .ok comp t := by
   rw [EStateM.run, component_eq_explicit, componentExplicit] at h ⊢
-  by_cases hguard : ((1 : Int32) ≤ p.freePiles.toInt32 && p.freePiles.toInt32 ≤ (3 : Int32)) = true
+  by_cases hguard : ((1 : UInt8) ≤ p.freePiles && p.freePiles ≤ (3 : UInt8)) = true
   · rw [if_pos hguard] at h ⊢
-    by_cases hi11 : (p.freePiles.toInt32 - 1).toUInt32.toNat < 11
+    by_cases hi11 : (p.freePiles - 1).toUInt32.toNat < 11
     · rw [bind_ok (vector_getE_apply closureInfos _ s hi11)] at h
       rw [bind_ok (vector_getE_apply closureInfos _ t hi11)]
-      set info := closureInfos.get ⟨(p.freePiles.toInt32 - 1).toUInt32.toNat, hi11⟩ with hinfo
+      set info := closureInfos.get ⟨(p.freePiles - 1).toUInt32.toNat, hi11⟩ with hinfo
       have hfits : info.shiftValue.toNat + info.numBits.toNat ≤ 16 := by
         rw [hinfo]; exact closureInfo_shift_add_numBits _
       have hcfg : ∀ i ∈ List.range info.numBits.toNat, cfgIdx info.shiftValue i < 16 := by

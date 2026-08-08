@@ -67,7 +67,7 @@ matches `p`.**  Nothing the position records mentions those cards: the column's
 depth stays `0`, no flute is involved, and the foundations are untouched. -/
 theorem StateMatchesSolverPos.frameEmptyCol {g : Globals} {s t : State} {p : SolverPosType}
     {i : Fin 10} (h : StateMatchesSolverPos g s p)
-    (hd0 : (p.pileDepth.get i).toInt.toNat = 0)
+    (hd0 : (p.pileDepth.get i).toNat = 0)
     (hreach : Reach s t) (hti : t.tableau i = [])
     (htq : ∀ q, q ≠ i → t.tableau q = s.tableau q)
     (htf : t.foundations = s.foundations) :
@@ -343,7 +343,7 @@ which `king_frontier` declares free while `depth_card_not_free` declares it not.
 /-- Every card of a solver-empty column carries the deepest card's suit. -/
 private theorem empty_col_suit {g : Globals} {s : State} {p : SolverPosType}
     (h : StateMatchesSolverPos g s p) (q : Fin 10)
-    (hq : (p.pileDepth.get q).toInt.toNat = 0) {d e : Card}
+    (hq : (p.pileDepth.get q).toNat = 0) {d e : Card}
     (hlast : (s.tableau q).getLast? = some d) (he : e ∈ s.tableau q) : e.suit = d.suit := by
   obtain ⟨idx, hidx, hget⟩ := List.mem_iff_getElem.1 he
   have hlen : (s.tableau q).reverse.length = (s.tableau q).length := by simp
@@ -398,7 +398,7 @@ theorem run_card_in_cell {g : Globals} {s : State} {p : SolverPosType} {k : Fin 
   have hnotcol : ∀ q : Fin 10, cardOf su v ∉ s.tableau q := by
     intro q hmem
     obtain ⟨idx, hidx, hget⟩ := List.mem_iff_getElem.1 hmem
-    by_cases hq : (p.pileDepth.get q).toInt.toNat = 0
+    by_cases hq : (p.pileDepth.get q).toNat = 0
     · -- a solver-empty column holding it would be `su`'s own
       have hne : s.tableau q ≠ [] := fun hc => by rw [hc] at hmem; simp at hmem
       obtain ⟨d, hd⟩ : ∃ d, (s.tableau q).getLast? = some d := by
@@ -410,15 +410,15 @@ theorem run_card_in_cell {g : Globals} {s : State} {p : SolverPosType} {k : Fin 
       exact (hk.no_pile su hsu q hq d (Option.mem_def.2 hd)) hsd.symm
     · -- a real pile: the boundary card would be free
       have hd6 := hk.toMatches.depth_lt6 q
-      have hpos : 0 < (p.pileDepth.get q).toInt.toNat := by omega
-      have hidx5 : (p.pileDepth.get q).toInt.toNat - 1 < 5 := by omega
+      have hpos : 0 < (p.pileDepth.get q).toNat := by omega
+      have hidx5 : (p.pileDepth.get q).toNat - 1 < 5 := by omega
       have habove := hk.toMatches.free_above_boundary hwf hb q hidx (by rw [hget]; exact hfree)
       obtain ⟨hsuit, hvalue⟩ := flute_elem hk.toMatches q hpos
-        ⟨(p.pileDepth.get q).toInt.toNat - 1, hidx5⟩ rfl idx (by omega) hidx
+        ⟨(p.pileDepth.get q).toNat - 1, hidx5⟩ rfl idx (by omega) hidx
       rw [hget] at hsuit hvalue
-      set B := (g.pos2card.get q).get ⟨(p.pileDepth.get q).toInt.toNat - 1, hidx5⟩ with hBdef
+      set B := (g.pos2card.get q).get ⟨(p.pileDepth.get q).toNat - 1, hidx5⟩ with hBdef
       have hreal : IsRealCard B := hwf.pos2card_real q _
-      refine depth_card_not_free hwf hb q ⟨(p.pileDepth.get q).toInt.toNat - 1, hidx5⟩
+      refine depth_card_not_free hwf hb q ⟨(p.pileDepth.get q).toNat - 1, hidx5⟩
         (by simp only [UInt8.toInt_toNat] at hpos ⊢; omega) ?_
       exact (hb.king_frontier (finOfSuit su)).2 B (by rw [← hsuit]; exact hcode)
         (by rw [hval] at hvalue; omega) hreal.2.2
@@ -481,7 +481,7 @@ theorem PileMatches_kingRun {g : Globals} {j : Fin 10} {n : Fin 6} {su : Suit} {
 suit's complete freed king stack still matches `p`.** -/
 theorem StateMatchesSolverPos.frameFillCol {g : Globals} {s t : State} {p : SolverPosType}
     {j : Fin 10} {su : Suit} {V : Nat} (h : StateMatchesSolverPos g s p)
-    (hd0 : (p.pileDepth.get j).toInt.toNat = 0)
+    (hd0 : (p.pileDepth.get j).toNat = 0)
     (hV : (VALUE (p.kings.get (finOfSuit su))).toNat = V) (hV13 : V ≤ 13)
     (hreach : Reach s t) (htj : t.tableau j = kingRun su (V + 1))
     (htq : ∀ q, q ≠ j → t.tableau q = s.tableau q)
@@ -525,7 +525,7 @@ private theorem exists_spare_col {g : Globals} {s : State} {p : SolverPosType} {
     (hassOwn : ∀ su i, assign su = some i → OwnsPile s p su i)
     (hiff : ∀ su, (assign su).isSome ↔ ¬ CfgBitSet k su)
     (hcard : (piledSet k).card < p.freePiles.toNat) :
-    ∃ j : Fin 10, (p.pileDepth.get j).toInt.toNat = 0 ∧ s.tableau j = [] ∧
+    ∃ j : Fin 10, (p.pileDepth.get j).toNat = 0 ∧ s.tableau j = [] ∧
       ∀ su' : Suit, assign su' ≠ some j := by
   have hEcard : (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card
       = p.freePiles.toNat := card_empty_piles_eq_freePiles hm
@@ -537,7 +537,7 @@ private theorem exists_spare_col {g : Globals} {s : State} {p : SolverPosType} {
     have := Finset.card_le_card hsub
     omega
   obtain ⟨j, hjE, hjImg⟩ := Finset.not_subset.1 hnsub
-  have hjd : (p.pileDepth.get j).toInt.toNat = 0 := by
+  have hjd : (p.pileDepth.get j).toNat = 0 := by
     rw [(Finset.mem_filter.1 hjE).2]; rfl
   have hjassign : ∀ su' : Suit, assign su' ≠ some j := by
     intro su' hc

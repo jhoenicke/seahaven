@@ -42,7 +42,7 @@ def compBody (info : ClosureInfo) (game : SolverPosType) :
 
 /-- Explicit-loop twin of `computeComponentKingBits`. -/
 def componentExplicit (game : SolverPosType) : EStateM Error Globals UInt8 := do
-  let emptyPiles := game.freePiles.toInt32
+  let emptyPiles := game.freePiles
   if emptyPiles ≥ 1 && emptyPiles ≤ 3 then
     let info ← closureInfos.getE (emptyPiles - 1).toUInt32
     let result ← forIn (List.range info.numBits.toNat) (0 : UInt16) (compBody info game)
@@ -192,9 +192,6 @@ theorem component_run_eq (g : Globals) (p : SolverPosType) (comp : UInt8)
           (blockSpace (prevInfo p).shiftValue p b).toInt ≤ 4))) ∧
       result.toNat < 2 ^ (prevInfo p).numBits.toNat ∧
       comp = componentAt ((prevInfo p).offset.toNat + result.toNat) := by
-  have hfi := freePiles_int32 p
-  have hone : ((1 : Int32)).toInt = 1 := by decide
-  have hthree : ((3 : Int32)).toInt = 3 := by decide
   -- block data, transported to the `prevInfo p` spelling
   have hfits : (prevInfo p).shiftValue.toNat + (prevInfo p).numBits.toNat ≤ 16 :=
     closureInfo_shift_add_numBits _
@@ -207,21 +204,20 @@ theorem component_run_eq (g : Globals) (p : SolverPosType) (comp : UInt8)
       decide
     exact h _
   -- the guard holds
-  have hg1 : ((1 : Int32) ≤ p.freePiles.toInt32) := by
-    rw [Int32.le_iff_toInt_le, hone, hfi]; omega
-  have hg3 : (p.freePiles.toInt32 ≤ (3 : Int32)) := by
-    rw [Int32.le_iff_toInt_le, hthree, hfi]; omega
+  have hg1 : ((1 : UInt8) ≤ p.freePiles) := by
+    rw [UInt8.le_iff_toNat_le]; show 1 ≤ _; omega
+  have hg3 : (p.freePiles ≤ (3 : UInt8)) := by
+    rw [UInt8.le_iff_toNat_le, show ((3 : UInt8).toNat = 3) from rfl]; omega
   -- the closure-info index
-  have hsub : (p.freePiles.toInt32 - 1).toInt = (p.freePiles.toNat : Int) - 1 := by
-    rw [int32_toInt_sub _ _ (by rw [hone, hfi]; omega) (by rw [hone, hfi]; omega), hone, hfi]
-  have hidx : (p.freePiles.toInt32 - 1).toUInt32.toNat = p.freePiles.toNat - 1 := by
-    rw [int32_toUInt32_toNat _ (by rw [hsub]; omega), hsub]
-    omega
-  have hidx11 : (p.freePiles.toInt32 - 1).toUInt32.toNat < 11 := by rw [hidx]; omega
-  have hinfo : closureInfos[(p.freePiles.toInt32 - 1).toUInt32.toNat]? = some (prevInfo p) := by
-    rw [getElem?_pos closureInfos ((p.freePiles.toInt32 - 1).toUInt32.toNat) hidx11]
+  have hidx : (p.freePiles - 1).toUInt32.toNat = p.freePiles.toNat - 1 := by
+    rw [UInt8.toNat_toUInt32, UInt8.toNat_sub_of_le _ _
+      (by rw [UInt8.le_iff_toNat_le]; show 1 ≤ _; omega)]
+    rfl
+  have hidx11 : (p.freePiles - 1).toUInt32.toNat < 11 := by rw [hidx]; omega
+  have hinfo : closureInfos[(p.freePiles - 1).toUInt32.toNat]? = some (prevInfo p) := by
+    rw [getElem?_pos closureInfos ((p.freePiles - 1).toUInt32.toNat) hidx11]
     exact congrArg some (congrArg closureInfos.get
-      (Fin.ext (show (p.freePiles.toInt32 - 1).toUInt32.toNat = min (p.freePiles.toNat - 1) 10 from
+      (Fin.ext (show (p.freePiles - 1).toUInt32.toNat = min (p.freePiles.toNat - 1) 10 from
         by rw [hidx]; omega)))
   -- the loop
   obtain ⟨result, hres, hchar⟩ := compLoop_run (prevInfo p) p g

@@ -65,7 +65,7 @@ theorem StateMatchesKingConfig.movePre_king_sim {g : Globals} {s : State} {p : S
     obtain ⟨hda, hqda⟩ := movePre_source_frame pile toPile hpile p hrest hva
     have hba : b ≠ ⟨pile.toNat, hpile⟩ := by
       intro hc; rw [hc] at hownb; have := hownb.1; omega
-    have hd0 : ((SolverSpec.movePre pile toPile hpile p).pileDepth.get b).toInt.toNat = 0 := by
+    have hd0 : ((SolverSpec.movePre pile toPile hpile p).pileDepth.get b).toNat = 0 := by
       rw [movePre_depth_frame pile toPile hpile p b hba]; exact hownb.1
     refine ⟨v, RealizesKingConfig.frameToPile hown hinj hiff hk.no_pile hreach hm hda hqda hvo
       (movePre_depth_frame pile toPile hpile p)
@@ -143,17 +143,16 @@ theorem StateMatchesKingConfig.movePre_sim {g : Globals} {s : State} {p : Solver
     have hbne : (⟨toPile.toNat, h10⟩ : Fin 10) ≠ ⟨pile.toNat, hpile⟩ :=
       fun hc => hne h10 (congrArg Fin.val hc).symm
     have hqb : ((SolverSpec.movePre pile toPile hpile p).pileDepth.get
-        ⟨toPile.toNat, h10⟩).toInt.toNat ≠ 0 := by
+        ⟨toPile.toNat, h10⟩).toNat ≠ 0 := by
       rw [movePre_depth_frame pile toPile hpile p _ hbne]
       have := hdb h10
-      simp only [UInt8.toInt_toNat]
       omega
     refine ⟨v, RealizesKingConfig.frameToPile hown hinj hiff hk.no_pile hreach hm hda hqda hvo
       (movePre_depth_frame pile toPile hpile p)
       (fun x _ _ => by
         rw [SolverSpec.movePre_kings_of_not_king pile toPile hpile p (Or.inl h10)])
       (fun x hx => absurd (hown x _ hx).1 (by
-        have := hdb h10; simp only [UInt8.toInt_toNat]; omega))
+        have := hdb h10; omega))
       (fun hc => absurd hc hqb)⟩
   · by_cases h14 : toPile.toNat < 14
     · exact hk.movePre_king_sim hpile h10 h14 hcol hrest hrun (hsu h10 h14)
@@ -194,13 +193,13 @@ theorem StateMatchesKingConfig.movePre_sim_of_dest {g : Globals} {s : State}
       (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat ≤ (freeCells s).length)
     (hdb : ∀ h10 : toPile.toNat < 10, 0 < (p.pileDepth.get ⟨toPile.toNat, h10⟩).toNat)
     (hsuitP : ∀ (h10 : toPile.toNat < 10)
-      (hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toInt.toNat - 1 < 5)
-      (hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat - 1 < 5),
+      (hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toNat - 1 < 5)
+      (hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5),
       SUIT ((g.pos2card.get ⟨toPile.toNat, h10⟩).get ⟨_, hib⟩)
         = SUIT ((g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨_, hia⟩))
     (hgapP : ∀ (h10 : toPile.toNat < 10)
-      (hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toInt.toNat - 1 < 5)
-      (hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat - 1 < 5),
+      (hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toNat - 1 < 5)
+      (hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5),
       (VALUE ((g.pos2card.get ⟨toPile.toNat, h10⟩).get ⟨_, hib⟩)).toNat
         = (VALUE ((g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨_, hia⟩)).toNat
           + (p.pileFlute.get ⟨toPile.toNat, h10⟩).toNat)
@@ -208,18 +207,18 @@ theorem StateMatchesKingConfig.movePre_sim_of_dest {g : Globals} {s : State}
     (hkc : ¬ toPile.toNat < 10 → toPile.toNat < 14 →
       encodeCard c = p.kings.get (finOfSuit c.suit)) :
     ∃ v : State, Simulates g s p k v (SolverSpec.movePre pile toPile hpile p) k ∅ 0xffff := by
-  have hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat - 1 < 5 := by
+  have hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5 := by
     have := hk.toMatches.depth_lt6 ⟨pile.toNat, hpile⟩; omega
   refine hk.movePre_sim hpile hcol hrest hrun hcellsCol hcellsFull (fun h10 => ?_) hdb
     (fun h10 => ?_) (fun h10 => ?_) hsu
     (fun h10 h14 _ hown => hk.toMatches.head_of_ownsPile (hkc h10 h14) hown)
     (fun h10 h14 => by rw [← hkc h10 h14, encodeCard_VALUE]; exact hrun.length_lt_rank)
   · -- the destination is a different pile (`ne_of_flute_gap`)
-    have hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toInt.toNat - 1 < 5 := by
+    have hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toNat - 1 < 5 := by
       have := hk.toMatches.depth_lt6 ⟨toPile.toNat, h10⟩; omega
     exact ne_of_flute_gap hb hpile h10 hib hia (hgapP h10 hib hia)
   · -- the destination's exposed card is `nextCard c` (`head_of_flute_gap`)
-    have hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toInt.toNat - 1 < 5 := by
+    have hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toNat - 1 < 5 := by
       have := hk.toMatches.depth_lt6 ⟨toPile.toNat, h10⟩; omega
     exact hk.toMatches.head_of_flute_gap hcol hrest hia
       (by simpa using hdb h10) hib (hsuitP h10 hib hia) (hgapP h10 hib hia)
@@ -246,15 +245,13 @@ theorem phase1Simulated : Phase1Simulated := by
   have hfin : (⟨pile.toNat % 10, by omega⟩ : Fin 10) = ⟨pile.toNat, hpile⟩ :=
     Fin.ext (Nat.mod_eq_of_lt hpile)
   have hd : 0 < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat := by rw [← hfin]; exact hdepth
-  have hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat - 1 < 5 := by
+  have hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5 := by
     have := hs.toMatches.depth_lt6 ⟨pile.toNat, hpile⟩; omega
-  have hb5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5 := by
-    simp only [UInt8.toInt_toNat] at hia; omega
+  have hb5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5 := hia
   -- the source column, split at its boundary
   obtain ⟨top, rest, c, hcol, hflen, hrest, hrun⟩ :=
-    hs.toMatches.flute_split ⟨pile.toNat, hpile⟩ (by simp only [UInt8.toInt_toNat]; omega)
-  have hrest' : rest.length + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat := by
-    simp only [UInt8.toInt_toNat] at hrest; exact hrest
+    hs.toMatches.flute_split ⟨pile.toNat, hpile⟩ (by omega)
+  have hrest' : rest.length + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat := hrest
   -- `c` is the solver's boundary card `B`
   set B := (g.pos2card.get ⟨pile.toNat, hpile⟩).get
     ⟨(p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1, hb5⟩ with hBdef
@@ -262,7 +259,6 @@ theorem phase1Simulated : Phase1Simulated := by
     have h := hs.toMatches.boundary_code ⟨pile.toNat, hpile⟩ hcol hrest hia
     rw [hBdef]
     convert h using 3
-    simp only [UInt8.toInt_toNat]
   have hsuitc : (SUIT B).toNat = suitToNat c.suit := by
     rw [← hcB, encodeCard_SUIT, UInt8.toNat_ofNat']
     have := suitToNat_lt c.suit
@@ -298,7 +294,6 @@ theorem phase1Simulated : Phase1Simulated := by
       rw [show (g.pos2card.get ⟨toPile.toNat, h10⟩).get ⟨_, hib⟩
             = (g.pos2card.get ⟨toPile.toNat, h10'⟩).get ⟨_, hidxt⟩ from by congr 1,
         hBt, hsn]
-      congr 1
     · omega
   -- VALUE: the gap equals the destination's flute length
   · omega
@@ -312,7 +307,6 @@ theorem phase1Simulated : Phase1Simulated := by
         hBt, hvn,
         show (p.pileFlute.get ⟨toPile.toNat, h10⟩) = p.pileFlute.get ⟨toPile.toNat, h10'⟩ from rfl,
         hfl]
-      congr 2
     · omega
   -- the king frontier test
   · rw [hcB, hBdef, ← hkB]

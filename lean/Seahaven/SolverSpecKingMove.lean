@@ -32,7 +32,6 @@ theorem kingMove_pileClean_self (pile : UInt32) (g : Globals) (hpile : pile.toNa
     show (kingMove pile hpile suit hs4 ph p).pileFlute[pile.toNat]'hpile = 1
     unfold kingMove
     rw [Vector.getElem_set_self]
-    rfl
   exact {
     pileDepth_bound := by rw [hd0]; decide
     pileDepth_nonneg := by rw [hd0]; decide
@@ -117,7 +116,6 @@ theorem kingMove_pileFlute_self (pile : UInt32) (hpile : pile.toNat < 10)
   show (kingMove pile hpile suit hs4 ph p).pileFlute[pile.toNat]'hpile = 1
   simp only [kingMove]
   rw [Vector.getElem_set_self]
-  rfl
 
 /-- `kingMove` only ever decreases `pileDepth`, pointwise across all ten piles:
     `pile`'s own depth drops (to `0`); every other pile is literally untouched.
@@ -411,10 +409,10 @@ theorem kingMove_pileMerged_ne (pile : UInt32) (g : Globals) (hpile : pile.toNat
           have haces0' : (0 : Int) ≤ (p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toInt := by
             rw [← show ((0 : UInt8).toInt = 0) from rfl]
             exact UInt8.le_iff_toInt_le.mp haces0
-          have hcast : ((p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toInt.toNat : Int) =
+          have hcast : ((p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toNat : Int) =
               (p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toInt := Int.toNat_of_nonneg haces0'
           have hacesIntEqUInt8Nat :
-              (p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toInt.toNat =
+              (p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toNat =
               (p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toNat := by
             rfl
           omega
@@ -707,11 +705,10 @@ theorem kingMove_suitClean (pile : UInt32) (g : Globals) (hpile : pile.toNat < 1
         left
         apply UInt8.toInt_inj.mp
         rw [uint8_toInt8_toInt_of_lt128 hprevlt128]
-        have hcast : ((p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toInt.toNat : Int) =
+        have hcast : ((p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toNat : Int) =
             (p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toInt :=
-          Int.toNat_of_nonneg (by
-            rw [← show ((0 : UInt8).toInt = 0) from rfl]; exact UInt8.le_iff_toInt_le.mp hacesnn)
-        have hacesIntEqU8 : (p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toInt.toNat =
+          rfl
+        have hacesIntEqU8 : (p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toNat =
             (p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toNat := rfl
         omega
       · -- Strict case: `aces ≠ prevCard` (Nat) forces `VALUE(prevCard) ≥ 1`
@@ -743,11 +740,10 @@ theorem kingMove_suitClean (pile : UInt32) (g : Globals) (hpile : pile.toNat < 1
           rw [hSUITprev]; exact hSKeqSval
         refine ⟨?_, ⟨by rw [hSUITprev]; exact hKreal.1, hVprev_pos, by omega⟩, hnfreeprev⟩
         rw [UInt8.lt_iff_toInt_lt, uint8_toInt8_toInt_of_lt128 hprevlt128]
-        have hcast : ((p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toInt.toNat : Int) =
+        have hcast : ((p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toNat : Int) =
             (p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toInt :=
-          Int.toNat_of_nonneg (by
-            rw [← show ((0 : UInt8).toInt = 0) from rfl]; exact UInt8.le_iff_toInt_le.mp hacesnn)
-        have hacesIntEqU8 : (p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toInt.toNat =
+          rfl
+        have hacesIntEqU8 : (p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toNat =
             (p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toNat := rfl
         omega
     have haces_le_prevCard : p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4) ≤
@@ -796,12 +792,10 @@ theorem kingMove_suitClean (pile : UInt32) (g : Globals) (hpile : pile.toNat < 1
           have hacesNat_lt_prevNat : (p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)
               ).toNat < (K - p.pileFlute[pile.toNat]'hpile).toNat := by
             rw [UInt8.lt_iff_toInt_lt, uint8_toInt8_toInt_of_lt128 hprevlt128] at hacest
-            have hcast : ((p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toInt.toNat
+            have hcast : ((p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toNat
                 : Int) = (p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toInt :=
-              Int.toNat_of_nonneg (by
-                rw [← show ((0 : UInt8).toInt = 0) from rfl]
-                exact UInt8.le_iff_toInt_le.mp hacesnn)
-            have heqU8 : (p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toInt.toNat =
+              rfl
+            have heqU8 : (p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toNat =
                 (p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)).toNat := rfl
             omega
           have hflpos : 1 ≤ (p.pileFlute[pile.toNat]'hpile).toNat := hc.flute_pos

@@ -166,11 +166,11 @@ theorem subsetAt_or_pos (p : SolverPosType) {a b : UInt16}
       = subsetAt ((closureInfoOf p).offset.toNat + a.toNat)
         ||| subsetAt ((closureInfoOf p).offset.toNat + b.toNat) := by
   rw [UInt16.toNat_or]
-  exact subsetAt_or_block ⟨min p.freePiles.toInt.toNat 10, by omega⟩ _ _ ha hb
+  exact subsetAt_or_block ⟨min p.freePiles.toNat 10, by omega⟩ _ _ ha hb
 
 theorem subsetAt_zero_pos (p : SolverPosType) :
     subsetAt ((closureInfoOf p).offset.toNat + (0 : UInt16).toNat) = 0 :=
-  subsetAt_zero_block ⟨min p.freePiles.toInt.toNat 10, by omega⟩
+  subsetAt_zero_block ⟨min p.freePiles.toNat 10, by omega⟩
 
 /-! ## One simulated step, and how steps chain
 
@@ -524,7 +524,7 @@ theorem subsetAt_spec_pos (p : SolverPosType) {T : UInt16} (hT : LocalMask p T) 
     BitSet (subsetAt ((closureInfoOf p).offset.toNat + T.toNat)) c ↔
       ∃ i : Nat, i < (closureInfoOf p).numBits.toNat ∧ T.toNat.testBit i = true ∧
         MaskSub (globalCfg (closureInfoOf p) i) c :=
-  subsetAt_spec_block ⟨min p.freePiles.toInt.toNat 10, by omega⟩ T.toNat hT c
+  subsetAt_spec_block ⟨min p.freePiles.toNat 10, by omega⟩ T.toNat hT c
 
 /-- **The transport.**  If the parent's configuration `gi` is covered by the
 `forcedKings`-intersected child mask, then the simulation's witness `k'` — which
@@ -541,9 +541,9 @@ theorem kingStep_transport (p' : SolverPosType) {T fk : UInt16} {FK : Finset Sui
         (T &&& (fk >>> (closureInfoOf p').shiftValue.toUInt16)).toNat)) gi) :
     BitSet (subsetAt ((closureInfoOf p').offset.toNat + T.toNat)) k' := by
   have hble : (closureInfoOf p').shiftValue.toNat + (closureInfoOf p').numBits.toNat ≤ 16 :=
-    closureInfo_shift_add_numBits ⟨min p'.freePiles.toInt.toNat 10, by omega⟩
+    closureInfo_shift_add_numBits ⟨min p'.freePiles.toNat 10, by omega⟩
   have hbpos : 1 ≤ (closureInfoOf p').numBits.toNat :=
-    closureInfo_numBits_pos ⟨min p'.freePiles.toInt.toNat 10, by omega⟩
+    closureInfo_numBits_pos ⟨min p'.freePiles.toNat 10, by omega⟩
   obtain ⟨i, hi, hbits, hsub⟩ :=
     (subsetAt_spec_pos p' (LocalMask.and_left _ hT) gi).1 hbit
   rw [UInt16.toNat_and, Nat.testBit_and, Bool.and_eq_true] at hbits
@@ -657,10 +657,10 @@ theorem componentTable_localBound (f : Fin 11) (hf : f.val < 10) (j : Nat)
 
 /-- **How many suits get a king pile**: as many as there are free piles, capped
 at four.  This is the quantity `closureInfos` is really indexed by. -/
-def numPiledKings (p : SolverPosType) : Nat := min p.freePiles.toInt.toNat 4
+def numPiledKings (p : SolverPosType) : Nat := min p.freePiles.toNat 4
 
 theorem numPiledKings_eq (p : SolverPosType) :
-    min (min p.freePiles.toInt.toNat 10) 4 = numPiledKings p := by
+    min (min p.freePiles.toNat 10) 4 = numPiledKings p := by
   unfold numPiledKings; omega
 
 /-- The block for `f` free piles has one bit per way of choosing which
@@ -672,7 +672,7 @@ theorem closureInfo_numBits (f : Fin 11) :
 theorem closureInfoOf_numBits (p : SolverPosType) :
     (closureInfoOf p).numBits.toNat = Nat.choose 4 (numPiledKings p) := by
   unfold closureInfoOf
-  rw [closureInfo_numBits ⟨min p.freePiles.toInt.toNat 10, by omega⟩]
+  rw [closureInfo_numBits ⟨min p.freePiles.toNat 10, by omega⟩]
   congr 1
   exact numPiledKings_eq p
 

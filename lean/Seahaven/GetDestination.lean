@@ -63,14 +63,14 @@ def destBody (game : SolverPosType) (globals : Globals) :
       let toPile ← globals.card2pile.getE card.toUInt32
       let pd ← game.pileDepth.getE toPile.toUInt32
       let cd ← globals.card2depth.getE card.toUInt32
-      have posFromTop : Int32 := pd.toInt32 - cd.toUInt32.toInt32
+      have posFromTop : Int32 := pd.toInt32 - cd.toInt32
       if posFromTop > 0 then pure (.done ⟨card, posFromTop, toPile⟩)
       else pure (.yield ⟨card, posFromTop, toPile⟩)
 
 def getDestExplicit (game : SolverPosType) (pile : UInt32) : EStateM Error Globals UInt8 := do
   let globals ← get
   let depth ← game.pileDepth.getE pile
-  let card ← (← globals.pos2card.getE pile).getE (depth.toInt32 - 1).toUInt32
+  let card ← (← globals.pos2card.getE pile).getE (depth - 1).toUInt32
   have suit : UInt8 := SUIT card
   let k ← game.kings.getE suit.toUInt32
   if (card == k) = true then pure (10 + suit)
@@ -157,10 +157,10 @@ theorem pileDepth_mod (game : SolverPosType) (a : Nat) (h : a < 10) {h' : a % 10
 theorem isFreeCard_iff (g : Globals) (game : SolverPosType) (c : UInt8)
     (hp10 : (cardPile g c).toNat < 10) :
     isFreeCard g game c ↔
-      (game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toInt.toNat ≤ (cardDepth g c).toNat := by
+      (game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toNat ≤ (cardDepth g c).toNat := by
   show ((cardDepth g c).toNat ≥
       (if h : (cardPile g c).toNat < 10 then game.pileDepth.get ⟨(cardPile g c).toNat, h⟩
-       else 0).toInt.toNat) ↔ _
+       else 0).toNat) ↔ _
   rw [dif_pos hp10]
 
 /-- **The loop's `posFromTop > 0` test is exactly "not free".**  Needs pile
@@ -172,6 +172,8 @@ theorem posFromTopOf_pos_iff (g : Globals) (game : SolverPosType) (c : UInt8)
   rw [isFreeCard_iff g game c hp10]
   unfold posFromTopOf
   rw [pileDepth_mod game _ hp10]
+  have hcast : (game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toInt =
+      ((game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toNat : Int) := rfl
   omega
 
 /-! ### `Int32` conversion bridges
@@ -217,17 +219,12 @@ theorem int32_toUInt32_toNat (x : Int32) (h0 : 0 ≤ x.toInt) : x.toUInt32.toNat
   omega
 
 /-- The boundary index the code computes, in `Nat` terms: for `1 ≤ depth ≤ 5`,
-`(depth.toInt32 - 1).toUInt32.toNat = depth - 1`. -/
-theorem depth_index (d : UInt8) (h1 : 0 < d.toInt.toNat) (h5 : d.toInt.toNat ≤ 5) :
-    (d.toInt32 - 1).toUInt32.toNat = d.toInt.toNat - 1 := by
-  have hlb := int8_toInt_lb d
-  have hub := int8_toInt_ub d
-  have hone : (1 : Int32).toInt = 1 := by decide
-  have ha : (d.toInt32).toInt = d.toInt := UInt8.toInt_toInt32 d
-  have hsub : (d.toInt32 - 1).toInt = d.toInt - 1 := by
-    rw [int32_toInt_sub _ _ (by rw [ha, hone]; omega) (by rw [ha, hone]; omega), ha, hone]
-  rw [int32_toUInt32_toNat _ (by rw [hsub]; omega), hsub]
-  omega
+`(depth - 1).toUInt32.toNat = depth - 1`. -/
+theorem depth_index (d : UInt8) (h1 : 0 < d.toNat) (h5 : d.toNat ≤ 5) :
+    (d - 1).toUInt32.toNat = d.toNat - 1 := by
+  rw [UInt8.toNat_toUInt32,
+    UInt8.toNat_sub_of_le _ _ (by rw [UInt8.le_iff_toNat_le]; show 1 ≤ _; omega)]
+  rfl
 
 /-- **The loop's `posFromTop`, as an `Int`.** -/
 theorem pft_toInt (pd : UInt8) (cd : UInt8) :
@@ -249,6 +246,8 @@ theorem loop_test_iff (g : Globals) (game : SolverPosType) (c : UInt8)
       ↔ ¬ isFreeCard g game c := by
   rw [Int32.lt_iff_toInt_lt, pft_toInt, isFreeCard_iff g game c hp10]
   simp only [Int32.toInt_zero]
+  have hcast : (game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toInt =
+      ((game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toNat : Int) := rfl
   omega
 
 /-! ### One step of the loop
@@ -443,8 +442,8 @@ to be stated in `getElem` (`a[i]'h`) form to match what the earlier reads leave
 behind. -/
 theorem getDest_apply (game : SolverPosType) (pile : UInt32) (g g' : Globals) (B : UInt8)
     (hp : pile.toNat < 10)
-    (hidx : ((game.pileDepth[pile.toNat]'hp).toInt32 - 1).toUInt32.toNat < 5)
-    (hcard : (g.pos2card[pile.toNat]'hp)[((game.pileDepth[pile.toNat]'hp).toInt32
+    (hidx : ((game.pileDepth[pile.toNat]'hp) - 1).toUInt32.toNat < 5)
+    (hcard : (g.pos2card[pile.toNat]'hp)[((game.pileDepth[pile.toNat]'hp)
                - 1).toUInt32.toNat]'hidx = B)
     (hs32 : (SUIT B).toUInt32.toNat < 4)
     (res : DestAcc)
@@ -466,8 +465,8 @@ theorem getDest_result (game : SolverPosType) (pile : UInt32) (g : Globals) (B :
     (hwf : WellFormedLayout g)
     (hnn : ∀ i : Fin 10, (0:Int) ≤ (game.pileDepth.get i).toInt)
     (hp : pile.toNat < 10)
-    (hidx : ((game.pileDepth[pile.toNat]'hp).toInt32 - 1).toUInt32.toNat < 5)
-    (hcard : (g.pos2card[pile.toNat]'hp)[((game.pileDepth[pile.toNat]'hp).toInt32
+    (hidx : ((game.pileDepth[pile.toNat]'hp) - 1).toUInt32.toNat < 5)
+    (hcard : (g.pos2card[pile.toNat]'hp)[((game.pileDepth[pile.toNat]'hp)
                - 1).toUInt32.toNat]'hidx = B)
     (hs32 : (SUIT B).toUInt32.toNat < 4)
     (n : Nat) (hn1 : 1 ≤ n)
@@ -518,8 +517,8 @@ theorem exists_stop_canonical (g : Globals) (game : SolverPosType)
 is never entered — so no `n` is needed. -/
 theorem getDest_king (game : SolverPosType) (pile : UInt32) (g : Globals) (B : UInt8)
     (hp : pile.toNat < 10)
-    (hidx : ((game.pileDepth[pile.toNat]'hp).toInt32 - 1).toUInt32.toNat < 5)
-    (hcard : (g.pos2card[pile.toNat]'hp)[((game.pileDepth[pile.toNat]'hp).toInt32
+    (hidx : ((game.pileDepth[pile.toNat]'hp) - 1).toUInt32.toNat < 5)
+    (hcard : (g.pos2card[pile.toNat]'hp)[((game.pileDepth[pile.toNat]'hp)
                - 1).toUInt32.toNat]'hidx = B)
     (hs32 : (SUIT B).toUInt32.toNat < 4)
     (hkeq : (B == game.kings[(SUIT B).toUInt32.toNat]'hs32) = true) :
@@ -534,8 +533,8 @@ theorem getDest_walk (game : SolverPosType) (pile : UInt32) (g : Globals) (B : U
     (hwf : WellFormedLayout g)
     (hnn : ∀ i : Fin 10, (0:Int) ≤ (game.pileDepth.get i).toInt)
     (hp : pile.toNat < 10)
-    (hidx : ((game.pileDepth[pile.toNat]'hp).toInt32 - 1).toUInt32.toNat < 5)
-    (hcard : (g.pos2card[pile.toNat]'hp)[((game.pileDepth[pile.toNat]'hp).toInt32
+    (hidx : ((game.pileDepth[pile.toNat]'hp) - 1).toUInt32.toNat < 5)
+    (hcard : (g.pos2card[pile.toNat]'hp)[((game.pileDepth[pile.toNat]'hp)
                - 1).toUInt32.toNat]'hidx = B)
     (hs32 : (SUIT B).toUInt32.toNat < 4)
     (hkne : (B == game.kings[(SUIT B).toUInt32.toNat]'hs32) = false)
@@ -555,12 +554,12 @@ the stopping index is *derived*, not assumed. -/
 theorem getDest_spec (g : Globals) (game : SolverPosType) (pile : UInt32)
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g game)
     (hp : pile.toNat < 10)
-    (hd : 0 < (game.pileDepth.get ⟨pile.toNat, hp⟩).toInt.toNat) :
-    let hb5 : (game.pileDepth.get ⟨pile.toNat, hp⟩).toInt.toNat - 1 < 5 := by
+    (hd : 0 < (game.pileDepth.get ⟨pile.toNat, hp⟩).toNat) :
+    let hb5 : (game.pileDepth.get ⟨pile.toNat, hp⟩).toNat - 1 < 5 := by
       have := hcan.toSolverInvMerged.toSolverInvBase.pileDepth_bound ⟨pile.toNat, hp⟩
-      simp only [UInt8.toInt_eq] at *; omega
+      omega
     let B := (g.pos2card.get ⟨pile.toNat, hp⟩).get
-               ⟨(game.pileDepth.get ⟨pile.toNat, hp⟩).toInt.toNat - 1, hb5⟩
+               ⟨(game.pileDepth.get ⟨pile.toNat, hp⟩).toNat - 1, hb5⟩
     (B = (game.kings.get ⟨(SUIT B).toNat,
             (hwf.pos2card_real ⟨pile.toNat, hp⟩ ⟨_, hb5⟩).1⟩) ∧
        solverGetDestination game pile g = .ok (10 + SUIT B) g)
@@ -579,11 +578,15 @@ theorem getDest_spec (g : Globals) (game : SolverPosType) (pile : UInt32)
     rw [UInt8.le_iff_toInt_le] at this; simpa using this
   have hdi := depth_index (game.pileDepth.get ⟨pile.toNat, hp⟩) hd
                 (hbase.pileDepth_bound ⟨pile.toNat, hp⟩)
-  have hidx : ((game.pileDepth[pile.toNat]'hp).toInt32 - 1).toUInt32.toNat < 5 := by
-    show ((game.pileDepth.get ⟨pile.toNat, hp⟩).toInt32 - 1).toUInt32.toNat < 5
+  have hidx : ((game.pileDepth[pile.toNat]'hp) - 1).toUInt32.toNat < 5 := by
+    show ((game.pileDepth.get ⟨pile.toNat, hp⟩) - 1).toUInt32.toNat < 5
     rw [hdi]; exact hb5
-  have hcard : (g.pos2card[pile.toNat]'hp)[((game.pileDepth[pile.toNat]'hp).toInt32
-                 - 1).toUInt32.toNat]'hidx = B := by congr 1
+  have hcard : (g.pos2card[pile.toNat]'hp)[((game.pileDepth[pile.toNat]'hp)
+                 - 1).toUInt32.toNat]'hidx = B := by
+    show (g.pos2card.get ⟨pile.toNat, hp⟩)[((game.pileDepth.get ⟨pile.toNat, hp⟩)
+      - 1).toUInt32.toNat]'hidx = B
+    simp only [hdi]
+    rfl
   have hBnf : ¬ isFreeCard g game B := boundary_not_free hwf hbase ⟨pile.toNat, hp⟩ hd
   have hkidx : game.kings[(SUIT B).toUInt32.toNat]'hs32
              = game.kings.get ⟨(SUIT B).toNat, hreal.1⟩ := by congr 1

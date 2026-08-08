@@ -272,8 +272,8 @@ def SolverCleanupPile (pile : UInt32) : EStateM Error (Globals × SolverPosType)
   let mut ⟨globals, game⟩ ← get
   let mut forcedKings : UInt16 := 0xffff
   let pilehash := ← pileHashes.getE pile
-  let mut depth := (← game.pileDepth.getE pile).toInt32
-  let mut flute : Int32 := 1
+  let mut depth := ← game.pileDepth.getE pile
+  let mut flute : UInt8 := 1
   if depth == 0 then
     game := { game with freePiles := game.freePiles + 1 }
   else
@@ -292,7 +292,7 @@ def SolverCleanupPile (pile : UInt32) : EStateM Error (Globals × SolverPosType)
     -- Extend flute with predecessor cards already freed from their piles.
     while (← ((do return decide ((← game.aces.getE suit.toUInt32) < prevCard)) <&&>
         (do return ((← globals.card2depth.getE prevCard.toUInt32).toNat >=
-            (← game.pileDepth.getE (← globals.card2pile.getE prevCard.toUInt32).toUInt32).toInt32.toNatClampNeg)))) do
+            (← game.pileDepth.getE (← globals.card2pile.getE prevCard.toUInt32).toUInt32).toNat)))) do
       flute := flute + 1
       prevCard := prevCard - 1
       game := { game with usedSpace := game.usedSpace - 1 }
@@ -302,16 +302,16 @@ def SolverCleanupPile (pile : UInt32) : EStateM Error (Globals × SolverPosType)
     -- Lone king: vacate pile, track king sequence in usedSpace/kings.
     if depth == 1 && (VALUE card) == 13 then
       game := { game with freePiles := game.freePiles + 1 }
-      game := { game with usedSpace := game.usedSpace + flute.toUInt32.toUInt8 }
-      let newKings ← game.kings.setE suit.toUInt32 ((← game.kings.getE suit.toUInt32) - flute.toUInt32.toUInt8)
+      game := { game with usedSpace := game.usedSpace + flute }
+      let newKings ← game.kings.setE suit.toUInt32 ((← game.kings.getE suit.toUInt32) - flute)
       game := { game with kings := newKings }
       game := { game with hash := game.hash - pilehash }
       depth := 0
       flute := 1
       forcedKings := forcedKings &&& (← kingOnPileMap.getE suit.toUInt32)
   game := { game with
-    pileDepth := ← game.pileDepth.setE pile depth.toUInt32.toUInt8
-    pileFlute := ← game.pileFlute.setE pile flute.toUInt32.toUInt8
+    pileDepth := ← game.pileDepth.setE pile depth
+    pileFlute := ← game.pileFlute.setE pile flute
   }
   set (⟨globals, game⟩ : Globals × SolverPosType)
   return forcedKings
@@ -341,7 +341,7 @@ def computeKingSpaces (shiftValue : UInt8) (numBits : UInt8) (game : SolverPosTy
 def solverGetDestination (game : SolverPosType) (pile : UInt32) : EStateM Error Globals UInt8 := do
   let globals ← get
   let depth ← game.pileDepth.getE pile
-  let mut card := ← (← globals.pos2card.getE pile).getE (depth.toInt32 - 1).toUInt32
+  let mut card := ← (← globals.pos2card.getE pile).getE (depth - 1).toUInt32
   let suit := SUIT card
   if card == (← game.kings.getE suit.toUInt32) then
     return 10 + suit  -- KINGPILE + suit
@@ -351,7 +351,7 @@ def solverGetDestination (game : SolverPosType) (pile : UInt32) : EStateM Error 
     card := card + 1
     toPile := ← globals.card2pile.getE card.toUInt32
     posFromTop := (← game.pileDepth.getE toPile.toUInt32).toInt32 -
-                  (← globals.card2depth.getE card.toUInt32).toUInt32.toInt32
+                  (← globals.card2depth.getE card.toUInt32).toInt32
     if posFromTop > 0 then break
   return if posFromTop == 1 then toPile else 14  -- EXTRA
 
@@ -360,11 +360,11 @@ def SolverMoveAces : EStateM Error (Globals × SolverPosType) UInt16 := do
   let mut ⟨globals, game⟩ ← get
   let suit := ctz game.busyAces
   let suitU32 := UInt32.ofNat suit
-  let mut card : UInt8 := (← game.aces.getE suitU32).toInt32.toUInt32.toUInt8 + 1
+  let mut card : UInt8 := (← game.aces.getE suitU32) + 1
   let mut found : UInt8 := 0
   while VALUE card <= 13 do
     let pile := ← globals.card2pile.getE card.toUInt32
-    let cardDepth : Int32 := (← globals.card2depth.getE card.toUInt32).toUInt32.toInt32 + 1 -
+    let cardDepth : Int32 := (← globals.card2depth.getE card.toUInt32).toInt32 + 1 -
                              (← game.pileDepth.getE pile.toUInt32).toInt32
     if cardDepth > 0 then
       found := found + 1
@@ -417,7 +417,7 @@ def solverGetMovable (kingInfo : KingInfo) (shiftValue : UInt8) (fluteLen : UInt
     return (← kingInfo.possibleKings.getE fluteLen.toUInt32).toUInt16
 
 def computeComponentKingBits (game : SolverPosType) : EStateM Error Globals UInt8 := do
-  let emptyPiles := game.freePiles.toInt32
+  let emptyPiles := game.freePiles
   if emptyPiles >= 1 && emptyPiles <= 3 then
     let info := ← closureInfos.getE (emptyPiles - 1).toUInt32
     let mut result : UInt16 := 0
@@ -442,7 +442,7 @@ def computeComponentKingBits (game : SolverPosType) : EStateM Error Globals UInt
 -- code below is a verbatim transcription of `solver.c`.
 def solverRecCheckSolvable (game : SolverPosType) : EStateM Error Globals UInt16 := do
   if game.hash == 0 then return 1
-  let closureInfo ← closureInfos.getE game.freePiles.toInt32.toUInt32
+  let closureInfo ← closureInfos.getE game.freePiles.toUInt32
   let cachedValue ← getSlot game.hash
   if cachedValue != 0xff then
     return cachedValue.toUInt16
@@ -461,7 +461,7 @@ def solverRecCheckSolvable (game : SolverPosType) : EStateM Error Globals UInt16
       match EStateM.run (SolverMove pileU32 toPile) (globals, game) with
       | .ok forcedKings ⟨newGlobals, childGame⟩ =>
         set newGlobals
-        let nextClosureInfo ← closureInfos.getE childGame.freePiles.toInt32.toUInt32
+        let nextClosureInfo ← closureInfos.getE childGame.freePiles.toUInt32
         let childSolvable ← solverRecCheckSolvable childGame
         let childSolvable' := childSolvable &&& (forcedKings >>> nextClosureInfo.shiftValue.toUInt16)
         let movable' := movable &&&
@@ -499,14 +499,14 @@ def SolverConvertFromPilesKings (pilesking : Vector UInt8 11) :
     let mut ace  : UInt8 := CARD (UInt8.ofNat suit) 1
     while (← (do return decide (ace <= card)) <&&>
           (do return ((← globals.card2depth.getE ace.toUInt32).toNat >=
-            (← game.pileDepth.getE (← globals.card2pile.getE ace.toUInt32).toUInt32).toInt32.toNatClampNeg))) do
+            (← game.pileDepth.getE (← globals.card2pile.getE ace.toUInt32).toUInt32).toNat))) do
       ace := ace + 1
     ace := ace - 1
     game := { game with aces := ← game.aces.setE suitU32 ace }
     game := { game with usedSpace := game.usedSpace - (VALUE ace) }
     if ace < card then
       while (← globals.card2depth.getE card.toUInt32).toNat >=
-              (← game.pileDepth.getE (← globals.card2pile.getE card.toUInt32).toUInt32).toInt32.toNatClampNeg do
+              (← game.pileDepth.getE (← globals.card2pile.getE card.toUInt32).toUInt32).toNat do
         card := card - 1
     game := { game with kings := ← game.kings.setE suitU32 card }
 
@@ -565,7 +565,7 @@ def solve (stacks : Vector UInt8 11) : EStateM Error Globals UInt8 := do
     if game.hash == 0 then
       return 0  -- SUCCESS: game already solved
     let kingbit ← bits2grlex.getE ((← stacks.getE 10) ^^^ 0xf).toUInt32
-    let ci ← closureInfos.getE game.freePiles.toInt32.toUInt32
+    let ci ← closureInfos.getE game.freePiles.toUInt32
     let solvable := (← solverRecCheckSolvable game) &&&
                     (forcedKings >>> ci.shiftValue.toUInt16)
     let tableEntry ← subsetTable.getE (ci.offset.toUInt32 + solvable.toUInt32)

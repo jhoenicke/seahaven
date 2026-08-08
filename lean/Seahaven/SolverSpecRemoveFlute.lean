@@ -97,7 +97,7 @@ theorem DepthLe.sum_lt {p q : SolverPosType} (h : DepthLe p q) (i : Fin 10)
       rw [Vector.getElem_set_ne i.isLt j.isLt (fun hc => hj hc.symm)]
       exact h j
   have hstrict : DepthSum r < DepthSum p := by
-    -- ascribe the `.toNat` spelling (`depth_sum_foldl_set` says `.toInt.toNat`, defeq but
+    -- ascribe the `.toNat` spelling (`depth_sum_foldl_set` says `.toNat`, defeq but
     -- a different atom to `omega`)
     have hkey : (p.pileDepth.set i.val (q.pileDepth.get i) i.isLt).toList.foldl
           (fun acc x => acc + x.toNat) 0 + (p.pileDepth.get i).toNat =
@@ -124,7 +124,7 @@ theorem cleanupPile_depth_le (pile : UInt32) (g : Globals) (p : SolverPosType)
     show ((p.pileDepth.set pile.toNat 0 hpile).get i).toNat ≤ (p.pileDepth.get i).toNat
     rw [hsd]
   · have hpre : ∀ i : Fin 10, ((preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-        (p.pileDepth[pile.toNat]'hpile).toInt32 m f p).pileDepth.get i).toNat
+        (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth.get i).toNat
         ≤ (p.pileDepth.get i).toNat := fun i =>
       preCleanupPile_pileDepth_le pile hpile B (pileHashes[pile.toNat]'hpile) hs4 p m f hd5
         (by omega) i

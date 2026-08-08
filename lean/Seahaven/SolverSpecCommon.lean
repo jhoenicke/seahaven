@@ -180,11 +180,11 @@ theorem uint32_sub_add (a b c : UInt32) : a - (b + c) = a - b - c := by
     conditions are needed). -/
 theorem hash_foldl_set (v : Vector UInt8 10) (k : Nat) (hk : k < 10) (x : UInt8) :
     ((List.finRange 10).foldl
-      (fun acc i => acc + pileHashes.get i * ((v.set k x hk).get i).toInt.toNat.toUInt32) 0)
-      + (pileHashes[k]'hk) * ((v[k]'hk).toInt.toNat.toUInt32) =
+      (fun acc i => acc + pileHashes.get i * ((v.set k x hk).get i).toNat.toUInt32) 0)
+      + (pileHashes[k]'hk) * ((v[k]'hk).toNat.toUInt32) =
     ((List.finRange 10).foldl
-      (fun acc i => acc + pileHashes.get i * (v.get i).toInt.toNat.toUInt32) 0)
-      + (pileHashes[k]'hk) * (x.toInt.toNat.toUInt32) := by
+      (fun acc i => acc + pileHashes.get i * (v.get i).toNat.toUInt32) 0)
+      + (pileHashes[k]'hk) * (x.toNat.toUInt32) := by
   simp only [List.finRange, List.ofFn_succ, List.ofFn_zero, List.foldl_cons, List.foldl_nil,
     pileHashes, Vector.get, Vector.getElem_toArray, Fin.isValue, Fin.val_cast, Fin.val_zero,
     Fin.val_succ, Nat.reduceAdd, List.getElem_toArray, List.getElem_cons_succ,
@@ -221,15 +221,15 @@ private theorem zipWith_set_eq {α β γ : Type} (L1 : List α) (L2 : List β) (
 /-- Updating one pile's depth changes `usedSpace_def`'s `ΣDepth` sum by exactly
     that pile's `toNatClampNeg` change (additive form). -/
 theorem depth_sum_foldl_set (d : Vector UInt8 10) (k : Nat) (hk : k < 10) (xd : UInt8) :
-    (d.set k xd hk).toList.foldl (fun acc x => acc + x.toInt.toNat) 0 + (d[k]'hk).toInt.toNat =
-    d.toList.foldl (fun acc x => acc + x.toInt.toNat) 0 + xd.toInt.toNat := by
-  rw [show (d.set k xd hk).toList.foldl (fun acc x => acc + x.toInt.toNat) 0
-        = ((d.set k xd hk).toList.map (fun x => x.toInt.toNat)).foldl (·+·) 0 from
-      (List.foldl_map ..).symm, show d.toList.foldl (fun acc x => acc + x.toInt.toNat) 0
-        = (d.toList.map (fun x => x.toInt.toNat)).foldl (·+·) 0 from (List.foldl_map ..).symm, Vector.toList_set, List.map_set, ← List.sum_eq_foldl_nat, ← List.sum_eq_foldl_nat]
-  have hk' : k < (d.toList.map (fun x => x.toInt.toNat)).length := by
+    (d.set k xd hk).toList.foldl (fun acc x => acc + x.toNat) 0 + (d[k]'hk).toNat =
+    d.toList.foldl (fun acc x => acc + x.toNat) 0 + xd.toNat := by
+  rw [show (d.set k xd hk).toList.foldl (fun acc x => acc + x.toNat) 0
+        = ((d.set k xd hk).toList.map (fun x => x.toNat)).foldl (·+·) 0 from
+      (List.foldl_map ..).symm, show d.toList.foldl (fun acc x => acc + x.toNat) 0
+        = (d.toList.map (fun x => x.toNat)).foldl (·+·) 0 from (List.foldl_map ..).symm, Vector.toList_set, List.map_set, ← List.sum_eq_foldl_nat, ← List.sum_eq_foldl_nat]
+  have hk' : k < (d.toList.map (fun x => x.toNat)).length := by
     rw [List.length_map, Vector.length_toList]; omega
-  have h := list_sum_set_eq (d.toList.map (fun x => x.toInt.toNat)) k hk' xd.toInt.toNat
+  have h := list_sum_set_eq (d.toList.map (fun x => x.toNat)) k hk' xd.toNat
   rw [List.getElem_map, Vector.getElem_toList] at h
   exact h
 
@@ -289,53 +289,43 @@ theorem vector_ext_get {α : Type} {n : Nat} (v w : Vector α n)
 
 /-- Index bound for the merge guard's internal `pos2card` read (`depth − 2`),
     reusable at every step of the merge-realness chain below. -/
-private theorem merge_step_idx_bound {x : Int32} (hgt : 1 < x) (hle : x.toInt ≤ 5) :
-    (x - 2).toUInt32.toNat < 5 ∧ (x - 2).toInt = x.toInt - 2 := by
-  have hgt' : (1 : Int) < x.toInt := by
-    rw [Int32.lt_iff_toInt_lt, Int32.toInt_one] at hgt; exact hgt
-  have h2le : (2 : Int32) ≤ x := by
-    rw [Int32.le_iff_toInt_le, show ((2 : Int32).toInt = 2) from by decide]; omega
-  have hsub2 : (x - 2).toInt = x.toInt - 2 := by
-    rw [Int32.toInt_sub_of_le _ _ (by decide) h2le, show ((2 : Int32).toInt = 2) from by decide]
-  have hnn : (0 : Int32) ≤ x - 2 := by
-    rw [Int32.le_iff_toInt_le, hsub2, show ((0 : Int32).toInt = 0) from by decide]; omega
+private theorem merge_step_idx_bound {x : UInt8} (hgt : 1 < x) (hle : x.toNat ≤ 5) :
+    (x - 2).toUInt32.toNat < 5 ∧ (x - 2).toNat = x.toNat - 2 := by
+  have hgt' : 1 < x.toNat := UInt8.lt_iff_toNat_lt.mp hgt
+  have hsub2 : (x - 2).toNat = x.toNat - 2 :=
+    UInt8.toNat_sub_of_le _ _ (by rw [UInt8.le_iff_toNat_le]; exact hgt')
   refine ⟨?_, hsub2⟩
-  rw [Int32.toNat_toUInt32_of_le hnn]
-  show (x - 2).toInt.toNat < 5
+  rw [UInt8.toNat_toUInt32, hsub2]
   omega
 
-/-- `(d0 - ofNat i).toInt = d0.toInt - i` for `i` within `d0`'s range, wrap-free. -/
-theorem depth_sub_ofNat_eq {d0 : Int32} {i : Nat}
-    (hd0 : d0.toInt ≤ 5) (hi : (i : Int) ≤ d0.toInt) :
-    (d0 - Int32.ofNat i).toInt = d0.toInt - i := by
-  have hiofI : (Int32.ofNat i).toInt = (i : Int) := by
-    rw [Int32.toInt_ofNat', show Int32.size = 4294967296 from rfl]
-    exact Int.bmod_eq_of_le (by omega) (by omega)
-  rw [Int32.toInt_sub_of_le _ _
-    (by rw [Int32.le_iff_toInt_le, hiofI, show ((0 : Int32).toInt = 0) from by decide]; omega)
-    (by rw [Int32.le_iff_toInt_le, hiofI]; omega), hiofI]
+/-- `(d0 - ofNat i).toNat = d0.toNat - i` for `i` within `d0`'s range, wrap-free. -/
+theorem depth_sub_ofNat_eq {d0 : UInt8} {i : Nat}
+    (hd0 : d0.toNat ≤ 5) (hi : i ≤ d0.toNat) :
+    (d0 - UInt8.ofNat i).toNat = d0.toNat - i := by
+  have hiofN : (UInt8.ofNat i).toNat = i := by rw [UInt8.toNat_ofNat']; omega
+  rw [UInt8.toNat_sub_of_le _ _ (by rw [UInt8.le_iff_toNat_le, hiofN]; omega), hiofN]
 
-/-- `(d0 - ofNat i - 1).toInt = d0.toInt - i - 1`, wrap-free (one more subtraction
+/-- `(d0 - ofNat i - 1).toNat = d0.toNat - i - 1`, wrap-free (one more subtraction
     layered onto `depth_sub_ofNat_eq`, reused for "the slot vacated by merge step
     `i`" index computations). -/
-theorem depth_sub_ofNat_sub_one_eq {d0 : Int32} {i : Nat}
-    (hd0 : d0.toInt ≤ 5) (hi : (i : Int) + 1 ≤ d0.toInt) :
-    (d0 - Int32.ofNat i - 1).toInt = d0.toInt - i - 1 := by
-  have h1 : (d0 - Int32.ofNat i).toInt = d0.toInt - i := depth_sub_ofNat_eq hd0 (by omega)
-  rw [Int32.toInt_sub_of_le _ _ (by decide)
-    (by rw [Int32.le_iff_toInt_le, h1, show ((1 : Int32).toInt = 1) from by decide]; omega),
-    show ((1 : Int32).toInt = 1) from by decide, h1]
+theorem depth_sub_ofNat_sub_one_eq {d0 : UInt8} {i : Nat}
+    (hd0 : d0.toNat ≤ 5) (hi : i + 1 ≤ d0.toNat) :
+    (d0 - UInt8.ofNat i - 1).toNat = d0.toNat - i - 1 := by
+  have h1 : (d0 - UInt8.ofNat i).toNat = d0.toNat - i := depth_sub_ofNat_eq hd0 (by omega)
+  rw [UInt8.toNat_sub_of_le _ _
+    (by rw [UInt8.le_iff_toNat_le, h1]; show 1 ≤ _; omega), h1]
+  rfl
 
-/-- `(d0 - ofNat i - 2).toInt = d0.toInt - i - 2`, wrap-free (the "two below the
+/-- `(d0 - ofNat i - 2).toNat = d0.toNat - i - 2`, wrap-free (the "two below the
     boundary" counterpart of `depth_sub_ofNat_sub_one_eq`, needed for
     `merge_complete`'s own index). -/
-theorem depth_sub_ofNat_sub_two_eq {d0 : Int32} {i : Nat}
-    (hd0 : d0.toInt ≤ 5) (hi : (i : Int) + 2 ≤ d0.toInt) :
-    (d0 - Int32.ofNat i - 2).toInt = d0.toInt - i - 2 := by
-  have h1 : (d0 - Int32.ofNat i).toInt = d0.toInt - i := depth_sub_ofNat_eq hd0 (by omega)
-  rw [Int32.toInt_sub_of_le _ _ (by decide)
-    (by rw [Int32.le_iff_toInt_le, h1, show ((2 : Int32).toInt = 2) from by decide]; omega),
-    show ((2 : Int32).toInt = 2) from by decide, h1]
+theorem depth_sub_ofNat_sub_two_eq {d0 : UInt8} {i : Nat}
+    (hd0 : d0.toNat ≤ 5) (hi : i + 2 ≤ d0.toNat) :
+    (d0 - UInt8.ofNat i - 2).toNat = d0.toNat - i - 2 := by
+  have h1 : (d0 - UInt8.ofNat i).toNat = d0.toNat - i := depth_sub_ofNat_eq hd0 (by omega)
+  rw [UInt8.toNat_sub_of_le _ _
+    (by rw [UInt8.le_iff_toNat_le, h1]; show 2 ≤ _; omega), h1]
+  rfl
 
 /-- `(n - 1).toUInt32 = (n : UInt32) - 1` for a small nonzero `n` — the
     `UInt32.ofNat` analogue of ordinary `Nat` decrement, needed to match
@@ -414,10 +404,10 @@ theorem flute_offset_split (B : UInt8) (m f : Nat) (hBrange : B.toNat ≤ 61)
     onto `card_j + 1 = B + (j+1)`; `SUIT_succ`/`VALUE_succ` (licensed by the
     freshly-established `VALUE < 15`) carries the arithmetic relation forward. -/
 theorem merge_real_chain (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10)
-    (hwf : WellFormedLayout g) (ph : UInt32) (B : UInt8) (d0 : Int32) (m : Nat)
-    (p0 : SolverPosType) (hreal : IsRealCard B) (hd0 : d0.toInt ≤ 5)
-    (hmlt : (m : Int) < d0.toInt)
-    (hmg : ∀ i, i < m → mergeGuard g pile (mergeIter ph i ⟨B, d0, (1 : Int32), p0⟩)) :
+    (hwf : WellFormedLayout g) (ph : UInt32) (B : UInt8) (d0 : UInt8) (m : Nat)
+    (p0 : SolverPosType) (hreal : IsRealCard B) (hd0 : d0.toNat ≤ 5)
+    (hmlt : m < d0.toNat)
+    (hmg : ∀ i, i < m → mergeGuard g pile (mergeIter ph i ⟨B, d0, (1 : UInt8), p0⟩)) :
     ∀ j, j ≤ m → IsRealCard (B + UInt8.ofNat j) ∧
       (VALUE (B + UInt8.ofNat j)).toNat = (VALUE B).toNat + j := by
   intro j
@@ -431,9 +421,9 @@ theorem merge_real_chain (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10)
     obtain ⟨hrealj, hvalj⟩ := ih (by omega)
     obtain ⟨hgt, heq⟩ := hmg j (by omega)
     simp only [mergeIter_eq] at hgt heq
-    have hdjle : (d0 - Int32.ofNat j).toInt = d0.toInt - j :=
+    have hdjle : (d0 - UInt8.ofNat j).toNat = d0.toNat - j :=
       depth_sub_ofNat_eq hd0 (by omega)
-    obtain ⟨h5, _⟩ := merge_step_idx_bound hgt (by omega)
+    obtain ⟨h5, _⟩ := merge_step_idx_bound hgt (by rw [hdjle]; omega)
     have heqB := heq hpile h5
     have hstep : B + UInt8.ofNat j + 1 = B + UInt8.ofNat (j + 1) := by
       rw [UInt8.ofNat_add, UInt8.ofNat_one, UInt8.add_assoc]
@@ -453,10 +443,10 @@ theorem merge_real_chain (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10)
     invariant), realness at each step is immediate from `hwf.pos2card_real`,
     and the induction only has to carry the `VALUE` arithmetic forward. -/
 theorem merge_real_chain' (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10)
-    (hwf : WellFormedLayout g) (B : UInt8) (d0 : Int32) (m : Nat)
+    (hwf : WellFormedLayout g) (B : UInt8) (d0 : UInt8) (m : Nat)
     (hreal : IsRealCard B)
-    (hmcards : ∀ k, k ≤ m → ∃ h5 : (d0 - Int32.ofNat k - 1).toUInt32.toNat < 5,
-      (g.pos2card[pile.toNat]'hpile)[(d0 - Int32.ofNat k - 1).toUInt32.toNat]'h5 =
+    (hmcards : ∀ k, k ≤ m → ∃ h5 : (d0 - UInt8.ofNat k - 1).toUInt32.toNat < 5,
+      (g.pos2card[pile.toNat]'hpile)[(d0 - UInt8.ofNat k - 1).toUInt32.toNat]'h5 =
         B + UInt8.ofNat k) :
     ∀ j, j ≤ m → IsRealCard (B + UInt8.ofNat j) ∧
       (VALUE (B + UInt8.ofNat j)).toNat = (VALUE B).toNat + j := by
@@ -485,11 +475,11 @@ theorem merge_real_chain' (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10
     exactly `B + j`.  This is the guard's own equality at step `j - 1`,
     reindexed from "card produced at step `j-1`" to "card `B + j`". -/
 theorem merge_pos_chain (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10)
-    (ph : UInt32) (B : UInt8) (d0 : Int32) (m : Nat) (p0 : SolverPosType)
-    (hd0 : d0.toInt ≤ 5) (hmlt : (m : Int) < d0.toInt)
-    (hmg : ∀ i, i < m → mergeGuard g pile (mergeIter ph i ⟨B, d0, (1 : Int32), p0⟩)) :
-    ∀ j, 1 ≤ j → j ≤ m → ∃ hidx : (d0 - Int32.ofNat j - 1).toUInt32.toNat < 5,
-      (g.pos2card[pile.toNat]'hpile)[(d0 - Int32.ofNat j - 1).toUInt32.toNat]'hidx
+    (ph : UInt32) (B : UInt8) (d0 : UInt8) (m : Nat) (p0 : SolverPosType)
+    (hd0 : d0.toNat ≤ 5) (hmlt : m < d0.toNat)
+    (hmg : ∀ i, i < m → mergeGuard g pile (mergeIter ph i ⟨B, d0, (1 : UInt8), p0⟩)) :
+    ∀ j, 1 ≤ j → j ≤ m → ∃ hidx : (d0 - UInt8.ofNat j - 1).toUInt32.toNat < 5,
+      (g.pos2card[pile.toNat]'hpile)[(d0 - UInt8.ofNat j - 1).toUInt32.toNat]'hidx
         = B + UInt8.ofNat j := by
   intro j hj1 hjm
   set i := j - 1 with hidef
@@ -497,18 +487,18 @@ theorem merge_pos_chain (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10)
   have him : i < m := by omega
   obtain ⟨hgt, heq⟩ := hmg i him
   simp only [mergeIter_eq] at hgt heq
-  have hdile : (d0 - Int32.ofNat i).toInt = d0.toInt - i := depth_sub_ofNat_eq hd0 (by omega)
-  obtain ⟨h5, _⟩ := merge_step_idx_bound hgt (by omega)
+  have hdile : (d0 - UInt8.ofNat i).toNat = d0.toNat - i := depth_sub_ofNat_eq hd0 (by omega)
+  obtain ⟨h5, _⟩ := merge_step_idx_bound hgt (by rw [hdile]; omega)
   have heqB := heq hpile h5
   have hstep : B + UInt8.ofNat i + 1 = B + UInt8.ofNat (i + 1) := by
     rw [UInt8.ofNat_add, UInt8.ofNat_one, UInt8.add_assoc]
   rw [hstep] at heqB
-  have hidxeq : (d0 - Int32.ofNat j - 1) = (d0 - Int32.ofNat i - 2) := by
-    have e1 : Int32.ofNat j = Int32.ofNat i + 1 := by
-      rw [hij, Int32.ofNat_add, show Int32.ofNat 1 = 1 from rfl]
-    have e2 : (Int32.ofNat i + 1) + 1 = Int32.ofNat i + 2 := by
-      rw [Int32.add_assoc]; congr 1
-    rw [e1, Int32.sub_sub, Int32.sub_sub, e2]
+  have hidxeq : (d0 - UInt8.ofNat j - 1) = (d0 - UInt8.ofNat i - 2) := by
+    have e1 : UInt8.ofNat j = UInt8.ofNat i + 1 := by
+      rw [hij, UInt8.ofNat_add, UInt8.ofNat_one]
+    have e2 : (UInt8.ofNat i + 1) + 1 = UInt8.ofNat i + 2 := by
+      rw [UInt8.add_assoc]; congr 1
+    rw [e1, UInt8.sub_sub, UInt8.sub_sub, e2]
   rw [hidxeq]
   exact ⟨h5, by rw [hij]; exact heqB⟩
 
@@ -520,7 +510,7 @@ theorem isFree_of_card2depth_ge (g : Globals) (game : SolverPosType)
     (hwf : WellFormedLayout g) (c : UInt8) (hc64 : c.toNat < 64)
     (h : (g.card2depth[c.toNat]'hc64).toNat ≥
       (game.pileDepth[(g.card2pile[c.toNat]'hc64).toNat]'
-        (hwf.card2pile_lt c.toNat hc64)).toInt32.toInt.toNat) :
+        (hwf.card2pile_lt c.toNat hc64)).toNat) :
     isFreeCard g game c := by
   unfold isFreeCard
   simp only [dif_pos hc64]
@@ -535,18 +525,12 @@ theorem isFree_of_card2depth_ge (g : Globals) (game : SolverPosType)
       (g.card2depth.get ⟨c.toNat, hc64⟩).toNat := by
     have : g.card2depth[c.toNat]'hc64 = g.card2depth.get ⟨c.toNat, hc64⟩ := rfl
     rw [this]
-  have keyEqV : game.pileDepth[(g.card2pile[c.toNat]'hc64).toNat]'
-      (hwf.card2pile_lt c.toNat hc64) = game.pileDepth.get ⟨(cardPile g c).toNat, hp64⟩ := by
-    congr 1
   have keyEq : (game.pileDepth[(g.card2pile[c.toNat]'hc64).toNat]'
-      (hwf.card2pile_lt c.toNat hc64)).toInt32.toInt.toNat =
-      (game.pileDepth.get ⟨(cardPile g c).toNat, hp64⟩).toInt.toNat := by
-    rw [keyEqV]
-    show (game.pileDepth.get ⟨(cardPile g c).toNat, hp64⟩).toInt32.toInt.toNat =
-      (game.pileDepth.get ⟨(cardPile g c).toNat, hp64⟩).toInt.toNat
-    rw [UInt8.toInt_toInt32]
+      (hwf.card2pile_lt c.toNat hc64)).toNat =
+      (game.pileDepth.get ⟨(cardPile g c).toNat, hp64⟩).toNat := by
+    congr 2
   show (g.card2depth.get ⟨c.toNat, hc64⟩).toNat ≥
-    (game.pileDepth.get ⟨(cardPile g c).toNat, hp64⟩).toInt.toNat
+    (game.pileDepth.get ⟨(cardPile g c).toNat, hp64⟩).toNat
   rw [← hdepthEqGE, ← keyEq]
   exact h
 
@@ -567,8 +551,6 @@ theorem isFree_of_cardDepth_ge (g : Globals) (game : SolverPosType)
     congr 1
     rw [e2]
   rw [e1, e3]
-  show (cardDepth g c).toNat ≥ (game.pileDepth[(cardPile g c).toNat]'hp64).toInt32.toInt.toNat
-  rw [UInt8.toInt_toInt32]
   exact h
 
 /-- Converse of `isFree_of_card2depth_ge`: unfolds a KNOWN `isFreeCard` fact

@@ -56,19 +56,10 @@ theorem moveDestPre_pileDepth (pile : UInt32) (toPile : UInt8) (hpile : pile.toN
     (local twin of `GetDestination.depth_index`, which this file deliberately
     does not import). -/
 private theorem dest_idx_eq {d : UInt8} (hd1 : 1 ≤ d.toNat) (hd5 : d.toNat ≤ 5) :
-    (d.toInt32 - 1).toUInt32.toNat = d.toNat - 1 := by
-  have hcast : d.toInt = (d.toNat : Int) := rfl
-  have hsubd : (d.toInt32 - 1).toInt = d.toInt - 1 := by
-    have h1le : (1 : Int32) ≤ d.toInt32 := by
-      rw [Int32.le_iff_toInt_le, Int32.toInt_one, UInt8.toInt_toInt32, hcast]
-      omega
-    rw [Int32.toInt_sub_of_le _ _ (by decide) h1le, Int32.toInt_one, UInt8.toInt_toInt32]
-  rw [Int32.toNat_toUInt32_of_le (by
-    rw [Int32.le_iff_toInt_le, hsubd, show ((0 : Int32).toInt = 0) from by decide, hcast]
-    omega)]
-  show (d.toInt32 - 1).toInt.toNat = _
-  rw [hsubd, hcast]
-  omega
+    (d - 1).toUInt32.toNat = d.toNat - 1 := by
+  rw [UInt8.toNat_toUInt32, UInt8.toNat_sub_of_le _ _
+    (by rw [UInt8.le_iff_toNat_le]; show 1 ≤ _; omega)]
+  rfl
 
 /-- A real card's code is a valid `card2*` index. -/
 private theorem real_lt64 {c : UInt8} (h : IsRealCard c) : c.toNat < 64 := by
@@ -566,7 +557,7 @@ private theorem destFrame_hash_def (g : Globals) (p q : SolverPosType) (pile : U
     rw [h1, UInt32.toNat_add, h2, show (1 : UInt32).toNat = 1 from rfl]
     omega
   have hkey := hash_foldl_set p.pileDepth pile.toNat hpile (d - 1)
-  -- `x.toInt.toNat` and `x.toNat` agree definitionally on `UInt8`.
+  -- `x.toNat` and `x.toNat` agree definitionally on `UInt8`.
   have hkey' : (List.finRange 10).foldl
         (fun acc i => acc + pileHashes.get i *
           ((p.pileDepth.set pile.toNat (d - 1) hpile).get i).toNat.toUInt32) 0

@@ -31,8 +31,8 @@ open scoped Classical
 
 /-- Merge loop of `SolverCleanupPile`: fold consecutive same-suit cards below the
     new top into the flute.  Carries `(depth, flute, card)`; mutates `game.hash`. -/
-def mergeLoop (fuel : Nat) (pile pilehash : UInt32) (depth flute : Int32) (card : UInt8) :
-    EStateM Error (Globals × SolverPosType) (Int32 × Int32 × UInt8) := do
+def mergeLoop (fuel : Nat) (pile pilehash : UInt32) (depth flute : UInt8) (card : UInt8) :
+    EStateM Error (Globals × SolverPosType) (UInt8 × UInt8 × UInt8) := do
   match fuel with
   | 0 => return (depth, flute, card)
   | fuel + 1 =>
@@ -47,8 +47,8 @@ def mergeLoop (fuel : Nat) (pile pilehash : UInt32) (depth flute : Int32) (card 
 /-- Freed-predecessor loop of `SolverCleanupPile`: extend the flute with
     predecessor cards already freed from their piles.  Carries `(flute, prevCard)`;
     mutates `game.usedSpace`. -/
-def freedLoop (fuel : Nat) (suit : UInt8) (flute : Int32) (prevCard : UInt8) :
-    EStateM Error (Globals × SolverPosType) (Int32 × UInt8) := do
+def freedLoop (fuel : Nat) (suit : UInt8) (flute : UInt8) (prevCard : UInt8) :
+    EStateM Error (Globals × SolverPosType) (UInt8 × UInt8) := do
   match fuel with
   | 0 => return (flute, prevCard)
   | fuel + 1 =>
@@ -68,8 +68,8 @@ def SolverCleanupPile (pile : UInt32) : EStateM Error (Globals × SolverPosType)
   let mut ⟨globals, game⟩ ← get
   let mut forcedKings : UInt16 := 0xffff
   let pilehash := ← pileHashes.getE pile
-  let mut depth := (← game.pileDepth.getE pile).toInt32
-  let mut flute : Int32 := 1
+  let mut depth := ← game.pileDepth.getE pile
+  let mut flute : UInt8 := 1
   if depth == 0 then
     game := { game with freePiles := game.freePiles + 1 }
   else
@@ -87,16 +87,16 @@ def SolverCleanupPile (pile : UInt32) : EStateM Error (Globals × SolverPosType)
       game := { game with busyAces := game.busyAces ||| ((1 : UInt8) <<< suit) }
     if depth == 1 && (VALUE card) == 13 then
       game := { game with freePiles := game.freePiles + 1 }
-      game := { game with usedSpace := game.usedSpace + flute.toUInt32.toUInt8 }
-      let newKings ← game.kings.setE suit.toUInt32 ((← game.kings.getE suit.toUInt32) - flute.toUInt32.toUInt8)
+      game := { game with usedSpace := game.usedSpace + flute }
+      let newKings ← game.kings.setE suit.toUInt32 ((← game.kings.getE suit.toUInt32) - flute)
       game := { game with kings := newKings }
       game := { game with hash := game.hash - pilehash }
       depth := 0
       flute := 1
       forcedKings := forcedKings &&& (← kingOnPileMap.getE suit.toUInt32)
   game := { game with
-    pileDepth := ← game.pileDepth.setE pile depth.toUInt32.toUInt8
-    pileFlute := ← game.pileFlute.setE pile flute.toUInt32.toUInt8
+    pileDepth := ← game.pileDepth.setE pile depth
+    pileFlute := ← game.pileFlute.setE pile flute
   }
   set (⟨globals, game⟩ : Globals × SolverPosType)
   return forcedKings
@@ -128,7 +128,7 @@ def getDestLoop (fuel : Nat) (game : SolverPosType) (card : UInt8) :
     let card := card + 1
     let toPile ← globals.card2pile.getE card.toUInt32
     let posFromTop : Int32 := (← game.pileDepth.getE toPile.toUInt32).toInt32 -
-                  (← globals.card2depth.getE card.toUInt32).toUInt32.toInt32
+                  (← globals.card2depth.getE card.toUInt32).toInt32
     if posFromTop > 0 then
       return if posFromTop == 1 then toPile else 14  -- EXTRA
     else
@@ -138,7 +138,7 @@ def getDestLoop (fuel : Nat) (game : SolverPosType) (card : UInt8) :
 def solverGetDestination (game : SolverPosType) (pile : UInt32) : EStateM Error Globals UInt8 := do
   let globals ← get
   let depth ← game.pileDepth.getE pile
-  let card := ← (← globals.pos2card.getE pile).getE (depth.toInt32 - 1).toUInt32
+  let card := ← (← globals.pos2card.getE pile).getE (depth - 1).toUInt32
   let suit := SUIT card
   if card == (← game.kings.getE suit.toUInt32) then
     return 10 + suit  -- KINGPILE + suit
@@ -154,7 +154,7 @@ def moveAcesLoop (fuel : Nat) (suitU32 : UInt32) (card : UInt8) (found : UInt8) 
     if VALUE card <= 13 then
       let ⟨globals, game⟩ ← get
       let pile ← globals.card2pile.getE card.toUInt32
-      let cardDepth : Int32 := (← globals.card2depth.getE card.toUInt32).toUInt32.toInt32 + 1 -
+      let cardDepth : Int32 := (← globals.card2depth.getE card.toUInt32).toInt32 + 1 -
                                (← game.pileDepth.getE pile.toUInt32).toInt32
       if cardDepth > 0 then
         moveAcesLoop fuel suitU32 (card + 1) (found + 1) forcedKings
@@ -173,7 +173,7 @@ def SolverMoveAces : EStateM Error (Globals × SolverPosType) UInt16 := do
   let s0 ← get
   let suit := ctz s0.2.busyAces
   let suitU32 := UInt32.ofNat suit
-  let startCard : UInt8 := (← s0.2.aces.getE suitU32).toInt32.toUInt32.toUInt8 + 1
+  let startCard : UInt8 := (← s0.2.aces.getE suitU32) + 1
   let (card, found, forcedKings) ← moveAcesLoop 16 suitU32 startCard 0 0xffff
   let card := card - 1
   let mut ⟨globals, game⟩ ← get

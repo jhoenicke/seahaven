@@ -61,25 +61,25 @@ structure StateMatchesSolverPos (g : Globals) (s : State) (p : SolverPosType) : 
       the tableau, exactly once. -/
   cards_count : ∀ c : Card, countState s c = 1
   /-- Depths are in range. -/
-  depth_lt6 : ∀ i : Fin 10, (p.pileDepth.get i).toInt.toNat < 6
+  depth_lt6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6
   /-- **Depths match**: pile `i`'s bottom `pileDepth i` cards are still the dealt
       ones, and everything stacked above them is a same-suit descending run
       continuing from the boundary card.  For `pileDepth i = 0` this degenerates
       to `PileMatches`' king-run branch: the column is empty or a run topped out
       at a king. -/
   depth_match : ∀ i : Fin 10,
-      PileMatches g (s.tableau i) i ⟨(p.pileDepth.get i).toInt.toNat, depth_lt6 i⟩
+      PileMatches g (s.tableau i) i ⟨(p.pileDepth.get i).toNat, depth_lt6 i⟩
   /-- **Flutes match** the *physical* run above the boundary.  This is what makes
       space accounting exact without assuming the state is normalized: a card
       still sitting in a cell is simply not part of the flute. -/
-  flute_match : ∀ i : Fin 10, 0 < (p.pileDepth.get i).toInt.toNat →
+  flute_match : ∀ i : Fin 10, 0 < (p.pileDepth.get i).toNat →
       (s.tableau i).length + 1
-        = (p.pileDepth.get i).toInt.toNat + (p.pileFlute.get i).toNat
+        = (p.pileDepth.get i).toNat + (p.pileFlute.get i).toNat
   /-- A pile the solver treats as empty carries either nothing or a *complete*
       king stack for its suit — as many cards as the suit has freed from the top,
       per `kings`.  (A partially assembled king stack matches no position; such
       states occur only transiently, inside a flute move.) -/
-  king_pile : ∀ i : Fin 10, (p.pileDepth.get i).toInt.toNat = 0 →
+  king_pile : ∀ i : Fin 10, (p.pileDepth.get i).toNat = 0 →
       ∀ c ∈ (s.tableau i).getLast?,
         (s.tableau i).length
           + (VALUE (p.kings.get (finOfSuit c.suit))).toNat = 13
@@ -93,7 +93,7 @@ structure StateMatchesSolverPos (g : Globals) (s : State) (p : SolverPosType) : 
 
 theorem StateMatchesSolverPos.toStateMatchesLayout {g : Globals} {s : State}
     {p : SolverPosType} (h : StateMatchesSolverPos g s p) : StateMatchesLayout g s where
-  piles_match i := ⟨⟨(p.pileDepth.get i).toInt.toNat, h.depth_lt6 i⟩, h.depth_match i⟩
+  piles_match i := ⟨⟨(p.pileDepth.get i).toNat, h.depth_lt6 i⟩, h.depth_match i⟩
   cards_count := h.cards_count
 
 theorem StateMatchesSolverPos.noDup {g : Globals} {s : State} {p : SolverPosType}
@@ -161,24 +161,24 @@ theorem rankToNat_pos (r : Rank) : 1 ≤ rankToNat r := by cases r <;> simp [ran
 boundary's suit and a value that climbs by one towards the boundary. -/
 theorem flute_elem {g : Globals} {s : State} {p : SolverPosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10)
-    (hd : 0 < (p.pileDepth.get i).toInt.toNat)
-    (b : Fin 5) (hb : b.val = (p.pileDepth.get i).toInt.toNat - 1) :
-    ∀ (idx : Nat), idx < (s.tableau i).length + 1 - (p.pileDepth.get i).toInt.toNat →
+    (hd : 0 < (p.pileDepth.get i).toNat)
+    (b : Fin 5) (hb : b.val = (p.pileDepth.get i).toNat - 1) :
+    ∀ (idx : Nat), idx < (s.tableau i).length + 1 - (p.pileDepth.get i).toNat →
       ∀ (hlt : idx < (s.tableau i).length),
       SUIT (encodeCard (s.tableau i)[idx]) = SUIT ((g.pos2card.get i).get b) ∧
       (VALUE (encodeCard (s.tableau i)[idx])).toNat
-          + ((s.tableau i).length - (p.pileDepth.get i).toInt.toNat)
+          + ((s.tableau i).length - (p.pileDepth.get i).toNat)
         = (VALUE ((g.pos2card.get i).get b)).toNat + idx := by
   intro idx hidx hlt
   obtain ⟨h1, hbot, h3⟩ := h.depth_match i
   simp only [] at h3
   rw [dif_pos (by simpa using hd)] at h3
-  have hbfin : (⟨(p.pileDepth.get i).toInt.toNat - 1, by have := h.depth_lt6 i; omega⟩ : Fin 5) = b :=
+  have hbfin : (⟨(p.pileDepth.get i).toNat - 1, by have := h.depth_lt6 i; omega⟩ : Fin 5) = b :=
     Fin.ext hb.symm
   rw [hbfin] at h3
   set col := s.tableau i with hcoldef
   set L := col.length with hL
-  set n := (p.pileDepth.get i).toInt.toNat with hn
+  set n := (p.pileDepth.get i).toNat with hn
   set B := (g.pos2card.get i).get b with hB
   have hnL : n ≤ L := h1
   by_cases hbnd : idx = L - n
@@ -218,18 +218,18 @@ theorem flute_elem {g : Globals} {s : State} {p : SolverPosType}
 `top ++ [boundary]` is a run — exactly the shape `run_fluteMoves` consumes. -/
 theorem StateMatchesSolverPos.flute_split {g : Globals} {s : State} {p : SolverPosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10)
-    (hd : 0 < (p.pileDepth.get i).toInt.toNat) :
+    (hd : 0 < (p.pileDepth.get i).toNat) :
     ∃ (top rest : Column) (c : Card),
       s.tableau i = top ++ c :: rest ∧
       top.length + 1 = (p.pileFlute.get i).toNat ∧
-      rest.length + 1 = (p.pileDepth.get i).toInt.toNat ∧
+      rest.length + 1 = (p.pileDepth.get i).toNat ∧
       IsRun (top ++ [c]) := by
   have hfm := h.flute_match i hd
-  have hnL : (p.pileDepth.get i).toInt.toNat ≤ (s.tableau i).length := (h.depth_match i).1
-  have hb5 : (p.pileDepth.get i).toInt.toNat - 1 < 5 := by have := h.depth_lt6 i; omega
-  have helem := flute_elem h i hd ⟨(p.pileDepth.get i).toInt.toNat - 1, hb5⟩ rfl
+  have hnL : (p.pileDepth.get i).toNat ≤ (s.tableau i).length := (h.depth_match i).1
+  have hb5 : (p.pileDepth.get i).toNat - 1 < 5 := by have := h.depth_lt6 i; omega
+  have helem := flute_elem h i hd ⟨(p.pileDepth.get i).toNat - 1, hb5⟩ rfl
   set col := s.tableau i with hcoldef
-  set n := (p.pileDepth.get i).toInt.toNat with hn
+  set n := (p.pileDepth.get i).toNat with hn
   set k := col.length - n with hk
   have hklt : k < col.length := by omega
   refine ⟨col.take k, col.drop (k + 1), col[k], ?_, ?_, ?_, ?_⟩
@@ -267,7 +267,7 @@ theorem reverse_getElem_zero_of_getLast? {α : Type} {l : List α} {a : α}
 /-- The `pileDepth = 0` branch of `depth_match`, unpacked. -/
 theorem StateMatchesSolverPos.king_pile_run {g : Globals} {s : State} {p : SolverPosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10)
-    (hd : (p.pileDepth.get i).toInt.toNat = 0) :
+    (hd : (p.pileDepth.get i).toNat = 0) :
     ∃ su : UInt8, IsSameSuitDescending su 13 ((s.tableau i).reverse.map encodeCard) := by
   obtain ⟨_, _, hflute⟩ := h.depth_match i
   simp only [hd, gt_iff_lt, lt_self_iff_false, dif_neg, not_false_eq_true,
@@ -278,7 +278,7 @@ theorem StateMatchesSolverPos.king_pile_run {g : Globals} {s : State} {p : Solve
 descends from the king: reading from the bottom, `CARD su 13, CARD su 12, …`. -/
 theorem StateMatchesSolverPos.empty_pile_suit {g : Globals} {s : State} {p : SolverPosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10)
-    (hd : (p.pileDepth.get i).toInt.toNat = 0) {d : Card}
+    (hd : (p.pileDepth.get i).toNat = 0) {d : Card}
     (hlast : (s.tableau i).getLast? = some d) :
     IsSameSuitDescending (UInt8.ofNat (suitToNat d.suit)) 13
       ((s.tableau i).reverse.map encodeCard) := by
@@ -301,7 +301,7 @@ theorem StateMatchesSolverPos.empty_pile_suit {g : Globals} {s : State} {p : Sol
 it has been freed. -/
 theorem StateMatchesSolverPos.empty_pile_king {g : Globals} {s : State} {p : SolverPosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10)
-    (hd : (p.pileDepth.get i).toInt.toNat = 0) {d : Card}
+    (hd : (p.pileDepth.get i).toNat = 0) {d : Card}
     (hlast : (s.tableau i).getLast? = some d) : d.rank = Rank.king := by
   have hrun := h.empty_pile_suit i hd hlast
   have hne : s.tableau i ≠ [] := by
@@ -323,7 +323,7 @@ equation, and it is what lets a state's king configuration be read off its
 columns. -/
 theorem StateMatchesSolverPos.king_pile_contents {g : Globals} {s : State} {p : SolverPosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10)
-    (hd : (p.pileDepth.get i).toInt.toNat = 0) {d : Card}
+    (hd : (p.pileDepth.get i).toNat = 0) {d : Card}
     (hlast : (s.tableau i).getLast? = some d) :
     (s.tableau i).length + (VALUE (p.kings.get (finOfSuit d.suit))).toNat = 13 ∧
       ∀ (j : Nat) (hj : j < (s.tableau i).reverse.length),
@@ -386,7 +386,7 @@ theorem NoDupState.pile_unique {s : State} (h : NoDupState s) {c : Card} {i j : 
 would have that suit's king as their deepest card. -/
 theorem StateMatchesSolverPos.empty_pile_unique {g : Globals} {s : State} {p : SolverPosType}
     (h : StateMatchesSolverPos g s p) {i j : Fin 10}
-    (hi : (p.pileDepth.get i).toInt.toNat = 0) (hj : (p.pileDepth.get j).toInt.toNat = 0)
+    (hi : (p.pileDepth.get i).toNat = 0) (hj : (p.pileDepth.get j).toNat = 0)
     {d e : Card} (hdi : (s.tableau i).getLast? = some d) (hej : (s.tableau j).getLast? = some e)
     (hsuit : d.suit = e.suit) : i = j := by
   have hde : d = e := by

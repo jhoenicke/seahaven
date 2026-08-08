@@ -110,7 +110,7 @@ theorem recStep_sound (hMS : MoveSimulated) {g : Globals} {s : State} {p p' : So
           >>> (closureInfoOf p).shiftValue.toUInt16)) ⟨min i 15, by omega⟩) :
     Solvable s := by
   have hble : (closureInfoOf p).shiftValue.toNat + (closureInfoOf p).numBits.toNat ≤ 16 :=
-    closureInfo_shift_add_numBits ⟨min p.freePiles.toInt.toNat 10, by omega⟩
+    closureInfo_shift_add_numBits ⟨min p.freePiles.toNat 10, by omega⟩
   rw [BitSet_and] at hbit
   refine recStep_sound_of_sim (hMS g s p p' pile toPile fk mv kingInfo i hi hwf hcanon hs hkic
     hpile hdepth hdest hmv hbit.1 hrun) hcs hchild ?_
