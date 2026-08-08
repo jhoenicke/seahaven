@@ -419,7 +419,7 @@ theorem run_card_in_cell {g : Globals} {s : State} {p : SolverPosType} {k : Fin 
       set B := (g.pos2card.get q).get ⟨(p.pileDepth.get q).toNat - 1, hidx5⟩ with hBdef
       have hreal : IsRealCard B := hwf.pos2card_real q _
       refine depth_card_not_free hwf hb q ⟨(p.pileDepth.get q).toNat - 1, hidx5⟩
-        (by simp only [UInt8.toInt_toNat] at hpos ⊢; omega) ?_
+        (by dsimp only; omega) ?_
       exact (hb.king_frontier (finOfSuit su)).2 B (by rw [← hsuit]; exact hcode)
         (by rw [hval] at hvalue; omega) hreal.2.2
   -- so it is in a cell

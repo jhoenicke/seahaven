@@ -377,7 +377,7 @@ private theorem preCleanupPile_not_free_of_lt_boundary
     suit). -/
 private theorem preCleanupPile_not_free_of_ne_absorbed
     (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10) (hwf : WellFormedLayout g)
-    (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4) (hBrange : B.toNat ≤ 61)
+    (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4) (_hBrange : B.toNat ≤ 61)
     (p : SolverPosType) (m f : Nat)
     (hd5 : (p.pileDepth[pile.toNat]'hpile).toNat ≤ 5)
     (hm : m + 1 ≤ (p.pileDepth[pile.toNat]'hpile).toNat)
@@ -1672,7 +1672,7 @@ theorem preCleanupPile_suitClean (pile : UInt32) (g : Globals) (p : SolverPosTyp
           UInt8.ofNat k - 1).toUInt32.toNat < 5,
       (g.pos2card[pile.toNat]'hpile)[((p.pileDepth[pile.toNat]'hpile) -
           UInt8.ofNat k - 1).toUInt32.toNat]'h5 = B + UInt8.ofNat k)
-    (hmstop : (p.pileDepth[pile.toNat]'hpile).toNat - m ≤ 1 ∨
+    (_hmstop : (p.pileDepth[pile.toNat]'hpile).toNat - m ≤ 1 ∨
       (m + 1 < (p.pileDepth[pile.toNat]'hpile).toNat ∧
         ∃ h5 : ((p.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m - 2).toUInt32.toNat < 5,
           (g.pos2card[pile.toNat]'hpile)[((p.pileDepth[pile.toNat]'hpile) -
@@ -2033,7 +2033,7 @@ theorem preCleanupPile_suitClean (pile : UInt32) (g : Globals) (p : SolverPosTyp
     have hVKge : (VALUE (p.kings.get (⟨(SUIT B).toUInt32.toNat, hs4⟩ : Fin 4))).toNat ≥
         (VALUE (B + UInt8.ofNat m)).toNat := by
       by_contra hlt
-      push_neg at hlt
+      push Not at hlt
       apply hnfreeBm
       have hall := (hnf.suitClean (⟨(SUIT B).toUInt32.toNat, hs4⟩ : Fin 4)).king_frontier.2
       exact hall _ ((hSjEq m (le_refl m)).trans hsuiteq) hlt hrealBm.2.2

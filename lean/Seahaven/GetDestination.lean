@@ -56,8 +56,6 @@ def destBody (game : SolverPosType) (globals : Globals) :
     Unit → DestAcc → EStateM Error Globals (ForInStep DestAcc) :=
   fun _ r =>
     have card := r.fst
-    have posFromTop := r.snd.fst
-    have toPile := r.snd.snd
     do
       have card := card + 1
       let toPile ← globals.card2pile.getE card.toUInt32
@@ -167,7 +165,7 @@ theorem isFreeCard_iff (g : Globals) (game : SolverPosType) (c : UInt8)
 depths to be non-negative, which `SolverInvBase.pileDepth_nonneg` supplies. -/
 theorem posFromTopOf_pos_iff (g : Globals) (game : SolverPosType) (c : UInt8)
     (hp10 : (cardPile g c).toNat < 10)
-    (hnn : (0 : Int) ≤ (game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toInt) :
+    (_hnn : (0 : Int) ≤ (game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toInt) :
     0 < posFromTopOf g game c ↔ ¬ isFreeCard g game c := by
   rw [isFreeCard_iff g game c hp10]
   unfold posFromTopOf
@@ -240,7 +238,7 @@ theorem pft_toInt (pd : UInt8) (cd : UInt8) :
 value the code actually computes. -/
 theorem loop_test_iff (g : Globals) (game : SolverPosType) (c : UInt8)
     (hp10 : (cardPile g c).toNat < 10)
-    (hnn : (0 : Int) ≤ (game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toInt) :
+    (_hnn : (0 : Int) ≤ (game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toInt) :
     0 < (game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toInt32
           - (cardDepth g c).toUInt32.toInt32
       ↔ ¬ isFreeCard g game c := by
@@ -575,7 +573,7 @@ theorem getDest_spec (g : Globals) (game : SolverPosType) (pile : UInt32)
   have hs32 : (SUIT B).toUInt32.toNat < 4 := by rw [UInt8.toNat_toUInt32]; exact hreal.1
   have hnn : ∀ i : Fin 10, (0:Int) ≤ (game.pileDepth.get i).toInt := fun i => by
     have := hbase.pileDepth_nonneg i
-    rw [UInt8.le_iff_toInt_le] at this; simpa using this
+    rw [UInt8.le_iff_toInt_le] at this; simp
   have hdi := depth_index (game.pileDepth.get ⟨pile.toNat, hp⟩) hd
                 (hbase.pileDepth_bound ⟨pile.toNat, hp⟩)
   have hidx : ((game.pileDepth[pile.toNat]'hp) - 1).toUInt32.toNat < 5 := by

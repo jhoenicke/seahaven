@@ -959,7 +959,7 @@ theorem StateMatchesSolverPos.cleanupPileSim {g : Globals} {s : State} {p q : So
   have hp₁d : (p₁.pileDepth.get a).toNat = (p.pileDepth.get a).toNat - m := by
     show ((p.pileDepth.set pile.toNat _ hpile)[pile.toNat]'hpile).toNat = _
     rw [Vector.getElem_set_self]
-    simp only [UInt8.toInt_toNat, UInt8.toNat_ofNat']
+    simp only [UInt8.toNat_ofNat']
     have hd5' : (p.pileDepth.get a).toNat < 6 := hd5
     omega
   have hp₁f : (p₁.pileFlute.get a).toNat = 1 + m := by
@@ -1203,7 +1203,7 @@ theorem StateMatchesSolverPos.cleanupPileSimKing {g : Globals} {s : State}
   have hp₂d : (p₂.pileDepth.get a).toNat = 1 := by
     show ((p.pileDepth.set pile.toNat _ hpile)[pile.toNat]'hpile).toNat = _
     rw [Vector.getElem_set_self]
-    simp only [UInt8.toInt_toNat, UInt8.toNat_ofNat']
+    simp only [UInt8.toNat_ofNat']
   have hp₂f : (p₂.pileFlute.get a).toNat = 1 + m + f := by
     show ((p.pileFlute.set pile.toNat _ hpile)[pile.toNat]'hpile).toNat = _
     rw [Vector.getElem_set_self, UInt8.toNat_ofNat']

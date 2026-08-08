@@ -81,7 +81,7 @@ theorem compBody_run (info : ClosureInfo) (game : SolverPosType) (s : Globals) (
   have hgrl : grlex2bits[cfgIdx info.shiftValue i]? = some (blockBitmap info.shiftValue i) := by
     rw [blockBitmap, dif_pos hcfg]
     exact getElem?_pos grlex2bits (cfgIdx info.shiftValue i) hcfg
-  simp only [compBody, bind, EStateM.bind, pure, EStateM.pure, Vector.getE, cfgIdx] at hgrl ⊢
+  simp only [compBody, bind, EStateM.bind, pure, Vector.getE, cfgIdx] at hgrl ⊢
   by_cases hu : (blockSpace info.shiftValue game i).toInt ≤ 4
   · have hg : effSpace game (blockBitmap info.shiftValue i) ≤ (4 : Int32) := (guard_iff _).2 hu
     simp only [hgrl, pure_apply, spaceLoop_run, hg, reduceIte, if_pos hu]
@@ -266,8 +266,7 @@ theorem component_run_eq (g : Globals) (p : SolverPosType) (comp : UInt8)
         = min ((prevInfo p).offset.toNat + result.toNat) 99 from by rw [hidxsum]; omega)))
   rw [component_eq_explicit] at hrun
   simp only [componentExplicit, EStateM.run, bind, EStateM.bind, pure, EStateM.pure,
-    Vector.getE, hg1, hg3, decide_true, Bool.and_self, reduceIte, hinfo, pure_apply,
-    hres, hct] at hrun
+    Vector.getE, hg1, hg3, decide_true, Bool.and_self, reduceIte, hinfo, hres, hct] at hrun
   exact (EStateM.Result.ok.inj hrun.symm).1
 
 /-! ## The free-cell reading of the loop's test -/

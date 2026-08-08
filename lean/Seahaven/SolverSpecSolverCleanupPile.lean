@@ -100,7 +100,7 @@ theorem solverCleanupPile_step (g : Globals) (p : SolverPosType) (k : Nat) (hk :
           Or.inl hdk, by intro h; rw [hdk] at h; exact absurd h (by decide)⟩
     · -- (4) piles `≥ k+1` still carry the default `pileFlute = 1` — untouched,
       -- so this is just `hfluteRest` restricted to a weaker bound.
-      simp only [hsd, hsf]
+      simp only [hsf]
       intro i hi
       exact hfluteRest i (by omega)
     · -- frame: other piles' depths untouched (set only at index k)

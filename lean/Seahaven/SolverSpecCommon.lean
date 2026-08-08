@@ -347,7 +347,7 @@ private theorem uint32_ofNat_sub_one {n : Nat} (hn : 1 ≤ n) (hlt : n < 2 ^ 32)
     (so the signed cast doesn't wrap negative).  Reused everywhere a UInt8
     card value needs to be compared as a plain integer (`haces_lt_B`-style
     arguments) — `Int.bmod_eq_of_le`'s "no wraparound" range is `[0, 128)`. -/
-theorem uint8_toInt8_toInt_of_lt128 {x : UInt8} (hx : x.toNat < 128) :
+theorem uint8_toInt8_toInt_of_lt128 {x : UInt8} (_hx : x.toNat < 128) :
     x.toInt = (x.toNat : Int) := rfl
 
 /-- `x.toInt = x.toNat` for a nonnegative `UInt8` `x`: the unsigned
@@ -355,7 +355,7 @@ theorem uint8_toInt8_toInt_of_lt128 {x : UInt8} (hx : x.toNat < 128) :
     with `uint8_toInt8_toInt_of_lt128` to compare an `UInt8` field (e.g.
     `aces`/`kings`) against a plain `UInt8` card byte via `UInt8.lt_iff_toInt_lt`/
     `UInt8.le_iff_toInt_le`. -/
-theorem int8_toInt_eq_toUInt8_toNat_of_nonneg {x : UInt8} (hx : (0 : UInt8) ≤ x) :
+theorem int8_toInt_eq_toUInt8_toNat_of_nonneg {x : UInt8} (_hx : (0 : UInt8) ≤ x) :
     x.toInt = (x.toNat : Int) := rfl
 
 /-- **Split a flute-interior offset `j` (`0 < j.toNat < 1+m+f`) into either a

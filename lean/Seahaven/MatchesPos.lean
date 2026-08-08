@@ -184,7 +184,7 @@ theorem flute_elem {g : Globals} {s : State} {p : SolverPosType}
   by_cases hbnd : idx = L - n
   · have hk : n - 1 < n := by omega
     have hbk := hbot ⟨n - 1, hk⟩
-    have hrevlt : n - 1 < col.reverse.length := by simp [hL]; omega
+    have hrevlt : n - 1 < col.reverse.length := by simp; omega
     rw [List.getElem?_eq_getElem hrevlt, Option.map_some, List.getElem_reverse hrevlt] at hbk
     have hidxeq : col.length - 1 - (n - 1) = idx := by omega
     simp only [hidxeq] at hbk
@@ -198,7 +198,7 @@ theorem flute_elem {g : Globals} {s : State} {p : SolverPosType}
     have hflen : ((col.reverse.drop n).map encodeCard).length = L - n := by simp [hL]
     have hmlt : m < ((col.reverse.drop n).map encodeCard).length := by rw [hflen]; omega
     obtain ⟨hs3, hv3⟩ := h3 ⟨m, hmlt⟩
-    have hdroplt : n + m < col.reverse.length := by simp [hL]; omega
+    have hdroplt : n + m < col.reverse.length := by simp; omega
     have helem : ((col.reverse.drop n).map encodeCard)[m] = encodeCard col[idx] := by
       rw [List.getElem_map, List.getElem_drop, List.getElem_reverse hdroplt]
       congr 2
@@ -207,7 +207,7 @@ theorem flute_elem {g : Globals} {s : State} {p : SolverPosType}
     have hpos : 1 ≤ (VALUE (encodeCard col[idx])).toNat := by
       rw [encodeCard_VALUE]; exact rankToNat_pos _
     have hkey : m + idx + 1 = L - n := by omega
-    simp only [Fin.val_mk] at hv3
+    dsimp only at hv3
     refine ⟨hs3, ?_⟩
     show (VALUE (encodeCard col[idx])).toNat + (L - n) = (VALUE B).toNat + idx
     omega
@@ -238,7 +238,7 @@ theorem StateMatchesSolverPos.flute_split {g : Globals} {s : State} {p : SolverP
   · simp only [List.length_take]; omega
   · simp only [List.length_drop]; omega
   · have hsucc : col.take k ++ [col[k]] = col.take (k + 1) := by
-      rw [List.take_succ, List.getElem?_eq_getElem hklt]; rfl
+      rw [List.take_add_one, List.getElem?_eq_getElem hklt]; rfl
     rw [hsucc]
     refine isRun_of_getElem (fun j hj => ?_)
     simp only [List.length_take] at hj

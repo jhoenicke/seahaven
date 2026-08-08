@@ -39,8 +39,8 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
     (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)
     (hnf : SolverInvBase g (fluteNorm pile hpile p)) :
-    (∃ (hd : p.pileDepth[pile.toNat]'hpile = 0)
-       (hsd : p.pileDepth.set pile.toNat 0 hpile = p.pileDepth),
+    (∃ (_hd : p.pileDepth[pile.toNat]'hpile = 0)
+       (_hsd : p.pileDepth.set pile.toNat 0 hpile = p.pileDepth),
        EStateM.run (_root_.SolverCleanupPile pile) (g, p) = .ok 0xffff
          (g, { p with
                freePiles := p.freePiles + 1,
@@ -93,7 +93,7 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
               ((preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
                 (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth.get i
                 ).toNat.toUInt32) 0)
-          (hused : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
+          (_hused : (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
               (p.pileDepth[pile.toNat]'hpile) m f p).usedSpace.toInt =
             (52 : Int)
             - ((preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
@@ -141,7 +141,7 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
                 (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
                   (p.pileDepth[pile.toNat]'hpile) m f p)).pileDepth.get i
                 ).toNat.toUInt32) 0)
-          (hused : (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
+          (_hused : (kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
               (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
                 (p.pileDepth[pile.toNat]'hpile) m f p)).usedSpace.toInt =
             (52 : Int)
@@ -379,8 +379,7 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
       rcases Nat.eq_zero_or_pos k with hk0 | hkpos
       · subst hk0
         refine ⟨by simpa using hidx, ?_⟩
-        simp only [show UInt8.ofNat 0 = 0 from rfl, UInt8.sub_zero,
-          show UInt8.ofNat 0 = 0 from rfl, UInt8.add_zero]
+        simp only [UInt8.sub_zero, show UInt8.ofNat 0 = 0 from rfl, UInt8.add_zero]
         exact hBdef.symm
       · exact merge_pos_chain g pile hpile (pileHashes[pile.toNat]'hpile) B
           (p.pileDepth[pile.toNat]'hpile) m p hd5 (by omega) hmg k hkpos hkm
@@ -426,7 +425,7 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
               UInt8.ofNat m - 2).toUInt32.toNat]'h5 ≠ B + UInt8.ofNat (m + 1)) := by
       by_cases hle1 : (p.pileDepth[pile.toNat]'hpile).toNat - m ≤ 1
       · exact Or.inl hle1
-      · push_neg at hle1
+      · push Not at hle1
         right
         have h1lt : (1 : UInt8) < (p.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m := by
           rw [UInt8.lt_iff_toNat_lt, hdepth1I, show ((1 : UInt8).toNat = 1) from rfl]; omega
@@ -835,8 +834,7 @@ private theorem finRange_countP_ite_split : ∀ (n k : Nat) (hk : k < n) (f : Fi
             simp only [Fin.val_succ]
             by_cases h : j'.val = k'
             · simp [h]
-            · have hne : j'.val + 1 ≠ k' + 1 := by omega
-              simp [h, hne]
+            · simp
           rw [heqv]
         rw [hcomp]
         have hstep := finRange_countP_ite_split n k' hk' (fun j => f (Fin.succ j))

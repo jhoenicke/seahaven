@@ -394,7 +394,7 @@ theorem freedIter_eq (f : Nat) (r : FreedAcc) :
     show freedIter f (freedStep r) = _
     rw [ih]
     simp only [freedStep, UInt8.ofNat_add, show UInt8.ofNat 1 = 1 from rfl,
-      UInt8.ofNat_add, UInt8.ofNat_one, MProd.mk.injEq]
+      UInt8.ofNat_add, MProd.mk.injEq]
     refine ⟨?_, ?_, ?_⟩
     · rw [UInt8.add_assoc, UInt8.add_comm 1]
     · rw [UInt8.sub_sub, UInt8.add_comm 1]

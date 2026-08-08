@@ -808,8 +808,7 @@ theorem Simulates.moveAces {g : Globals} {s : State} {p : SolverPosType} {k : Fi
     omega
   have hcard2p1 : (cardF - 1) + 1 = cardF := UInt8.sub_add_cancel cardF 1
   rw [hloopeq]
-  simp only [Vector.setE, dif_pos hidx4, bind, EStateM.bind, pure, EStateM.pure, get, getThe,
-    MonadStateOf.get, EStateM.get, set, EStateM.set]
+  simp only [Vector.setE, dif_pos hidx4, pure, EStateM.pure, set]
   -- reading the two `aces`/`kings` writes off the final position
   have hfin4 : (⟨suitU32.toNat, hidx4⟩ : Fin 4) = suit := Fin.ext hsuitU32
   have hsetSelf : ∀ (v : Vector UInt8 4) (x : UInt8),

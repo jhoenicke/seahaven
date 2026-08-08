@@ -55,7 +55,7 @@ theorem moveDestPre_pileDepth (pile : UInt32) (toPile : UInt8) (hpile : pile.toN
 /-- The `Int32`-cast boundary index the solver computes is the plain `depth - 1`
     (local twin of `GetDestination.depth_index`, which this file deliberately
     does not import). -/
-private theorem dest_idx_eq {d : UInt8} (hd1 : 1 ≤ d.toNat) (hd5 : d.toNat ≤ 5) :
+private theorem dest_idx_eq {d : UInt8} (hd1 : 1 ≤ d.toNat) (_hd5 : d.toNat ≤ 5) :
     (d - 1).toUInt32.toNat = d.toNat - 1 := by
   rw [UInt8.toNat_toUInt32, UInt8.toNat_sub_of_le _ _
     (by rw [UInt8.le_iff_toNat_le]; show 1 ≤ _; omega)]
@@ -546,7 +546,7 @@ private theorem destFrame_hash_def (g : Globals) (p q : SolverPosType) (pile : U
     rw [UInt8.le_iff_toNat_le]
     show (1 : UInt8).toNat ≤ _
     simp only [show (1 : UInt8).toNat = 1 from rfl]
-    exact hd1' 
+    exact hd1'
   have hd256 : d.toNat < 256 := d.toNat_lt_size
   -- The two depth casts differ by exactly one, as `UInt32`s.
   have huv : d.toNat.toUInt32 = (d - 1).toNat.toUInt32 + 1 := by
@@ -1768,17 +1768,15 @@ theorem moveDest_run_eq (pile : UInt32) (toPile : UInt8) (g : Globals) (p : Solv
       (g, moveDestPre pile toPile hpile p)
   unfold moveExplicit moveDestPre
   simp only [bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get,
-    set, EStateM.set, Vector.getE, getElem?_pos, hpile, pure, EStateM.pure,
+    set, Vector.getE, getElem?_pos, hpile, pure, EStateM.pure,
     UInt8.toNat_toUInt32]
   by_cases h10 : toPile.toNat < 10
   · have hlt : toPile < (10 : UInt8) := by
       rw [UInt8.lt_iff_toNat_lt, show (10 : UInt8).toNat = 10 from rfl]; exact h10
     have hget : (p.pileFlute[toPile.toNat]? : Option UInt8) =
         some (p.pileFlute[toPile.toNat]'h10) := getElem?_pos p.pileFlute toPile.toNat h10
-    simp only [if_pos hlt, UInt8.toNat_toUInt32, Vector.getE, hget, pure,
-      EStateM.pure, bind, EStateM.bind]
-    simp only [Vector.setE, UInt8.toNat_toUInt32, set, EStateM.set, bind, EStateM.bind, pure,
-      EStateM.pure]
+    simp only [if_pos hlt, hget, EStateM.pure, EStateM.bind]
+    simp only [Vector.setE, UInt8.toNat_toUInt32, EStateM.set, pure]
     simp only [dif_pos h10, EStateM.pure]
   · have hge : ¬ toPile < (10 : UInt8) := by
       rw [UInt8.lt_iff_toNat_lt, show (10 : UInt8).toNat = 10 from rfl]; exact h10
@@ -1795,15 +1793,12 @@ theorem moveDest_run_eq (pile : UInt32) (toPile : UInt8) (g : Globals) (p : Solv
       have hgetk : (p.kings[toPile.toNat - 10]? : Option UInt8) =
           some (p.kings[toPile.toNat - 10]'hkbound) :=
         getElem?_pos p.kings (toPile.toNat - 10) hkbound
-      simp only [if_pos hlt14, UInt8.toNat_toUInt32, hksub, Vector.getE,
-        hgetk, pure, EStateM.pure, bind, EStateM.bind]
-      simp only [Vector.setE, UInt8.toNat_toUInt32, hksub, set, EStateM.set, bind, EStateM.bind,
-        pure, EStateM.pure]
+      simp only [if_pos hlt14, hksub, hgetk, EStateM.pure, EStateM.bind]
+      simp only [Vector.setE, UInt8.toNat_toUInt32, hksub, EStateM.set, pure]
       simp only [dif_pos hkbound, dif_pos h14, EStateM.pure]
     · have hge14 : ¬ toPile < (14 : UInt8) := by
         rw [UInt8.lt_iff_toNat_lt, show (14 : UInt8).toNat = 14 from rfl]; exact h14
-      simp only [if_neg hge14, dif_neg h14, pure, EStateM.pure, bind, EStateM.bind,
-        set, EStateM.set]
+      simp only [if_neg hge14, dif_neg h14, EStateM.pure, EStateM.bind, EStateM.set]
 
 /-- **`SolverMove` preserves canonical form.**  From a canonical state, a
     valid solver move yields another canonical state — the per-node invariant

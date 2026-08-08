@@ -165,7 +165,7 @@ theorem StateMatchesSolverPos.flute_len {g : Globals} {s : State} {p : SolverPos
   have hd : 0 < (p.pileDepth.get a).toNat := by omega
   have hfm := h.flute_match a hd
   rw [hcol] at hfm
-  simp only [UInt8.toInt_toNat, List.length_append, List.length_cons] at hfm
+  simp only [List.length_append, List.length_cons] at hfm
   omega
 
 /-! ## Phase 1, realized -/
@@ -229,8 +229,8 @@ theorem StateMatchesSolverPos.fluteMove {g : Globals} {s : State} {p q : SolverP
       rw [hva]
       refine PileMatches_of_suffix (h.depth_match i) (pre := top ++ [c]) ?_ ?_ ?_
       · rw [hcol]; simp
-      · simp only [UInt8.toInt_toNat]; omega
-      · simp only [UInt8.toInt_toNat]; omega
+      · dsimp only; omega
+      · dsimp only; omega
     · by_cases hib : i = b
       · subst hib
         rw [hvb, hidx i hia]
@@ -762,10 +762,10 @@ theorem StateMatchesSolverPos.parkMove {g : Globals} {s : State} {p q : SolverPo
       rw [hva]
       refine PileMatches_of_suffix (h.depth_match i) (pre := top ++ [c]) ?_ ?_ ?_
       · rw [hcol]; simp
-      · simp only [UInt8.toInt_toNat]
+      · dsimp only
         have := habs.depth_src
         omega
-      · simp only [UInt8.toInt_toNat]
+      · dsimp only
         have := habs.depth_src
         omega
     · rw [hvo i hia, hidx i hia]

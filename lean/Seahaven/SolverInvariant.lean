@@ -488,7 +488,7 @@ theorem card_eq_of_suit_value (c d : UInt8)
 -- Arithmetic helpers for UInt8 / toNatClampNeg
 -- ---------------------------------------------------------------------------
 
-private theorem toNatClampNeg_pos {x : UInt8} (h1 : 0 ≤ x) (h2 : x ≠ 0) :
+private theorem toNatClampNeg_pos {x : UInt8} (_h1 : 0 ≤ x) (h2 : x ≠ 0) :
     x.toNat > 0 := by
   have h3 : x.toNat ≠ 0 := fun h => h2 (UInt8.toNat_inj.mp h)
   omega
@@ -496,7 +496,7 @@ private theorem toNatClampNeg_pos {x : UInt8} (h1 : 0 ≤ x) (h2 : x ≠ 0) :
 /-- Trivial now that the field is `uint8_t`: every value is non-negative.
     (Kept so downstream call sites need no change.) -/
 theorem int8_nonneg_of_suit {x : UInt8} {s : Fin 4}
-    (hs : SUIT x = s.val.toUInt8) : (0 : UInt8) ≤ x :=
+    (_hs : SUIT x = s.val.toUInt8) : (0 : UInt8) ≤ x :=
   UInt8.le_iff_toNat_le.mpr (Nat.zero_le _)
 
 /-- **Per-offset `UInt8` shim, derived from the Nat-based `PileBase.flute_not_aces`
@@ -621,7 +621,7 @@ theorem IsCanonicalPos.pileClean {g : Globals} {p : SolverPosType}
 
 /-- Canonical positions satisfy foundation maximal in the strong form -/
 theorem IsCanonicalPos.foundation_maximal {g: Globals} {p: SolverPosType}
-    (hwf : WellFormedLayout g) (h : IsCanonicalPos g p) (s : Fin 4) :
+    (_hwf : WellFormedLayout g) (h : IsCanonicalPos g p) (s : Fin 4) :
     (VALUE (p.aces.get s)).toNat = 13 ∨
     ¬ isFreeCard g p ((p.aces.get s) + 1) := by
     rcases h.foundation_maximal_weak s with h13 | hnfree | hbusy
@@ -1012,7 +1012,7 @@ private theorem uint8_eq_finVal_toUInt8 {c : UInt8} {n : Fin 4} (h : c.toNat = n
   omega
 
 /-- Trivial now: `UInt8.toInt` *is* the `toNat` cast. -/
-private theorem uint8_toInt8_toInt_of_lt128 {c : UInt8} (h : c.toNat < 128) :
+private theorem uint8_toInt8_toInt_of_lt128 {c : UInt8} (_h : c.toNat < 128) :
     c.toInt = (c.toNat : Int) := rfl
 
 /-- Same-suit small `UInt8` cards: `VALUE` order matches `UInt8` order (via `toInt8`). -/
@@ -2289,7 +2289,7 @@ theorem IsCanonicalPos_unique (g : Globals) (p q : SolverPosType)
 -- ---------------------------------------------------------------------------
 
 /-- An `UInt8` that is nonnegative is determined by `x.toNat`. -/
-theorem UInt8_eq_of_toNat_eq {x y : UInt8} (hx : (0 : UInt8) ≤ x) (hy : (0 : UInt8) ≤ y)
+theorem UInt8_eq_of_toNat_eq {x y : UInt8} (_hx : (0 : UInt8) ≤ x) (_hy : (0 : UInt8) ≤ y)
     (h : x.toNat = y.toNat) : x = y :=
   UInt8.toNat_inj.mp h
 
