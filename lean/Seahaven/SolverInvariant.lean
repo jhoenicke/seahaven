@@ -36,7 +36,8 @@ def IsRealCard (c : UInt8) : Prop :=
     extra cards (deal positions 50–51) carry the sentinel depth `5`, `pos2card`
     inverts them, and `pos2card` is injective within each pile.  This is the
     hypothesis under which `SolverConvertFromPilesKings` produces a canonical
-    state; proving `initcard` establishes it is future work. -/
+    state; `InitCard.initcard_ok` proves `initcard` establishes it (for a deal
+    that is a genuine permutation of the 52 card codes). -/
 structure WellFormedLayout (g : Globals) : Prop where
   /-- Every real card is assigned to one of the ten piles. -/
   pile_lt : ∀ c : UInt8, IsRealCard c → (cardPile g c).toNat < 10
