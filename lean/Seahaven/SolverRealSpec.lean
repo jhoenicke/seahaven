@@ -1,4 +1,5 @@
 import Seahaven.Solver
+import Seahaven.UInt8Lemmas
 import Seahaven.EStateMTail
 
 /-!

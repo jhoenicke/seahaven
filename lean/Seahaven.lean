@@ -2,6 +2,7 @@
 -- Import modules here that should be built as part of the library.
 import Seahaven.Basic
 import Seahaven.Solver
+import Seahaven.UInt8Lemmas
 import Seahaven.BitmapProofs
 import Seahaven.CountProofs
 import Seahaven.FoundationMoves

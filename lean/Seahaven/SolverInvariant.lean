@@ -1,5 +1,6 @@
 import Mathlib.Tactic
 import Seahaven.Solver
+import Seahaven.UInt8Lemmas
 
 /-- Card `c` is **free**: its original pile's depth has been reduced to or
     past its original position, meaning it has been moved off the pile. -/

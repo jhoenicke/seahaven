@@ -218,5 +218,3 @@ def allCards (idx : Fin 52) : Card :=
     rank := Option.getD (natToRank ((idx % 13) + 1)) Rank.ace,
     suit := List.get allSuits (⟨idx / 13, by omega⟩ : Fin 4)
   }
-
-#eval (init allCards).toView
