@@ -45,3 +45,8 @@ import Seahaven.SolverMoveSim
 import Seahaven.MoveSimulatedReduce
 import Seahaven.Phase1Sim
 import Seahaven.InitCard
+import Seahaven.ConvertPre
+import Seahaven.ConvertCount
+import Seahaven.ConvertInv
+import Seahaven.ConvertSound
+import Seahaven.ConvertSim

@@ -99,21 +99,14 @@ matching, and the loop-bearing case hands over exactly the merge/freed data
 `hffree` is already the extension's per-card freeness.  The entry point differs from
 the cleanup's own by the (unread, stale) `pileFlute[pile]`, which
 `cleanupRunResult_fluteNorm` discharges. -/
-theorem Simulates.ofRemoveFlute {g : Globals} {v : State} {gameA : SolverPosType}
+theorem Simulates.ofCleanupPile {g : Globals} {v : State} {q0 : SolverPosType}
     {kk : Fin 16} (hwf : WellFormedLayout g) {pile : UInt32} (hpile : pile.toNat < 10)
-    (hready : SolverSpec.CleanupReady g
-      (SolverSpec.fluteNorm pile hpile (removeFlutePre pile hpile gameA)) pile)
-    (hk : StateMatchesKingConfig g v
-      (SolverSpec.fluteNorm pile hpile (removeFlutePre pile hpile gameA)) kk)
+    (hb : SolverInvBase g (SolverSpec.fluteNorm pile hpile q0))
+    (hk : StateMatchesKingConfig g v (SolverSpec.fluteNorm pile hpile q0) kk)
     {fk : UInt16} {p' : SolverPosType}
-    (hrun : _root_.SolverRemoveFlute pile (g, gameA) = .ok fk (g, p')) :
+    (hrun' : EStateM.run (_root_.SolverCleanupPile pile) (g, q0) = .ok fk (g, p')) :
     ∃ (v' : State) (k' : Fin 16) (FK : Finset Suit),
-      Simulates g v (SolverSpec.fluteNorm pile hpile (removeFlutePre pile hpile gameA))
-        kk v' p' k' FK fk := by
-  obtain ⟨hb, -, -⟩ := hready
-  have hrun' : EStateM.run (_root_.SolverRemoveFlute pile) (g, gameA) = .ok fk (g, p') := hrun
-  rw [removeFlute_eq pile g gameA hpile] at hrun'
-  set q0 : SolverPosType := removeFlutePre pile hpile gameA with hq0def
+      Simulates g v (SolverSpec.fluteNorm pile hpile q0) kk v' p' k' FK fk := by
   have hdq : (SolverSpec.fluteNorm pile hpile q0).pileDepth = q0.pileDepth := rfl
   rcases SolverSpec.cleanupPile_eq pile g q0 hpile hwf hb with
     ⟨hd0, hsd, hrunE⟩ | ⟨B, hs4, hd, hd1, hd5, hidx, hBdef, hBrange, hnfp, m, f,
@@ -229,6 +222,27 @@ theorem Simulates.ofRemoveFlute {g : Globals} {v : State} {gameA : SolverPosType
           (SolverSpec.fluteNorm pile hpile q0)).1 := hsim
     rw [cleanupRunResult_fluteNorm, hres] at hsim'
     exact ⟨v', k', FK, hsim'⟩
+
+/-- **A whole `SolverRemoveFlute` call is simulated**, from the composed
+`fluteNorm ∘ removeFlutePre` point the cleanup is entered at — the same state
+`removeFlute_merged` is stated at, and the one both `SolverMove`'s phase 1 and the
+drain's sync step hand over.  `removeFlute_eq` reduces the call to
+`SolverCleanupPile` at `removeFlutePre …`; the rest is `Simulates.ofCleanupPile`. -/
+theorem Simulates.ofRemoveFlute {g : Globals} {v : State} {gameA : SolverPosType}
+    {kk : Fin 16} (hwf : WellFormedLayout g) {pile : UInt32} (hpile : pile.toNat < 10)
+    (hready : SolverSpec.CleanupReady g
+      (SolverSpec.fluteNorm pile hpile (removeFlutePre pile hpile gameA)) pile)
+    (hk : StateMatchesKingConfig g v
+      (SolverSpec.fluteNorm pile hpile (removeFlutePre pile hpile gameA)) kk)
+    {fk : UInt16} {p' : SolverPosType}
+    (hrun : _root_.SolverRemoveFlute pile (g, gameA) = .ok fk (g, p')) :
+    ∃ (v' : State) (k' : Fin 16) (FK : Finset Suit),
+      Simulates g v (SolverSpec.fluteNorm pile hpile (removeFlutePre pile hpile gameA))
+        kk v' p' k' FK fk := by
+  obtain ⟨hb, -, -⟩ := hready
+  have hrun' : EStateM.run (_root_.SolverRemoveFlute pile) (g, gameA) = .ok fk (g, p') := hrun
+  rw [removeFlute_eq pile g gameA hpile] at hrun'
+  exact Simulates.ofCleanupPile hwf hpile hb hk hrun'
 
 /-- **The walk's one position-changing step is simulated.**  `Simulates.syncPlays`
 plays the pile's flute together with its boundary onto the foundation — landing
