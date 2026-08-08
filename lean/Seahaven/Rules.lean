@@ -186,7 +186,7 @@ def goal (s : State) : Prop :=
   ∀ suit : Suit, s.foundations suit = some Rank.king
 
 def colRowToIdx (col : Fin 10) (row : Fin 5) : Fin 52 :=
-  ⟨5 * col.val + row.val, by omega⟩
+  ⟨10 * row.val + col.val, by omega⟩
 
 def cellToIdx (cell : Fin 2) : Fin 52 :=
   ⟨50 + cell.val, by omega⟩

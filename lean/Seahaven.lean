@@ -50,3 +50,5 @@ import Seahaven.ConvertCount
 import Seahaven.ConvertInv
 import Seahaven.ConvertSound
 import Seahaven.ConvertSim
+import Seahaven.SolveSound
+import Seahaven.DealMatches

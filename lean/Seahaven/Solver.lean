@@ -489,7 +489,7 @@ def initcard (cardshuffle : Vector UInt8 52) : EStateM Error Globals Unit := do
       g := { g with pos2card := ← g.pos2card.setE (UInt32.ofNat (i % 10)) innerVec }
     set g
 
-private def emptySolverPosType : SolverPosType := {
+def emptySolverPosType : SolverPosType := {
   hash      := 0
   pileDepth := mkVector 10 0
   pileFlute := mkVector 10 0

@@ -461,6 +461,29 @@ theorem initcard_ok {sh : Vector UInt8 52} (hdeal : IsDeal sh) (g : Globals)
     forIn (List.range 52) PUnit.unit (initBody sh) >>= fun _ => pure PUnit.unit) g = _
   simp only [bind, EStateM.bind, solverInit_run, List.range_eq_range', hrun, pure, EStateM.pure]
 
+/-- Same, but also exporting the loop invariant — `placed` (where each dealt card
+sits in `pos2card`) and `located` (its recorded pile/depth) are what a `Rules`-side
+deal has to be matched against. -/
+theorem initcard_ok' {sh : Vector UInt8 52} (hdeal : IsDeal sh) (g : Globals)
+    (hpile : ∀ (n : Nat) (h : n < 64), (g.card2pile[n]'h).toNat < 10)
+    (hdepth : ∀ (n : Nat) (h : n < 64), (g.card2depth[n]'h).toNat ≤ 5) :
+    ∃ g', EStateM.run (initcard sh) g = .ok () g' ∧
+      WellFormedLayout g' ∧ HashmapCorrect g' ∧ HashmapSound g' ∧ InitInv sh 52 g' := by
+  have hinv0 : InitInv sh 0 { g with hashmap := mkVector BIG_HASH_SIZE (UInt16.ofNat 0) } :=
+    { pile_lt := fun n hn => hpile n hn
+      depth_le := fun n hn => hdepth n hn
+      located := fun _ hj _ => absurd hj (by omega)
+      placed := fun _ _ _ _ h => absurd h (by omega)
+      memo_zero := fun n hn => mkVector_getElem _ _ n hn }
+  obtain ⟨g', hrun, hinv⟩ :=
+    initLoop_ok hdeal 52 0 { g with hashmap := mkVector BIG_HASH_SIZE (UInt16.ofNat 0) } rfl hinv0
+  refine ⟨g', ?_, wellFormedLayout_of_initInv hdeal hinv,
+    hashmapCorrect_of_zero hinv.memo_zero, hashmapSound_of_zero hinv.memo_zero, hinv⟩
+  rw [initcard_eq]
+  show (SolverInit >>= fun _ =>
+    forIn (List.range 52) PUnit.unit (initBody sh) >>= fun _ => pure PUnit.unit) g = _
+  simp only [bind, EStateM.bind, solverInit_run, List.range_eq_range', hrun, pure, EStateM.pure]
+
 /-- Packaged as `WFGlobals`. -/
 theorem initcard_wfGlobals {sh : Vector UInt8 52} (hdeal : IsDeal sh) (g : Globals)
     (hpile : ∀ (n : Nat) (h : n < 64), (g.card2pile[n]'h).toNat < 10)
