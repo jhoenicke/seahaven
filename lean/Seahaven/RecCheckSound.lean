@@ -641,74 +641,6 @@ theorem recCheck_run_loop (g gl : Globals) (p : SolverPosType) (ki : KingInfo)
     Bool.false_eq_true, reduceIte, closureInfos_getE_apply g p hfp, getSlot_apply,
     hfree', possibleKings_getE_apply, hki', hcomp', hloop, setSlot_apply]
 
-/-! ## The component contribution is in-block
-
-`computeComponentKingBits` enumerates the block *one below* the position's
-(`prevInfo`), but `componentTable`'s entries are masks of the position's own
-block — `componentTable_localBound` read at `f := freePiles - 1`. -/
-
-private theorem componentAt_eq_get (idx : Nat) (h : idx < 100) :
-    componentAt idx = componentTable.get ⟨idx, h⟩ := by
-  unfold componentAt
-  congr 1
-  refine Fin.ext ?_
-  show min idx 99 = idx
-  omega
-
-set_option linter.unusedSimpArgs false in
-theorem localMask_component {g : Globals} {p : SolverPosType} {comp : UInt8}
-    (hrun : EStateM.run (computeComponentKingBits p) g = .ok comp g) :
-    LocalMask p comp.toUInt16 := by
-  by_cases hfp : 1 ≤ p.freePiles.toNat ∧ p.freePiles.toNat ≤ 3
-  · obtain ⟨result, -, hres, hcompeq⟩ := component_run_eq g p comp hfp.1 hfp.2 hrun
-    have htoInt : p.freePiles.toInt.toNat = p.freePiles.toNat := rfl
-    -- Name the block index *once*: two `by omega` proofs of `_ < 11` are different terms,
-    -- so `closureInfos.get ⟨n, h₁⟩` and `closureInfos.get ⟨n, h₂⟩` are distinct `omega` atoms.
-    obtain ⟨f, hfval⟩ : ∃ f : Fin 11, f.val = p.freePiles.toNat - 1 :=
-      ⟨⟨p.freePiles.toNat - 1, by omega⟩, rfl⟩
-    have hprev : prevInfo p = closureInfos.get f := by
-      unfold prevInfo
-      congr 1
-      refine Fin.ext ?_
-      show min (p.freePiles.toNat - 1) 10 = f.val
-      omega
-    have hown : closureInfoOf p = closureInfos.get ⟨f.val + 1, by omega⟩ := by
-      unfold closureInfoOf
-      congr 1
-      refine Fin.ext ?_
-      show min p.freePiles.toInt.toNat 10 = f.val + 1
-      rw [htoInt]
-      omega
-    rw [hprev] at hres hcompeq
-    have hoffb : (closureInfos.get f).offset.toNat
-        + 2 ^ (closureInfos.get f).numBits.toNat ≤ 100 := by
-      have h : ∀ f : Fin 11,
-          (closureInfos.get f).offset.toNat + 2 ^ (closureInfos.get f).numBits.toNat ≤ 100 := by
-        decide
-      exact h f
-    have hidx : (closureInfos.get f).offset.toNat + result.toNat < 100 := by omega
-    have hbound := componentTable_localBound f (by omega) result.toNat hres hidx
-    show comp.toUInt16.toNat < _
-    rw [UInt8.toNat_toUInt16, hcompeq, componentAt_eq_get _ hidx, hown]
-    exact hbound
-  · -- the guard is false, so the function returns `0`
-    have hz : comp = 0 := by
-      have hguard : ((1 : Int32) ≤ p.freePiles.toInt32 && p.freePiles.toInt32 ≤ (3 : Int32))
-          = false := by
-        have hfi : (p.freePiles.toInt32).toInt = (p.freePiles.toNat : Int) :=
-          uint8_toInt32_toInt _
-        simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, Int32.le_iff_toInt_le, hfi,
-          show ((1 : Int32)).toInt = 1 from by decide,
-          show ((3 : Int32)).toInt = 3 from by decide]
-        omega
-      simp only [EStateM.run, computeComponentKingBits, hguard, Bool.false_eq_true,
-        reduceIte, pure, EStateM.pure] at hrun
-      exact (EStateM.Result.ok.inj hrun).1.symm
-    rw [hz]
-    show (0 : UInt8).toUInt16.toNat < _
-    simp only [show ((0 : UInt8).toUInt16.toNat = 0) from rfl]
-    exact Nat.two_pow_pos _
-
 set_option linter.unusedSimpArgs false in
 /-- **The loop branch, inverted.**  From the whole run, read off the pile loop's own
 run and the memo write.  (`EStateM` being deterministic, this is `recCheck_run_loop`
@@ -770,7 +702,8 @@ unchanged); the one real side condition is `-1 ≤ blockSpace`, i.e.
 def PrologueRuns : Prop :=
   ∀ (g : Globals) (p : SolverPosType), WellFormedLayout g → IsCanonicalPos g p →
     (∃ ki : KingInfo, EStateM.run (computeKingSpaces (closureInfoOf p).shiftValue
-        (closureInfoOf p).numBits p) g = .ok ki g ∧ PossibleKingsLocal p ki) ∧
+        (closureInfoOf p).numBits p) g = .ok ki g ∧ PossibleKingsLocal p ki ∧
+        KingInfoCorrect p ki) ∧
     (∃ comp : UInt8, EStateM.run (computeComponentKingBits p) g = .ok comp g)
 
 /-- What the recursive call is known to satisfy — the induction hypothesis, guarded
@@ -807,7 +740,7 @@ the three travel together in one `forIn_inv`. -/
 theorem recLoop_all (hSS : SubsetSound) (hMS : MoveSimulated) (hRB : RecBodyStep)
     {g : Globals} {p : SolverPosType} {ki : KingInfo} {comp : UInt8} {allkings : UInt16}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p) (hms : HashmapSound g)
-    (hkiloc : PossibleKingsLocal p ki) (hchild : ChildSpec p)
+    (hkiloc : PossibleKingsLocal p ki) (hkic : KingInfoCorrect p ki) (hchild : ChildSpec p)
     (hcomprun : EStateM.run (computeComponentKingBits p) g = .ok comp g)
     {v : UInt16} {gl : Globals}
     (hloop : forIn (List.range 10) (0 : UInt16)
@@ -826,7 +759,7 @@ theorem recLoop_all (hSS : SubsetSound) (hMS : MoveSimulated) (hRB : RecBodyStep
       obtain ⟨hcontrib, hms₂, hm₂, rfl⟩ :=
         hRB p ki comp allkings _ g₂ a b r (by simpa using ha) hinv.wf hinv.canon hms₁ hkiloc
           hchild hbody
-      exact ⟨hinv.step hSS hMS hcomploc hcontrib, hms₂, hm₂, rfl⟩)
+      exact ⟨hinv.step hSS hMS hcomploc hkic hcontrib, hms₂, hm₂, rfl⟩)
     0 g v gl ⟨LoopInv.zero hwf hcan hcomprun, hms, g.hashmap, rfl⟩ hloop
   exact ⟨key.1.sound, key.1.isLocal, key.2.1, key.2.2⟩
 
@@ -875,13 +808,13 @@ theorem recCheck_sound (hSS : SubsetSound) (hMS : MoveSimulated)
       exact ⟨⟨soundBits_of_hash_zero hcan hz 1, localMask_one p⟩, hwfg.memo, g.hashmap, rfl⟩
     · by_cases hfree : slotRead g p.hash = UInt8.ofNat FREESLOT
       · -- the pile loop, then the memo write
-        obtain ⟨⟨ki, hki, hkiloc⟩, ⟨comp, hcomp⟩⟩ := hPro g p hwfg.layout hcan
+        obtain ⟨⟨ki, hki, hkiloc, hkic⟩, ⟨comp, hcomp⟩⟩ := hPro g p hwfg.layout hcan
         obtain ⟨gl, hloop, rfl⟩ :=
           recCheck_run_loop_inv g g' p ki comp v hfp hz hfree hki hcomp hrun
         have hchild : ChildSpec p := fun child g₁ g₂ w hlt hwf₁ hcan₁ hms₁ hrun₁ =>
           ih g₁ g₂ child w (by omega) ⟨hwf₁, hms₁⟩ hcan₁ hrun₁
         obtain ⟨hsound, hlocal, hms', hm, rfl⟩ :=
-          recLoop_all hSS hMS hRB hwfg.layout hcan hwfg.memo hkiloc hchild hcomp hloop
+          recLoop_all hSS hMS hRB hwfg.layout hcan hwfg.memo hkiloc hkic hchild hcomp hloop
         refine ⟨⟨hsound.of_set_hashmap, hlocal⟩, ?_, ?_⟩
         · exact hashmapSound_slotWrite (hwfg.layout.set_hashmap hm) (hcan.set_hashmap hm)
             hms' hsound hlocal
@@ -1228,9 +1161,10 @@ theorem component_run_exists {g : Globals} {p : SolverPosType} (h : SolverInvMer
       reduceIte, pure, EStateM.pure]
 
 /-- **Obligation 1, discharged.** -/
-theorem prologueRuns : PrologueRuns := fun _ _ hwf hcan =>
-  ⟨kingSpaces_run_exists_local hwf hcan.toSolverInvBase,
-   component_run_exists hcan.toSolverInvMerged⟩
+theorem prologueRuns : PrologueRuns := fun g p hwf hcan => by
+  obtain ⟨ki, hki, hkiloc⟩ := kingSpaces_run_exists_local hwf hcan.toSolverInvBase
+  exact ⟨⟨ki, hki, hkiloc, (kingSpaces_spec g p ki hcan.toSolverInvBase hki).1⟩,
+    component_run_exists hcan.toSolverInvMerged⟩
 
 /-- **Soundness of `solverRecCheckSolvable`, with the prologue discharged.**  The
 body step is discharged too, at the end of this file; `recCheck_sound_of_semantics`
@@ -1686,11 +1620,12 @@ theorem recBodyStep : RecBodyStep := by
                 + (cs &&& fk >>> (closureInfoOf p').shiftValue.toUInt16).toNat) 99 from
               by omega))] at hrun
         obtain ⟨hrval, rfl⟩ := tail_run hrun
-        refine ⟨Or.inr ⟨p', UInt32.ofNat pile, toPile, mv, cs, fk, hmvloc, ?_, hmove, hcsloc,
-          hcssound, ?_, ?_⟩, hms₃, hm₃, rfl⟩
-        · rw [show (⟨(UInt32.ofNat pile).toNat % 10, by omega⟩ : Fin 10)
-              = ⟨(UInt32.ofNat pile).toNat, hidx⟩ from Fin.ext (Nat.mod_eq_of_lt hidx)]
-          exact hmvrun
+        have hfin : (⟨(UInt32.ofNat pile).toNat % 10, by omega⟩ : Fin 10)
+            = ⟨(UInt32.ofNat pile).toNat, hidx⟩ := Fin.ext (Nat.mod_eq_of_lt hidx)
+        refine ⟨Or.inr ⟨p', UInt32.ofNat pile, toPile, mv, cs, fk, hmvloc, hidx, ?_, hgd, ?_,
+          hmove, hcsloc, hcssound, ?_, ?_⟩, hms₃, hm₃, rfl⟩
+        · rw [hfin]; exact hd
+        · rw [hfin]; exact hmvrun
         · rw [hrval, movableComp_eq, movablePrime]
         · exact ⟨fun h => h.set_hashmap hm₃, fun h => h.set_hashmap hm₃,
             fun h => component_indep h, fun _ h => h.set_hashmap hm₃⟩

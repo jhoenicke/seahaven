@@ -192,6 +192,120 @@ theorem StateMatchesKingConfig.framePile {g : Globals} {s v : State} {p q : Solv
       · exact Or.inr (fun d hd => by rw [hnil] at hd; simp at hd)
     · exact Or.inl ⟨by rw [← hqdne i hia]; exact hi, hframe i hia⟩
 
+/-! ## The two shapes of a phase-1 flute move
+
+`SolverMove`'s first phase realizes as either
+
+* **park** — `parkMoves a cells`, the whole flute into the cells (`EXTRA`, and a
+  king pile whose stack is itself in the cells); one column changes; or
+* **park, move, unpark** — `fluteMoves a b cells`, the flute onto a column
+  (an ordinary pile, and a king pile physically sitting on column `b`); two
+  columns change.
+
+`framePile` covers neither, for two reasons: it frames one column, and it insists
+on `q.kings = p.kings`, which both king-pile destinations break
+(`movePre_kings_kingDest` advances the destination suit's frontier).  The two
+lemmas below relax exactly those points.
+
+The `kings` relaxation is the same in both, and it is what `no_pile` licenses:
+the entry may move only for a suit whose bit is **set** — one with no pile, whose
+freed run is in the cells — because a suit that *owns* a column would have that
+column's `king_pile` clause broken by the write.  Every suit the assignment
+mentions has its bit clear, so `OwnsPile.frame` still applies to all of them. -/
+
+/-- **The flute went to the cells.**  `framePile` with the `kings` hypothesis
+weakened to the piled suits — which is what the to-cells king destination needs,
+since the suit it writes is precisely one whose bit is set. -/
+theorem StateMatchesKingConfig.frameToCells {g : Globals} {s v : State} {p q : SolverPosType}
+    {k : Fin 16} {a : Fin 10} (hk : StateMatchesKingConfig g s p k)
+    (hreach : Reach s v) (hmatch : StateMatchesSolverPos g v q)
+    (hda : 0 < (p.pileDepth.get a).toInt.toNat)
+    (hqda : 0 < (q.pileDepth.get a).toInt.toNat ∨ v.tableau a = [])
+    (hframe : ∀ i : Fin 10, i ≠ a → v.tableau i = s.tableau i)
+    (hqdne : ∀ i : Fin 10, i ≠ a → q.pileDepth.get i = p.pileDepth.get i)
+    (hqkings : ∀ x : Suit, ¬ CfgBitSet k x →
+      q.kings.get (finOfSuit x) = p.kings.get (finOfSuit x)) :
+    Simulates g s p k v q k ∅ 0xffff := by
+  refine Simulates.ofReach hreach ⟨hmatch, ?_, ?_⟩
+  · obtain ⟨assign, hown, hinj, hiff⟩ := hk.realizes
+    refine ⟨assign, fun su i hi => ?_, hinj, hiff⟩
+    have ho := hown su i hi
+    have hia : i ≠ a := by
+      intro hc; rw [hc] at ho; have := ho.1; omega
+    exact ho.frame (hqdne i hia) (hqkings su ((hiff su).1 (by rw [hi]; rfl))) (hframe i hia)
+  · intro su hsu
+    refine (hk.no_pile su hsu).frame (fun i hi => ?_)
+    by_cases hia : i = a
+    · subst hia
+      rcases hqda with hpos | hnil
+      · omega
+      · exact Or.inr (fun d hd => by rw [hnil] at hd; simp at hd)
+    · exact Or.inl ⟨by rw [← hqdne i hia]; exact hi, hframe i hia⟩
+
+/-- **The flute went onto another column.**  Two columns change, so the
+destination `b` needs its own two clauses — and both are stated through the
+realizing **assignment**, not through `OwnsPile` alone.  That is not pedantry: on
+a genuinely *empty* column `OwnsPile` holds vacuously for every suit that has
+nothing freed yet, so "some suit owns `b`" does not identify which suit's king
+stack `b` is about to receive.  The assignment does, and its injectivity is
+exactly what pins it down.
+
+* `hbown` — the suit the assignment sends to `b` still owns `b` afterwards, and
+  `b`'s *deepest* card is that suit's.  Both hold because the move only pushes
+  onto the head of `b`: an existing king stack keeps its bottom card, and a
+  genuinely empty owned column receives the suit's own king.
+* `hbpiled` — if `b` is solver-empty afterwards then the assignment does send some
+  suit there.  For an ordinary pile destination this is vacuous (`b` keeps a
+  positive depth); for a king pile it is how `b` was chosen in the first place.
+
+Note `hqkings` excludes `b`'s own suit: a king destination advances exactly that
+suit's frontier (`movePre_kings_kingDest`), and that suit is not framed — its
+`OwnsPile` is re-established directly by `hbown`. -/
+theorem RealizesKingConfig.frameToPile {g : Globals} {s v : State} {p q : SolverPosType}
+    {k : Fin 16} {a b : Fin 10} {assign : Suit → Option (Fin 10)}
+    (hown : ∀ su i, assign su = some i → OwnsPile s p su i)
+    (hinj : ∀ su su' i, assign su = some i → assign su' = some i → su = su')
+    (hiff : ∀ su, (assign su).isSome ↔ ¬ CfgBitSet k su)
+    (hnp : ∀ su : Suit, CfgBitSet k su → NoKingPile s p su)
+    (hreach : Reach s v) (hmatch : StateMatchesSolverPos g v q)
+    (hda : 0 < (p.pileDepth.get a).toInt.toNat)
+    (hqda : 0 < (q.pileDepth.get a).toInt.toNat ∨ v.tableau a = [])
+    (hframe : ∀ i : Fin 10, i ≠ a → i ≠ b → v.tableau i = s.tableau i)
+    (hqdne : ∀ i : Fin 10, i ≠ a → q.pileDepth.get i = p.pileDepth.get i)
+    (hqkings : ∀ x : Suit, assign x ≠ some b → ¬ CfgBitSet k x →
+      q.kings.get (finOfSuit x) = p.kings.get (finOfSuit x))
+    (hbown : ∀ x : Suit, assign x = some b →
+      OwnsPile v q x b ∧ ∀ d ∈ (v.tableau b).getLast?, d.suit = x)
+    (hbpiled : (q.pileDepth.get b).toInt.toNat = 0 → ∃ x : Suit, assign x = some b) :
+    Simulates g s p k v q k ∅ 0xffff := by
+  refine Simulates.ofReach hreach ⟨hmatch, ?_, ?_⟩
+  · refine ⟨assign, fun su i hi => ?_, hinj, hiff⟩
+    have ho := hown su i hi
+    have hia : i ≠ a := by
+      intro hc; rw [hc] at ho; have := ho.1; omega
+    by_cases hib : i = b
+    · subst hib
+      exact (hbown su hi).1
+    · exact ho.frame (hqdne i hia)
+        (hqkings su (fun hc => hib (Option.some.inj (hi.symm.trans hc)))
+          ((hiff su).1 (by rw [hi]; rfl)))
+        (hframe i hia hib)
+  · intro su hsu
+    refine (hnp su hsu).frame (fun i hi => ?_)
+    by_cases hib : i = b
+    · -- the destination: its deepest card belongs to the suit assigned there
+      subst hib
+      obtain ⟨x, hx⟩ := hbpiled hi
+      refine Or.inr (fun d hd => ?_)
+      rw [(hbown x hx).2 d hd]
+      exact fun hc => ((hiff x).1 (by rw [hx]; rfl)) (hc ▸ hsu)
+    · by_cases hia : i = a
+      · subst hia
+        rcases hqda with hpos | hnil
+        · omega
+        · exact Or.inr (fun d hd => by rw [hnil] at hd; simp at hd)
+      · exact Or.inl ⟨by rw [← hqdne i hia]; exact hi, hframe i hia hib⟩
+
 /-- **`kingMove`'s king-configuration side** — the one phase that changes the
 configuration, and it moves no card at all (`s` on both sides).
 

@@ -112,6 +112,10 @@ theorem contribution_sound (hSS : SubsetSound) (hMS : MoveSimulated)
     (hwf : WellFormedLayout g) (hcanon : IsCanonicalPos g p)
     (hmvloc : LocalMask p mv)
     (hcomprun : EStateM.run (computeComponentKingBits p) g = .ok comp g)
+    (hkic : KingInfoCorrect p kingInfo)
+    (hpile : pile.toNat < 10)
+    (hdepth : 0 < (p.pileDepth.get ⟨pile.toNat % 10, by omega⟩).toNat)
+    (hdest : EStateM.run (solverGetDestination p pile) g = .ok toPile g)
     (hmv : EStateM.run (solverGetMovable kingInfo (closureInfoOf p).shiftValue
         (p.pileFlute.get ⟨pile.toNat % 10, by omega⟩) toPile) g = .ok mv g)
     (hrun : EStateM.run (SolverMove pile toPile) (g, p) = .ok fk (g, p'))
@@ -119,15 +123,19 @@ theorem contribution_sound (hSS : SubsetSound) (hMS : MoveSimulated)
     SoundBits g p (movableComp (movablePrime p p' mv cs fk) comp.toUInt16) := by
   intro s k hs hbit
   have hmvloc' : LocalMask p (movablePrime p p' mv cs fk) := localMask_movablePrime hmvloc
+  have hloc : LocalMask p (movableComp (movablePrime p p' mv cs fk) comp.toUInt16) :=
+    localMask_movableComp hmvloc' (localMask_component hcomprun)
   -- the queried configuration reaches a configuration named by a local bit
   obtain ⟨i, hi, hbiti, hreach⟩ :=
-    hSS g p s _ k hs.toMatches ⟨s, Relation.ReflTransGen.refl, hs⟩ hbit
+    hSS g p s _ k hloc hwf hcanon.toSolverInvMerged
+      ⟨s, Relation.ReflTransGen.refl, hs⟩ hbit
   -- that bit is in `movable'`, or `component` put it there
   have hstep : ∀ (n : Nat) (hn : n < (closureInfoOf p).numBits.toNat),
       BitSet (movablePrime p p' mv cs fk) ⟨min n 15, by omega⟩ →
       KingConfigReachable g p s (globalCfg (closureInfoOf p) n) → Solvable s := by
     intro n hn hbn ⟨s1, hr1, hs1⟩
-    refine Solvable.of_reach hr1 (recStep_sound hMS hn hwf hcanon hs1 hmv hrun hcs hchild ?_)
+    refine Solvable.of_reach hr1
+      (recStep_sound hMS hn hwf hcanon hs1 hkic hpile hdepth hdest hmv hrun hcs hchild ?_)
     exact hbn
   by_cases hmv' : BitSet (movablePrime p p' mv cs fk) ⟨min i 15, by omega⟩
   · exact hstep i hi hmv' hreach
@@ -205,6 +213,9 @@ def Contributes (p : SolverPosType) (kingInfo : KingInfo) (comp : UInt8)
   (v' = v ∧ g' = g) ∨
   ∃ (p' : SolverPosType) (pile : UInt32) (toPile : UInt8) (mv cs fk : UInt16),
     LocalMask p mv ∧
+    pile.toNat < 10 ∧
+    0 < (p.pileDepth.get ⟨pile.toNat % 10, by omega⟩).toNat ∧
+    EStateM.run (solverGetDestination p pile) g = .ok toPile g ∧
     EStateM.run (solverGetMovable kingInfo (closureInfoOf p).shiftValue
       (p.pileFlute.get ⟨pile.toNat % 10, by omega⟩) toPile) g = .ok mv g ∧
     EStateM.run (SolverMove pile toPile) (g, p) = .ok fk (g, p') ∧
@@ -218,15 +229,16 @@ def Contributes (p : SolverPosType) (kingInfo : KingInfo) (comp : UInt8)
 local. -/
 theorem LoopInv.step (hSS : SubsetSound) (hMS : MoveSimulated)
     {p : SolverPosType} {kingInfo : KingInfo} {comp : UInt8} {v v' : UInt16} {g g' : Globals}
-    (hcomploc : LocalMask p comp.toUInt16)
+    (hcomploc : LocalMask p comp.toUInt16) (hkic : KingInfoCorrect p kingInfo)
     (h : LoopInv p comp v g) (hc : Contributes p kingInfo comp v g v' g') :
     LoopInv p comp v' g' := by
-  rcases hc with ⟨rfl, rfl⟩ | ⟨p', pile, toPile, mv, cs, fk, hmvloc, hmv, hrun, hcs, hchild,
-    rfl, hframe⟩
+  rcases hc with ⟨rfl, rfl⟩ | ⟨p', pile, toPile, mv, cs, fk, hmvloc, hpile, hdepth, hdest, hmv,
+    hrun, hcs, hchild, rfl, hframe⟩
   · exact h
   · obtain ⟨hwf, hcanon, hcomprun, hsound⟩ := hframe
     have hcontrib : SoundBits g p (movableComp (movablePrime p p' mv cs fk) comp.toUInt16) :=
-      contribution_sound hSS hMS h.wf h.canon hmvloc h.comprun hmv hrun hcs hchild
+      contribution_sound hSS hMS h.wf h.canon hmvloc h.comprun hkic hpile hdepth hdest hmv hrun
+        hcs hchild
     have hlocmv : LocalMask p (movableComp (movablePrime p p' mv cs fk) comp.toUInt16) :=
       localMask_movableComp (localMask_movablePrime hmvloc) hcomploc
     exact
@@ -277,7 +289,7 @@ invariant: *a set bit in its `subsetTable` expansion means the state really is
 solvable*. -/
 theorem recLoop_sound (hSS : SubsetSound) (hMS : MoveSimulated)
     {p : SolverPosType} {kingInfo : KingInfo} {comp : UInt8}
-    (hcomploc : LocalMask p comp.toUInt16)
+    (hcomploc : LocalMask p comp.toUInt16) (hkic : KingInfoCorrect p kingInfo)
     {body : Nat → UInt16 → EStateM Error Globals (ForInStep UInt16)} {l : List Nat}
     (hbody : ∀ a ∈ l, ∀ (v : UInt16) (g : Globals) (r : ForInStep UInt16) (g' : Globals),
       body a v g = .ok r g' → Contributes p kingInfo comp v g r.value g')
@@ -285,13 +297,13 @@ theorem recLoop_sound (hSS : SubsetSound) (hMS : MoveSimulated)
     (hinv : LoopInv p comp v g) (hrun : forIn l v body g = .ok v' g') :
     LoopInv p comp v' g' :=
   forIn_inv (LoopInv p comp) body l
-    (fun a ha b gg r gg' hP hb => hP.step hSS hMS hcomploc (hbody a ha b gg r gg' hb)) v g v' g'
+    (fun a ha b gg r gg' hP hb => hP.step hSS hMS hcomploc hkic (hbody a ha b gg r gg' hb)) v g v' g'
     hinv hrun
 
 /-- **From an empty accumulator**, which is how the loop starts. -/
 theorem recLoop_sound_zero (hSS : SubsetSound) (hMS : MoveSimulated)
     {p : SolverPosType} {kingInfo : KingInfo} {comp : UInt8}
-    (hcomploc : LocalMask p comp.toUInt16)
+    (hcomploc : LocalMask p comp.toUInt16) (hkic : KingInfoCorrect p kingInfo)
     {body : Nat → UInt16 → EStateM Error Globals (ForInStep UInt16)} {l : List Nat}
     (hbody : ∀ a ∈ l, ∀ (v : UInt16) (g : Globals) (r : ForInStep UInt16) (g' : Globals),
       body a v g = .ok r g' → Contributes p kingInfo comp v g r.value g')
@@ -300,7 +312,7 @@ theorem recLoop_sound_zero (hSS : SubsetSound) (hMS : MoveSimulated)
     (hcomprun : EStateM.run (computeComponentKingBits p) g = .ok comp g)
     (hrun : forIn l (0 : UInt16) body g = .ok v' g') :
     SoundBits g' p v' ∧ LocalMask p v' :=
-  let h := recLoop_sound hSS hMS hcomploc hbody (LoopInv.zero hwf hcanon hcomprun) hrun
+  let h := recLoop_sound hSS hMS hcomploc hkic hbody (LoopInv.zero hwf hcanon hcomprun) hrun
   ⟨h.sound, h.isLocal⟩
 
 /-! ## The loop body of `solverRecCheckSolvable`
@@ -408,7 +420,7 @@ the induction hypothesis inside it. -/
 theorem recLoop_body_sound (hSS : SubsetSound) (hMS : MoveSimulated)
     {rec : SolverPosType → EStateM Error Globals UInt16}
     {p : SolverPosType} {kingInfo : KingInfo} {comp : UInt8} {allkings : UInt16}
-    (hcomploc : LocalMask p comp.toUInt16)
+    (hcomploc : LocalMask p comp.toUInt16) (hkic : KingInfoCorrect p kingInfo)
     (hbody : RecBodyContributes rec p kingInfo comp allkings)
     {v' : UInt16} {g g' : Globals}
     (hwf : WellFormedLayout g) (hcanon : IsCanonicalPos g p)
@@ -416,6 +428,6 @@ theorem recLoop_body_sound (hSS : SubsetSound) (hMS : MoveSimulated)
     (hrun : forIn (List.range 10) (0 : UInt16)
       (recBody rec p (closureInfoOf p) kingInfo comp.toUInt16 allkings) g = .ok v' g') :
     SoundBits g' p v' ∧ LocalMask p v' :=
-  recLoop_sound_zero hSS hMS hcomploc
+  recLoop_sound_zero hSS hMS hcomploc hkic
     (fun a ha v gg r gg' hb => hbody a (by simpa using ha) v gg r gg' hb)
     hwf hcanon hcomprun hrun

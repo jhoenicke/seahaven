@@ -647,3 +647,9 @@ proved (after `KingSpacesSpec`), and it is what licenses
 which is the direction with no cell-space side condition. -/
 theorem componentSound : ComponentSound :=
   componentSound_of kingUnpileReachable kingPileReachable
+
+/-- **`SubsetSound`.**  `KingReshuffle`'s `subsetSound_of`, fed with the piling
+step alone: closing a stored set downwards under "put fewer kings on piles" means
+piling the extra suits, and piling never needs a cell to spare. -/
+theorem subsetSound : SubsetSound :=
+  subsetSound_of kingPileReachable

@@ -1063,8 +1063,11 @@ private theorem dest_prevCard_maximal (g : Globals) (p q : SolverPosType) (pile 
     Conversely a *shorter* flute would put its `prevCard` at one of the walked
     (free) cards `B+1 … B+n−1`, so `flute_maximal` would force it to be
     `aces[s]` — but then `B` itself would be covered by the foundation and hence
-    free, contradiction. -/
-private theorem dest_flute_eq_walk (g : Globals) (p : SolverPosType)
+    free, contradiction.
+
+    Exported (it used to be `private`): the phase-1 simulation needs it to turn
+    `DestValid`'s walk into `movePre_sim_of_dest`'s gap hypothesis. -/
+theorem dest_flute_eq_walk (g : Globals) (p : SolverPosType)
     (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p)
     (B : UInt8) (hBreal : IsRealCard B) (hBnf : ¬ isFreeCard g p B)
     (n : Nat) (hn1 : 1 ≤ n) (hnval : (VALUE B).toNat + n ≤ 13)

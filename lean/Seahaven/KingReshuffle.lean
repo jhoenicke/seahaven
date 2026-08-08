@@ -666,3 +666,161 @@ theorem componentSound_of (hU : KingUnpileReachable) (hP : KingPileReachable) :
   · rw [component_eq_zero_of_range (by omega) hrun,
       show ((0 : UInt8).toUInt16) = (0 : UInt16) from rfl] at hbi
     exact absurd hbi (BitSet_zero _)
+
+/-! ## The component contribution is in-block
+
+`computeComponentKingBits` enumerates the block *one below* the position's
+(`prevInfo`), but `componentTable`'s entries are masks of the position's own
+block — `componentTable_localBound` read at `f := freePiles - 1`.
+
+(Stated here rather than in `RecCheckSound`, where it is also used, because the
+`SubsetSound` call site in `RecLoopSound` needs it: the mask handed to
+`SubsetSound` is `movable' ||| component`, and the expansion of a mask is only
+meaningful in-block.) -/
+
+private theorem componentAt_eq_get (idx : Nat) (h : idx < 100) :
+    componentAt idx = componentTable.get ⟨idx, h⟩ := by
+  unfold componentAt
+  congr 1
+  refine Fin.ext ?_
+  show min idx 99 = idx
+  omega
+
+set_option linter.unusedSimpArgs false in
+theorem localMask_component {g : Globals} {p : SolverPosType} {comp : UInt8}
+    (hrun : EStateM.run (computeComponentKingBits p) g = .ok comp g) :
+    LocalMask p comp.toUInt16 := by
+  by_cases hfp : 1 ≤ p.freePiles.toNat ∧ p.freePiles.toNat ≤ 3
+  · obtain ⟨result, -, hres, hcompeq⟩ := component_run_eq g p comp hfp.1 hfp.2 hrun
+    have htoInt : p.freePiles.toInt.toNat = p.freePiles.toNat := rfl
+    -- Name the block index *once*: two `by omega` proofs of `_ < 11` are different terms,
+    -- so `closureInfos.get ⟨n, h₁⟩` and `closureInfos.get ⟨n, h₂⟩` are distinct `omega` atoms.
+    obtain ⟨f, hfval⟩ : ∃ f : Fin 11, f.val = p.freePiles.toNat - 1 :=
+      ⟨⟨p.freePiles.toNat - 1, by omega⟩, rfl⟩
+    have hprev : prevInfo p = closureInfos.get f := by
+      unfold prevInfo
+      congr 1
+      refine Fin.ext ?_
+      show min (p.freePiles.toNat - 1) 10 = f.val
+      omega
+    have hown : closureInfoOf p = closureInfos.get ⟨f.val + 1, by omega⟩ := by
+      unfold closureInfoOf
+      congr 1
+      refine Fin.ext ?_
+      show min p.freePiles.toInt.toNat 10 = f.val + 1
+      rw [htoInt]
+      omega
+    rw [hprev] at hres hcompeq
+    have hoffb : (closureInfos.get f).offset.toNat
+        + 2 ^ (closureInfos.get f).numBits.toNat ≤ 100 := by
+      have h : ∀ f : Fin 11,
+          (closureInfos.get f).offset.toNat + 2 ^ (closureInfos.get f).numBits.toNat ≤ 100 := by
+        decide
+      exact h f
+    have hidx : (closureInfos.get f).offset.toNat + result.toNat < 100 := by omega
+    have hbound := componentTable_localBound f (by omega) result.toNat hres hidx
+    show comp.toUInt16.toNat < _
+    rw [UInt8.toNat_toUInt16, hcompeq, componentAt_eq_get _ hidx, hown]
+    exact hbound
+  · -- the guard is false, so the function returns `0`
+    have hz : comp = 0 := by
+      have hguard : ((1 : Int32) ≤ p.freePiles.toInt32 && p.freePiles.toInt32 ≤ (3 : Int32))
+          = false := by
+        have hfi : (p.freePiles.toInt32).toInt = (p.freePiles.toNat : Int) :=
+          uint8_toInt32_toInt _
+        simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, Int32.le_iff_toInt_le, hfi,
+          show ((1 : Int32)).toInt = 1 from by decide,
+          show ((3 : Int32)).toInt = 3 from by decide]
+        omega
+      simp only [EStateM.run, computeComponentKingBits, hguard, Bool.false_eq_true,
+        reduceIte, pure, EStateM.pure] at hrun
+      exact (EStateM.Result.ok.inj hrun).1.symm
+    rw [hz]
+    show (0 : UInt8).toUInt16.toNat < _
+    simp only [show ((0 : UInt8).toUInt16.toNat = 0) from rfl]
+    exact Nat.two_pow_pos _
+
+/-! ## `SubsetSound`: the downward closure is repeated piling
+
+`subsetTable` closes a local set downwards under "put fewer kings on piles":
+`MaskSub d c` says the stored configuration `d` piles at least what `c` does
+(`SoundnessSkeleton`).  So the reachability it asks for runs the other way — from
+the configuration the state is at, *pile* the suits `d` piles in addition — and
+that is `KingPileReachable` alone.  Piling only frees cells, so there is no
+feasibility side condition and no intermediate configuration to keep track of;
+the one thing to check is that a column is free each round, which holds because
+`c` piles strictly fewer suits than `d`, while `d`, living in `p`'s block, piles
+no more suits than `p` has empty columns. -/
+
+/-- One piling step with a *reachable* configuration on the left instead of a
+matching state — the two `Reach`es compose, as in `component_kingConfigReachable`. -/
+theorem pile_kingConfigReachable (hP : KingPileReachable)
+    {g : Globals} {p : SolverPosType} {s : State} {k : Fin 16} {su : Suit}
+    (hwf : WellFormedLayout g) (hm : SolverInvMerged g p)
+    (hreach : KingConfigReachable g p s k) (hsu : CfgBitSet k su)
+    (hcard : (piledSet k).card < p.freePiles.toNat) :
+    KingConfigReachable g p s (clearCfgBit k su) := by
+  obtain ⟨s1, hr1, hs1⟩ := hreach
+  obtain ⟨s2, hr2, hs2⟩ := hP g p s1 k su hwf hm hs1 hsu hcard
+  exact ⟨s2, hr1.trans hr2, hs2⟩
+
+/-- **Piling up to a configuration that piles more.**  Induction on the number of
+suits `d` piles and `c` does not; each round moves one more freed king run out of
+the cells onto a spare column, and `d` bounds the number of columns in use
+throughout. -/
+theorem maskSub_kingConfigReachable (hP : KingPileReachable)
+    {g : Globals} {p : SolverPosType} {s : State} {d : Fin 16}
+    (hwf : WellFormedLayout g) (hm : SolverInvMerged g p)
+    (hd : (piledSet d).card ≤ p.freePiles.toNat) :
+    ∀ (m : Nat) (c : Fin 16), (piledSet d \ piledSet c).card ≤ m →
+      piledSet c ⊆ piledSet d → KingConfigReachable g p s c →
+      KingConfigReachable g p s d := by
+  intro m
+  induction m with
+  | zero =>
+    intro c hle hsub hreach
+    have hdc : piledSet d ⊆ piledSet c :=
+      Finset.sdiff_eq_empty_iff_subset.1 (Finset.card_eq_zero.1 (by omega))
+    exact piledSet_inj (Finset.Subset.antisymm hsub hdc) ▸ hreach
+  | succ m ih =>
+    intro c hle hsub hreach
+    by_cases hdc : piledSet d ⊆ piledSet c
+    · exact piledSet_inj (Finset.Subset.antisymm hsub hdc) ▸ hreach
+    -- a suit `d` piles and `c` does not: its run is in the cells, and a column is
+    -- free for it, `c` piling strictly fewer suits than `d`
+    obtain ⟨su, hsu⟩ := Finset.sdiff_nonempty.2 hdc
+    obtain ⟨hsud, hsuc⟩ := Finset.mem_sdiff.1 hsu
+    have hbit : CfgBitSet c su := by
+      by_contra hc
+      exact hsuc (mem_piledSet.2 hc)
+    have hlt : (piledSet c).card < (piledSet d).card :=
+      Finset.card_lt_card ((Finset.ssubset_iff_of_subset hsub).2 ⟨su, hsud, hsuc⟩)
+    refine ih (clearCfgBit c su) ?_ ?_
+      (pile_kingConfigReachable hP hwf hm hreach hbit (by omega))
+    · rw [piledSet_clearCfgBit, Finset.sdiff_insert, Finset.card_erase_of_mem hsu]
+      omega
+    · rw [piledSet_clearCfgBit]
+      exact Finset.insert_subset hsud hsub
+
+/-- **`SubsetSound`, from the piling step.**  `subsetAt_spec_pos` turns the table
+read into `MaskSub d c` for a stored configuration `d = globalCfg ci i` of the
+position's block, `MaskSub_iff` reads that as `piledSet c ⊆ piledSet d`, and
+`card_piledSet_globalCfg` says `d` piles `numPiledKings p ≤ freePiles` suits —
+which is exactly the column budget the piling steps consume. -/
+theorem subsetSound_of (hP : KingPileReachable) : SubsetSound := by
+  intro g p s T c hloc hwf hm hreach hbit
+  have hcb : (closureInfoOf p).shiftValue.toNat + (closureInfoOf p).numBits.toNat ≤ 16 :=
+    closureInfo_shift_add_numBits ⟨min p.freePiles.toInt.toNat 10, by omega⟩
+  obtain ⟨i, hi, hbits, hmask⟩ := (subsetAt_spec_pos p hloc c).1 hbit
+  refine ⟨i, hi, ?_, ?_⟩
+  · rw [BitSet_toNat,
+      show (⟨min i 15, by omega⟩ : Fin 16).val = i from min_eq_left (by omega)]
+    exact hbits
+  · refine maskSub_kingConfigReachable hP hwf hm ?_ _ c le_rfl ?_ hreach
+    · rw [card_piledSet_globalCfg p i hi]
+      unfold numPiledKings
+      rw [freePiles_bridge p]
+      omega
+    · intro su hsu
+      rw [mem_piledSet] at hsu ⊢
+      exact fun hc => hsu ((MaskSub_iff _ c).1 hmask su hc)

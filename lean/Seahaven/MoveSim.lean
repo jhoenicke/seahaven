@@ -194,10 +194,12 @@ theorem StateMatchesSolverPos.fluteMove {g : Globals} {s : State} {p q : SolverP
     (hdst : (s.tableau b).head? = nextCard c)
     (habs : FluteMoveAbs s c p q a b (top.length + 1)) :
     ∃ v : State, List.foldl applyMoveOpt (some s) (fluteMoves a b cells) = some v ∧
-      StateMatchesSolverPos g v q := by
+      StateMatchesSolverPos g v q ∧
+      v.tableau a = rest ∧ v.tableau b = top ++ c :: s.tableau b ∧
+      ∀ i : Fin 10, i ≠ a → i ≠ b → v.tableau i = s.tableau i := by
   obtain ⟨v, hfold, hva, hvb, hvo, hvcells, hvf⟩ :=
     run_fluteMoves hab hcol hrun hlen hnd hfree hdst
-  refine ⟨v, hfold, ?_⟩
+  refine ⟨v, hfold, ?_, hva, hvb, hvo⟩
   have hba : b ≠ a := Ne.symm hab
   -- `q`'s depth at `a` is exactly what is left below the boundary card.
   have hqa : (q.pileDepth.get a).toNat = rest.length := by
@@ -641,13 +643,17 @@ theorem StateMatchesSolverPos.movePre_pileDest {g : Globals} {s : State} {p : So
     ∃ (v : State) (cells : List (Fin 4)), Reach s v ∧
       List.foldl applyMoveOpt (some s)
         (fluteMoves ⟨pile.toNat, hpile⟩ ⟨toPile.toNat, h10⟩ cells) = some v ∧
-      StateMatchesSolverPos g v (SolverSpec.movePre pile toPile hpile p) := by
+      StateMatchesSolverPos g v (SolverSpec.movePre pile toPile hpile p) ∧
+      v.tableau ⟨pile.toNat, hpile⟩ = rest ∧
+      v.tableau ⟨toPile.toNat, h10⟩ = top ++ c :: s.tableau ⟨toPile.toNat, h10⟩ ∧
+      ∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ → i ≠ ⟨toPile.toNat, h10⟩ →
+        v.tableau i = s.tableau i := by
   have hfl := h.flute_len ⟨pile.toNat, hpile⟩ hcol hrest
   obtain ⟨cells, hnd, hlen, hfree⟩ := exists_free_cells (s := s) (k := top.length) (by omega)
   obtain ⟨v, hfold, hm⟩ := h.fluteMove (b := ⟨toPile.toNat, h10⟩)
     (fun hc => hne (congrArg Fin.val hc)) hcol hrest hrun hlen hnd hfree hdst
     (fluteMoveAbs_pileDest hpile h10 hne h hcol hrest hdb hsum)
-  exact ⟨v, cells, reach_fluteMoves hfold, hfold, hm⟩
+  exact ⟨v, cells, reach_fluteMoves hfold, hfold, hm.1, hm.2.1, hm.2.2.1, hm.2.2.2⟩
 
 /-- **To a king pile that physically sits on the empty column `b`.** -/
 theorem StateMatchesSolverPos.movePre_kingDest {g : Globals} {s : State} {p : SolverPosType}
@@ -665,7 +671,10 @@ theorem StateMatchesSolverPos.movePre_kingDest {g : Globals} {s : State} {p : So
     (hval : top.length + 1 ≤ (VALUE (p.kings.get (finOfSuit c.suit))).toNat) :
     ∃ (v : State) (cells : List (Fin 4)), Reach s v ∧
       List.foldl applyMoveOpt (some s) (fluteMoves ⟨pile.toNat, hpile⟩ b cells) = some v ∧
-      StateMatchesSolverPos g v (SolverSpec.movePre pile toPile hpile p) := by
+      StateMatchesSolverPos g v (SolverSpec.movePre pile toPile hpile p) ∧
+      v.tableau ⟨pile.toNat, hpile⟩ = rest ∧
+      v.tableau b = top ++ c :: s.tableau b ∧
+      ∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ → i ≠ b → v.tableau i = s.tableau i := by
   -- the source has positive depth, the destination none, so they are distinct
   have hab : (⟨pile.toNat, hpile⟩ : Fin 10) ≠ b := by
     intro hc
@@ -676,7 +685,7 @@ theorem StateMatchesSolverPos.movePre_kingDest {g : Globals} {s : State} {p : So
   obtain ⟨cells, hnd, hlen, hfree⟩ := exists_free_cells (s := s) (k := top.length) (by omega)
   obtain ⟨v, hfold, hm⟩ := h.fluteMove hab hcol hrest hrun hlen hnd hfree hdst
     (fluteMoveAbs_kingDest hpile h10 h14 h hcol hrest hdst hsu hown hval)
-  exact ⟨v, cells, reach_fluteMoves hfold, hfold, hm⟩
+  exact ⟨v, cells, reach_fluteMoves hfold, hfold, hm.1, hm.2.1, hm.2.2.1, hm.2.2.2⟩
 
 
 /-! ## Phase 1 with the flute parked in the cells
@@ -727,11 +736,12 @@ theorem StateMatchesSolverPos.parkMove {g : Globals} {s : State} {p q : SolverPo
     (hfree : ∀ i ∈ cells, s.cells i = none)
     (habs : ParkMoveAbs s p q a) :
     ∃ v : State, List.foldl applyMoveOpt (some s) (parkMoves a cells) = some v ∧
-      StateMatchesSolverPos g v q := by
+      StateMatchesSolverPos g v q ∧
+      v.tableau a = rest ∧ ∀ i : Fin 10, i ≠ a → v.tableau i = s.tableau i := by
   obtain ⟨v, hfold, hva, hvo, hvf, _, _⟩ :=
     run_parkMoves (a := a) (top := top ++ [c]) (rest := rest)
       (by rw [hcol]; simp) (by simpa using hlen) hnd hfree
-  refine ⟨v, hfold, ?_⟩
+  refine ⟨v, hfold, ?_, hva, hvo⟩
   have hlt6 : ∀ i : Fin 10, (q.pileDepth.get i).toInt.toNat < 6 := by
     intro i
     by_cases hi : i = a
@@ -855,13 +865,15 @@ theorem StateMatchesSolverPos.movePre_extra {g : Globals} {s : State} {p : Solve
     (hcells : (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat ≤ (freeCells s).length) :
     ∃ (v : State) (cells : List (Fin 4)), Reach s v ∧
       List.foldl applyMoveOpt (some s) (parkMoves ⟨pile.toNat, hpile⟩ cells) = some v ∧
-      StateMatchesSolverPos g v (SolverSpec.movePre pile toPile hpile p) := by
+      StateMatchesSolverPos g v (SolverSpec.movePre pile toPile hpile p) ∧
+      v.tableau ⟨pile.toNat, hpile⟩ = rest ∧
+      ∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ → v.tableau i = s.tableau i := by
   have hfl := h.flute_len ⟨pile.toNat, hpile⟩ hcol hrest
   obtain ⟨cells, hnd, hlen, hfree⟩ :=
     exists_free_cells (s := s) (k := top.length + 1) (by omega)
   obtain ⟨v, hfold, hm⟩ := h.parkMove hcol hrest hlen hnd hfree
     (parkMoveAbs_extra hpile h14 (by omega))
-  exact ⟨v, cells, reach_of_foldl hfold, hfold, hm⟩
+  exact ⟨v, cells, reach_of_foldl hfold, hfold, hm.1, hm.2.1, hm.2.2⟩
 
 /-- **To a king pile whose stack is in the cells.** -/
 theorem StateMatchesSolverPos.movePre_kingCells {g : Globals} {s : State} {p : SolverPosType}
@@ -876,13 +888,15 @@ theorem StateMatchesSolverPos.movePre_kingCells {g : Globals} {s : State} {p : S
     (hnopile : NoKingPile s p c.suit) :
     ∃ (v : State) (cells : List (Fin 4)), Reach s v ∧
       List.foldl applyMoveOpt (some s) (parkMoves ⟨pile.toNat, hpile⟩ cells) = some v ∧
-      StateMatchesSolverPos g v (SolverSpec.movePre pile toPile hpile p) := by
+      StateMatchesSolverPos g v (SolverSpec.movePre pile toPile hpile p) ∧
+      v.tableau ⟨pile.toNat, hpile⟩ = rest ∧
+      ∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ → v.tableau i = s.tableau i := by
   have hfl := h.flute_len ⟨pile.toNat, hpile⟩ hcol hrest
   obtain ⟨cells, hnd, hlen, hfree⟩ :=
     exists_free_cells (s := s) (k := top.length + 1) (by omega)
   obtain ⟨v, hfold, hm⟩ := h.parkMove hcol hrest hlen hnd hfree
     (parkMoveAbs_kingDest hpile h10 h14 (by omega) hsu hnopile)
-  exact ⟨v, cells, reach_of_foldl hfold, hfold, hm⟩
+  exact ⟨v, cells, reach_of_foldl hfold, hfold, hm.1, hm.2.1, hm.2.2⟩
 
 /-! ## Phase 1 of a king-pile move, dispatched by the king configuration
 
@@ -893,6 +907,47 @@ run is in the cells and the whole flute joins it there (`parkMoves`, `fluteLen`
 cells).  The two free-cell hypotheses are guarded accordingly, mirroring
 `solverGetMovable`'s `possibleKings[fluteLen] ||| (possibleKings[fluteLen-1] &&&
 kingOnPile)` exactly. -/
+
+/-! ### Frame helpers shared by the four destinations -/
+
+/-- The source pile, as `frameToCells`/`frameToPile` want it: non-empty before, and
+afterwards either still non-empty or with a physically empty column. -/
+theorem movePre_source_frame (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
+    (p : SolverPosType) {v : State} {rest : Column}
+    (hrest : rest.length + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
+    (hva : v.tableau ⟨pile.toNat, hpile⟩ = rest) :
+    0 < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toInt.toNat ∧
+    (0 < ((SolverSpec.movePre pile toPile hpile p).pileDepth.get
+        ⟨pile.toNat, hpile⟩).toInt.toNat ∨ v.tableau ⟨pile.toNat, hpile⟩ = []) := by
+  have h1 : (1 : UInt8) ≤ p.pileDepth.get ⟨pile.toNat, hpile⟩ :=
+    UInt8.le_iff_toNat_le.2 (by simp only [show ((1 : UInt8).toNat = 1) from rfl]; omega)
+  refine ⟨by simp only [UInt8.toInt_toNat]; omega, ?_⟩
+  rcases Nat.lt_or_ge 1 (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat with h2 | h2
+  · refine Or.inl ?_
+    rw [SolverSpec.movePre_depth_self, UInt8.toInt_toNat, UInt8.toNat_sub_of_le _ _ h1]
+    simp only [show ((1 : UInt8).toNat = 1) from rfl]
+    omega
+  · exact Or.inr (by rw [hva]; exact List.eq_nil_of_length_eq_zero (by omega))
+
+/-- The depths away from the source are untouched, in `Fin`-index form. -/
+theorem movePre_depth_frame (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
+    (p : SolverPosType) (i : Fin 10) (hi : i ≠ ⟨pile.toNat, hpile⟩) :
+    (SolverSpec.movePre pile toPile hpile p).pileDepth.get i = p.pileDepth.get i :=
+  SolverSpec.movePre_depth_ne pile toPile hpile p i (fun hc => hi (Fin.ext hc))
+
+/-- A king destination advances **one** suit's frontier; every other suit's entry
+is untouched. -/
+theorem movePre_kings_frame (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
+    (h10 : ¬ toPile.toNat < 10) (h14 : toPile.toNat < 14) (p : SolverPosType)
+    {c : Card} (hsu : toPile.toNat - 10 = suitToNat c.suit) {x : Suit} (hx : x ≠ c.suit) :
+    (SolverSpec.movePre pile toPile hpile p).kings.get (finOfSuit x)
+      = p.kings.get (finOfSuit x) := by
+  have hne : ((finOfSuit x : Fin 4) : Nat) ≠ toPile.toNat - 10 := by
+    show suitToNat x ≠ toPile.toNat - 10
+    rw [hsu]; exact fun hc => hx (suitToNat_inj hc)
+  rw [vget_eq, SolverSpec.movePre_kings_kingDest pile toPile hpile h10 h14 p,
+    Vector.getElem_set_ne (by omega) (finOfSuit x).isLt (Ne.symm hne)]
+  rfl
 
 theorem StateMatchesKingConfig.movePre_king {g : Globals} {s : State} {p : SolverPosType}
     {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
@@ -915,13 +970,13 @@ theorem StateMatchesKingConfig.movePre_king {g : Globals} {s : State} {p : Solve
       StateMatchesSolverPos g v (SolverSpec.movePre pile toPile hpile p) := by
   by_cases hbit : CfgBitSet k c.suit
   · -- the run is in the cells: park the whole flute
-    obtain ⟨v, _, hreach, _, hm⟩ := hk.toMatches.movePre_kingCells hpile h10 h14 hcol hrest
+    obtain ⟨v, _, hreach, _, hm, -, -⟩ := hk.toMatches.movePre_kingCells hpile h10 h14 hcol hrest
       (hcellsExtra hbit) hsu (hk.noKingPile hbit)
     exact ⟨v, hreach, hm⟩
   · -- the suit owns a column: move the flute onto it
     obtain ⟨b, hown⟩ := hk.owns hbit
-    obtain ⟨v, _, hreach, _, hm⟩ := hk.toMatches.movePre_kingDest hpile h10 h14 hcol hrest hrun
-      (hcellsPile hbit) (hdst b hown) hsu hown hval
+    obtain ⟨v, _, hreach, _, hm, -, -, -⟩ := hk.toMatches.movePre_kingDest hpile h10 h14 hcol
+      hrest hrun (hcellsPile hbit) (hdst b hown) hsu hown hval
     exact ⟨v, hreach, hm⟩
 
 /-! ## Phase 1, all destinations
@@ -944,9 +999,11 @@ theorem StateMatchesKingConfig.movePre_run {g : Globals} {s : State} {p : Solver
     (hrun : IsRun (top ++ [c]))
     -- affordability: `fluteLen - 1` cells for a column destination, `fluteLen` for a
     -- cell destination — exactly how `solverGetMovable` splits it
-    (hcellsCol : (toPile.toNat < 10 ∨ ¬ CfgBitSet k c.suit) →
+    (hcellsCol : (toPile.toNat < 10 ∨
+      (¬ toPile.toNat < 10 ∧ toPile.toNat < 14 ∧ ¬ CfgBitSet k c.suit)) →
       (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat - 1 ≤ (freeCells s).length)
-    (hcellsFull : (¬ toPile.toNat < 14 ∨ CfgBitSet k c.suit) →
+    (hcellsFull : (¬ toPile.toNat < 14 ∨
+      (¬ toPile.toNat < 10 ∧ toPile.toNat < 14 ∧ CfgBitSet k c.suit)) →
       (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat ≤ (freeCells s).length)
     -- a pile destination: distinct, non-empty, accepts the boundary card, no wrap
     (hne : toPile.toNat < 10 → pile.toNat ≠ toPile.toNat)
@@ -965,17 +1022,18 @@ theorem StateMatchesKingConfig.movePre_run {g : Globals} {s : State} {p : Solver
       StateMatchesSolverPos g v (SolverSpec.movePre pile toPile hpile p) := by
   by_cases h10 : toPile.toNat < 10
   · -- pile to pile
-    obtain ⟨v, _, hreach, _, hm⟩ := hk.toMatches.movePre_pileDest hpile h10 (hne h10) hcol hrest
-      hrun (hcellsCol (Or.inl h10)) (hdstPile h10) (hdb h10) (hsum h10)
+    obtain ⟨v, _, hreach, _, hm, -, -, -⟩ := hk.toMatches.movePre_pileDest hpile h10 (hne h10)
+      hcol hrest hrun (hcellsCol (Or.inl h10)) (hdstPile h10) (hdb h10) (hsum h10)
     exact ⟨v, hreach, hm⟩
   · by_cases h14 : toPile.toNat < 14
     · -- king pile: `movePre_king` splits on whether the suit owns a column
       exact hk.movePre_king hpile h10 h14 hcol hrest hrun (hsu h10 h14)
-        (fun hbit => hcellsCol (Or.inr hbit)) (fun hbit => hcellsFull (Or.inr hbit))
+        (fun hbit => hcellsCol (Or.inr ⟨h10, h14, hbit⟩))
+        (fun hbit => hcellsFull (Or.inr ⟨h10, h14, hbit⟩))
         (hdstKing h10 h14)
         (hval h10 h14)
     · -- EXTRA: the whole flute goes to the cells
-      obtain ⟨v, _, hreach, _, hm⟩ := hk.toMatches.movePre_extra hpile h14 hcol hrest
+      obtain ⟨v, _, hreach, _, hm, -, -⟩ := hk.toMatches.movePre_extra hpile h14 hcol hrest
         (hcellsFull (Or.inl h14))
       exact ⟨v, hreach, hm⟩
 
@@ -1114,9 +1172,11 @@ theorem StateMatchesKingConfig.movePre_run_of_frontier {g : Globals} {s : State}
     (hcol : s.tableau ⟨pile.toNat, hpile⟩ = top ++ c :: rest)
     (hrest : rest.length + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hrun : IsRun (top ++ [c]))
-    (hcellsCol : (toPile.toNat < 10 ∨ ¬ CfgBitSet k c.suit) →
+    (hcellsCol : (toPile.toNat < 10 ∨
+      (¬ toPile.toNat < 10 ∧ toPile.toNat < 14 ∧ ¬ CfgBitSet k c.suit)) →
       (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat - 1 ≤ (freeCells s).length)
-    (hcellsFull : (¬ toPile.toNat < 14 ∨ CfgBitSet k c.suit) →
+    (hcellsFull : (¬ toPile.toNat < 14 ∨
+      (¬ toPile.toNat < 10 ∧ toPile.toNat < 14 ∧ CfgBitSet k c.suit)) →
       (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat ≤ (freeCells s).length)
     (hne : toPile.toNat < 10 → pile.toNat ≠ toPile.toNat)
     (hdb : ∀ h10 : toPile.toNat < 10, 0 < (p.pileDepth.get ⟨toPile.toNat, h10⟩).toNat)
@@ -1231,9 +1291,11 @@ theorem StateMatchesKingConfig.movePre_run_of_dest {g : Globals} {s : State}
     (hcol : s.tableau ⟨pile.toNat, hpile⟩ = top ++ c :: rest)
     (hrest : rest.length + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hrun : IsRun (top ++ [c]))
-    (hcellsCol : (toPile.toNat < 10 ∨ ¬ CfgBitSet k c.suit) →
+    (hcellsCol : (toPile.toNat < 10 ∨
+      (¬ toPile.toNat < 10 ∧ toPile.toNat < 14 ∧ ¬ CfgBitSet k c.suit)) →
       (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat - 1 ≤ (freeCells s).length)
-    (hcellsFull : (¬ toPile.toNat < 14 ∨ CfgBitSet k c.suit) →
+    (hcellsFull : (¬ toPile.toNat < 14 ∨
+      (¬ toPile.toNat < 10 ∧ toPile.toNat < 14 ∧ CfgBitSet k c.suit)) →
       (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat ≤ (freeCells s).length)
     (hne : toPile.toNat < 10 → pile.toNat ≠ toPile.toNat)
     (hdb : ∀ h10 : toPile.toNat < 10, 0 < (p.pileDepth.get ⟨toPile.toNat, h10⟩).toNat)
@@ -1331,9 +1393,11 @@ theorem StateMatchesKingConfig.movePre_run_of_dest_inv {g : Globals} {s : State}
     (hcol : s.tableau ⟨pile.toNat, hpile⟩ = top ++ c :: rest)
     (hrest : rest.length + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hrun : IsRun (top ++ [c]))
-    (hcellsCol : (toPile.toNat < 10 ∨ ¬ CfgBitSet k c.suit) →
+    (hcellsCol : (toPile.toNat < 10 ∨
+      (¬ toPile.toNat < 10 ∧ toPile.toNat < 14 ∧ ¬ CfgBitSet k c.suit)) →
       (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat - 1 ≤ (freeCells s).length)
-    (hcellsFull : (¬ toPile.toNat < 14 ∨ CfgBitSet k c.suit) →
+    (hcellsFull : (¬ toPile.toNat < 14 ∨
+      (¬ toPile.toNat < 10 ∧ toPile.toNat < 14 ∧ CfgBitSet k c.suit)) →
       (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat ≤ (freeCells s).length)
     (hdb : ∀ h10 : toPile.toNat < 10, 0 < (p.pileDepth.get ⟨toPile.toNat, h10⟩).toNat)
     (hsuitP : ∀ (h10 : toPile.toNat < 10)

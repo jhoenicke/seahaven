@@ -97,6 +97,10 @@ theorem recStep_sound (hMS : MoveSimulated) {g : Globals} {s : State} {p p' : So
     (hi : i < (closureInfoOf p).numBits.toNat)
     (hwf : WellFormedLayout g) (hcanon : IsCanonicalPos g p)
     (hs : StateMatchesKingConfig g s p (globalCfg (closureInfoOf p) i))
+    (hkic : KingInfoCorrect p kingInfo)
+    (hpile : pile.toNat < 10)
+    (hdepth : 0 < (p.pileDepth.get ⟨pile.toNat % 10, by omega⟩).toNat)
+    (hdest : EStateM.run (solverGetDestination p pile) g = .ok toPile g)
     (hmv : EStateM.run (solverGetMovable kingInfo (closureInfoOf p).shiftValue
         (p.pileFlute.get ⟨pile.toNat % 10, by omega⟩) toPile) g = .ok mv g)
     (hrun : EStateM.run (SolverMove pile toPile) (g, p) = .ok fk (g, p'))
@@ -108,6 +112,6 @@ theorem recStep_sound (hMS : MoveSimulated) {g : Globals} {s : State} {p p' : So
   have hble : (closureInfoOf p).shiftValue.toNat + (closureInfoOf p).numBits.toNat ≤ 16 :=
     closureInfo_shift_add_numBits ⟨min p.freePiles.toInt.toNat 10, by omega⟩
   rw [BitSet_and] at hbit
-  refine recStep_sound_of_sim (hMS g s p p' pile toPile fk mv kingInfo i hi hwf hcanon hs hmv
-    hbit.1 hrun) hcs hchild ?_
+  refine recStep_sound_of_sim (hMS g s p p' pile toPile fk mv kingInfo i hi hwf hcanon hs hkic
+    hpile hdepth hdest hmv hbit.1 hrun) hcs hchild ?_
   exact (BitSet_shiftRight_globalCfg _ (closureInfoOf p) i (by omega)).1 hbit.2
