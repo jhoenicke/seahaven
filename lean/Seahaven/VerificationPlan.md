@@ -251,66 +251,302 @@ This holds because:
 
 ## Completeness Proof Strategy
 
-Completeness says: if `S` is a `Rules.GameState` that has a winning play, then
-`solverRecCheckSolvable_pure (toAbstract S)` has the corresponding king-configuration
-bit set.
+Completeness says: if the concrete state `s` is solvable, then
+`solverRecCheckSolvable` sets the bit for the king configuration `s` realizes.
+It is the `→` half of `SolvableBits` (`SolvableBits` is already stated as an iff),
+so no new interfaces are needed:
 
-The proof is again by strong induction on `sp.hash` (= sum of pile depths), but
-now starting from an **arbitrary** (possibly non-normalized) concrete state.
+```
+CompleteBits g p v := ∀ s k, StateMatchesKingConfig g s p k → Solvable s →
+                        BitSet (subsetAt ((closureInfoOf p).offset + v)) k
+```
 
-### Core extra-space lemma
+Two structural remarks:
 
-**Lemma** (`extra_space_bound`): Let `S` be any `Rules.GameState` and `sp` its
-associated abstract state (after normalization of `S`).  Then:
+- **No totality proof is needed.**  Stated as in `SolveSpec` (`run (solve pk) g =
+  .ok r g' → …`) the successful run is a *hypothesis*, so the child's run is
+  extracted from the parent's exactly the way `recCheck_sound_of_body` already
+  does.  The `partial_fixpoint` is not an obstacle.
+- **The memo needs only `CompleteBits`.**  A cached read is only ever used in the
+  completeness direction, so `∀ slot, FREESLOT ∨ CompleteBits …` is a
+  self-maintaining invariant; completeness need not be entangled with soundness.
 
-> The number of free extra slots in `S` is **at most** the number of free extra
-> slots in `sp` (i.e. `4 - sp.usedSpace - king_pile_space`).
+Induction is on `DepthSum` (`Σ pileDepth`), which `move_merged` proves strictly
+decreases per child.
 
-Intuition: the abstract state is normalized, so all cards that can be on the
-foundation are there, and all freed predecessors are "collapsed" into flutes
-(reducing `usedSpace`).  A non-normalized `S` may have some of those cards
-still in extra, consuming slots that the abstract state regards as free.
+### The chain for one inductive step
 
-This lemma is the bridge that lets us transfer move feasibility from the
-concrete to the abstract level.
+Let `s` be normalized, solvable, matching the canonical `p` at configuration `k`.
+Split the winning play as *shuffle\* · critical move · rest*, where the **critical
+move** is the first move that decreases a pile's (merged) depth — the first move
+of a pile card that neither continues the card below it nor is a lone king.
 
-### How to get the next solver move from  a winning Rule.Move sequence
+1. **The prefix moves no depth.**  Formally: `DepthMatchesV g u d` (`DepthMatch.lean`)
+   matches only the depth vector, ignoring `pileFlute`/`kings` — which is exactly
+   `matches_of_depth_match`'s hypothesis, so no separate "loose match" predicate is
+   needed.  A solved state matches no positive depth
+   (`not_depthMatchesV_of_goal`), drops never break the match
+   (`DepthMatchesV.drop`) and takes break it only by removing a boundary card
+   (`exists_boundary_of_break`), so `exists_critical_move` splits any winning play
+   at the first failure — which also pins `|tableau a| = d a`, i.e. the flute is
+   already parked.  Rigidity below is then only needed to know *where* the parked
+   cards are (cells), not to find the move.  By rigidity, a non-boundary flute card's
+   successor sits directly beneath it, so such a card can only be parked in a
+   *cell*; and no foundation move is available before the critical move
+   (`CPNormal.no_fmStep` at `s`).  So the prefix only parks/unparks flute cards
+   and reshuffles king runs between cells and truly empty columns.
+2. **After the critical move** we have a solvable `t`.
+3. **CP-normalize `t` to `t'`.**  `exists_cpNormalForm` produces `t'`, and
+   `CPReach.solvable_iff` gives `Solvable t ↔ Solvable t'` because `CPStep` is
+   revertible.  (Only cell→pile moves — foundation moves must stay pending, since
+   `busyAces ≠ 0` at this point.)
+4. **`t'` matches the game after the `SolverMove` core and `SolverCleanupPile`**,
+   i.e. the position `movePre` cleaned up, whose invariant is
+   `removeFlute_merged`'s `SolverInvMerged`.  This is `matches_of_depth_match`:
+   supply the depth vector and the foundations and the flute lengths and king
+   stacks are *forced*.  The depths agree without any merge counting because
+   `merge_complete` pins `pileDepth` as the **least** `PileMatches` witness.
+5. **Run the drain's moves** (`SolverMoveAces`), which are exactly foundation
+   plays plus the per-card cleanup's cell→pile drops — `PlaysAll.preserves_Solvable`
+   and `CPStep.preserves_Solvable`, so solvability is unchanged.  The resulting
+   state matches the child's canonical position.
+6. **Apply the induction hypothesis** at the child, and transport the bit back up.
 
-Simulate moves until the next move that decreases the pileDepth.  This is
-the first move whose source is a pile starting with non-consecutive cards.
-Up to that move the position still matches the game position module flute 
-lengths and possibly with a different king configuration.  The moved card
-gives as the source pile number.
+### The bit-level argument (step 6)
 
-Claim: Doing SolverMove on the GamePosition without the busyAces loop, yields
-a position that matches the Rule state after applying all possible CP moves.
-Inserting CP moves will not affect solvability. Then moving to the foundations
-will also not affect solvability.  The resulting position matches the game
-after SolverMove.
+Work with `k_t`, the configuration of the state *just before* the critical move,
+rather than with `k`: `k_t` is affordable **by construction**, because the play
+really did park `fluteLen - 1` cards in cells.  (An earlier version of this plan
+guessed a maximal extension `i₀` of `k` instead; `k_t` supersedes it.)
 
-If the king configuration changed, we need to argue that both king configurations
-are in the component.  This follows because at some point we had to empty a pile
-showing that the starting component has a feasible component with freePiles-1
-piled kings.  And similarly before we pile the last king to reach the target
-configuration we have a subset configuration of the target with freePiles-1
-kings.  So these are both in the component.
+- `bit k_t ∈ movable` — the space-counting lemma below.
+- `bit k_t ∈ subsetTable[childOffset + childSolvable']` — the converse of
+  `SubsetSound`: the child configuration `k'` that `t'` realizes lies in the
+  child's answer (induction hypothesis), and `k_t ⟶ k'` is a legal reshuffle.
+- `bit k' ∈ forcedKings >>> shift` — the converse of `kingStep_transport`; this is
+  where `KingVacates` / `Simulates.bound` is consumed in the other direction.
 
-So the movable |= component is applied and the source configuration is marked 
-as movable.
+Then `k` and `k_t` differ only by depth-preserving king reshuffles (a run moving
+between the cells and a truly empty column), and both directions are legal in
+`Rules`, so they lie in the same reshuffle class.  `movable'' := if movable' &&&
+component ≠ 0 then movable' ||| component` therefore fires and carries the bit
+from `k_t` down to `k`.  The case split closes exactly where the code computes the
+component:
 
-This requires the component table to be proven correct (see Open Questions §2).
+- `freePiles = 0` — no empty column exists, so no reshuffle is possible and
+  `k = k_t`;
+- `freePiles ≥ 4` — the closure block holds a single configuration, so `k = k_t`;
+- `freePiles ∈ [1,3]` — the only range where they can differ, and precisely where
+  `computeComponentKingBits` returns a nonzero mask.
+
+The loop guards need no separate argument: the early `break` is fine because a
+realizable configuration is in `allkings`, and the `movable &&& ~~~solvable == 0`
+skip is fine because it says `movable ⊆ solvable`.
+
+### Core extra-space lemma (space counting)
+
+For a matched state, `usedSpace` is *exactly* the number of cards physically
+outside the counted parts of the columns.  Writing `physFlute i` for the physical
+run above pile `i`'s boundary (`|tableau i| + 1 - pileDepth i`) and
+`parked := Σ (pileFlute i - physFlute i)`:
+
+> `#cells = usedSpace - #kingStacks + parked`
+
+and `#kingStacks = refund(k)` for the configuration `k` the state realizes.  Since
+`#cells ≤ 4`, affordability follows: `usedSpace - refund(k_t) ≤ 4 - (fluteLen-1)`,
+which is exactly the bit `solverGetMovable` reads from
+`possibleKings[fluteLen-1]`.
+
+Note the direction: soundness only needed `#outside ≤ usedSpace`
+(`usedSpace_ge_outside`, an *injection* into the counted families).  Completeness
+needs the converse, so it needs the full deck partition
+`Σ_su optRank + #cells + Σ_i |tableau i| = 52` — the one genuinely new counting
+ingredient; the rest is `usedSpace_def` arithmetic.
+
+**Done** in `DeckCount.lean`, up to `freeCellsOf`: `deck_partition'`, then
+`usedSpace_eq_outside` (`usedSpace + Σ parked = #cells + #kingStacks`), then
+`usedSpace_le_outside` / `usedSpace_add_parked_le` / `usedSpace_add_flute_le`, and
+`kingList_le_kingRefund` (every king stack is refunded — the *columns → suits*
+converse of `UsedSpaceBound`'s `kingRefund_le`).  Composed:
+
+```
+StateMatchesKingConfig.flute_sub_one_le_freeCellsOf :
+  (pileFlute a) - 1 ≤ freeCellsOf p k
+```
+
+given `hflute` ("no column holds more than its flute") and `hcol` (pile `a`'s column
+is exactly its dealt part, i.e. the flute is parked) — the two facts the prefix
+classification supplies.  This is the completeness counterpart of `freeCellsOf_le`.
+What remains on the affordability line is only reading `freeCellsOf` off
+`possibleKings`, i.e. the `←` direction of `KingSpacesSpec`.
 
 ### SolverRecCheckSolvable loop invariant
 
 The invariant is that once the winning move is examined, the solvable bit for the
 king configuration is set to 1 and will stay 1 for all following iterations.
 
+### Status (2026-08-08)
+
+Proved, no `sorry`s:
+
+- `CPNormal.lean` — `StateMatchesSolverPos.normalized`: a state matching an
+  `IsCanonicalPos` position is already `Normalized` (`no_cpStep` + `no_fmStep`).
+  This is step 1's "no foundation move first" and the "CP-normalization adds
+  nothing" half.  Also `congr_of_tableau`: matching reads only the tableau and the
+  foundations, so the cell *assignment* is irrelevant.
+- `DeckCount.lean` — the deck partition and the space count (see above), the
+  ingredient affordability needs.
+- `DepthMatch.lean` — the step-1 skeleton (`DepthMatchesV`, `PileMatches_tail_same`,
+  `not_depthMatchesV_of_goal`, `DepthMatchesV.drop`, `exists_boundary_of_break`,
+  `exists_critical_move`) and the **three-layer** matching hierarchy:
+  `DepthMatchesV` (depths only) < `DepthPlusKings` / `DepthPlusKingsCfg`
+  (`StateMatchesSolverPos` with `flute_match` and `king_pile` weakened from `=` to
+  `≤`, which is what a *parked* state satisfies) < `StateMatchesSolverPos`, with
+  `toDepthPlusKings` down and `DepthPlusKings.upgrade` (CP-normality) back up.
+  **Both `≤` clauses are derived, not assumed** (`DepthPlusKings.of_depthMatch`):
+  `flute_le_of_depth` from `flute_maximal`, `king_le_of_depth` from `king_frontier`,
+  neither needing CP-normality.  So the picture is symmetric — *physical ≤ recorded*
+  always, *equality* exactly when no cell card can be dropped — and the middle
+  layer's real content is just the depth match, the card count and the foundations.
+  `DepthPlusKings.usedSpace_add_flute_le` restates the space bound over the middle
+  layer, i.e. over the state `exists_critical_move` returns.  The king
+  configuration is a *function of the state*, not a choice: `PiledSuit`, `cfgOf`,
+  `cfgBitSet_cfgOf` (bit set ↔ not piled) and `DepthPlusKings.toCfg`, which
+  produces `DepthPlusKingsCfg g u p (cfgOf u p)` — so `k_t` needs no guessing.
+- `MatchesDepth.lean` — `matches_of_depth_match`, the converse: merged position +
+  depth agreement + CP-normal + foundations ⟹ full match.  Together with
+  `no_cpStep` this makes the depth vector a complete invariant of merged
+  positions, which is what makes step 4 depth arithmetic.
+- Reusable from soundness: `Solvable.iff_normReach`, `PlaysAll.preserves_Solvable`,
+  `CPStep.preserves_Solvable`, `move_merged` (`DepthSum` drops),
+  `removeFlute_merged`, `MoveSim.movePre_*` (which also export the resulting
+  columns), `Simulates.ofRemoveFlute`, `cleanupRunResult_sim` (its inserted
+  `Reach` is only cell→pile drops, so it transfers solvability both ways).
+
+### Status (2026-08-09)
+
+**Step 1 is closed**, and so is the destination question.  Three new files, no
+`sorry`s:
+
+- `CriticalMove.lean` — the rest of step 1.  `next_foundation_buried`: at a canonical
+  position each suit's next foundation card is *strictly* below its boundary
+  (`foundation_maximal_weak` + `busyAces = 0` gives "not free"; equality with the
+  boundary would force `pileFlute = 1` via `flute_not_aces` and then
+  `busyAces_complete` contradicts `busyAces = 0` again).  Hence
+  `no_fmStep_of_depthMatch`: **no foundation move is available at any state that
+  still matches the depth vector and the foundations** — the card that would have to
+  move is buried, and `buried_inaccessible` puts a buried card out of reach.  So
+  along the prefix every move's destination is a cell or a column, the foundations
+  are constant, and `exists_critical_move_aces` carries `cards_count` *and*
+  `aces_match` to the critical state.  `exists_critical_state` packages it
+  (`DepthPlusKings` + `Solvable` + `|tableau a| = pileDepth a`), and
+  `exists_critical_state_affordable` reads the space bound off it — so `k_t` is
+  affordable **by construction**, which is what `solverGetMovable` needs.
+- `DeckCount.lean` (amended) — `kingList_le_kingRefund_of` /
+  `flute_sub_one_le_freeCellsOf_of`, the space count over *hypotheses* instead of a
+  full match, so the middle layer can use it (`king_pile`'s `=` degrades to `≤`
+  harmlessly).  The full-match versions remain as corollaries.
+- `DestComplete.lean` — the destination is forced, in three pieces.  **The
+  destination never moves a depth** (only the source column loses a card;
+  `DepthMatchesV.drop` handles the rest), so it cannot change which child position
+  the play reaches.  **Parking then dropping *is* the direct move**
+  (`cell_park_then_drop`: the cell detour restores the cell to `none`, so the
+  composite is literally `applyMove … ⟨pile a, pile q⟩`), which is what makes the
+  play's choice CP-equivalent to the solver's.  **A column destination is unique**
+  (`pile_dest_unique`; a king fits only on *empty* columns — the relabelling freedom
+  the abstract state deliberately does not record, `king_dest_empty`).  Plus
+  `self_move_id`/`dest_ne_source` for the degenerate "put it straight back" move and
+  `critical_child_depthMatch` for the child's depth match.
+- `CompletenessSkeleton.lean` — the spec layer.  `CompleteBits` (the `→` half of
+  `SolvableBits`), `HashmapComplete`, `RecCheckSolvableComplete`, and the
+  recombination lemmas (`solvableBits_iff`, `hashmapCorrect_of`,
+  `recCheckSolvableSpec_of`: soundness ⊕ completeness ⟹ `RecCheckSolvableSpec`).
+  The load-bearing structural lemma is `CompleteBits.or_left` — **completeness is a
+  *persistence* property, not an additive one**: one particular iteration carries the
+  bit and every later `|||` must preserve it, which is also why the loop's `break`
+  and its `movable &&& ~~~solvable == 0` skip are harmless.  The `hash = 0` leaf is
+  done (`subsetAt_one_ten`, decided: at ten free piles the mask `1` expands to
+  everything).  `SubsetComplete` / `ComponentComplete` are stated so the recursion
+  can be built against them.
+
+#### What `k_t` is, exactly
+
+`k_t` = **the physically piled suits of the critical position, plus the moved king in
+the king-to-empty-column case.**  The base is `cfgOf t₀ p` (`PiledSuit`: a
+solver-empty column whose deepest card is that suit's).  The extension is
+well-defined *because* the base is physical: every suit `cfgOf` assigns sits on a
+**non-empty** column, so the empty column the king is about to move onto is
+unclaimed, and adding `su₀ ↦ i₀` keeps the assignment injective.  `OwnsPile`'s second
+disjunct licenses the claim (`tableau i₀ = []` and `VALUE kings[su₀] = 13`, which
+holds because the moved card is the suit's king and pile boundaries are never free).
+
+The extension costs nothing and buys the right branch:
+
+* refund: `su₀` contributes `13 - VALUE kings[su₀] = 0`, so `freeCellsOf` is
+  unchanged (and `freeCellsOf_mono`/`kingRefund_mono` cover the general `MaskSub`
+  case anyway);
+* branch: with `su₀` piled, `solverGetMovable`'s king-pile mask fires through
+  `possibleKings[fluteLen-1] &&& kingOnPile`, which is the bound already proved.
+
+#### Which `possibleKings` index each case needs, and where it comes from
+
+`solverGetMovable` indexes at `fluteLen-1` for a column destination and at `fluteLen`
+for `EXTRA` / a king pile whose suit the configuration does not pile.  The extra cell
+is supplied by the play itself:
+
+> if the destination is `EXTRA`, or a king pile for a suit unpiled in `k_t`, the
+> boundary card fits on **no** column and cannot go to the foundation, so the critical
+> move was a park — and the cell it used was free beforehand.
+
+`DestComplete.cell_dest_of_no_fit` / `one_le_freeCells_of_no_fit` prove the step from
+"fits nowhere" to "one more free cell", and
+`DeckCount.flute_sub_one_add_freeCells_le_freeCellsOf_of` keeps the free-cell count as
+slack, giving `fluteLen - 1 + #freeCells ≤ freeCellsOf p k_t`.  The exception —
+`nextCard` of a king is `none`, so an empty column *does* accept a king
+(`king_dest_empty`) — is exactly what the `k_t` extension above absorbs.
+
+The `EXTRA` half of "fits nowhere" is **proved** — `ExtraDest.no_column_accepts_of_extra`,
+taking `DestValid`'s `EXTRA` branch verbatim.  The argument is the walk's own: if some
+column `q` accepted `B`, its top would be `B + 1`; `free_above_boundary` says every card
+physically above a column's boundary is free (a non-free card sits at its own dealt
+slot, which is at or below its *own* boundary, and a card is in one column only), and
+`above_code` says the run above the boundary descends by one — so `B+1 … B+n₀-1` are
+exactly the cards above `q`'s boundary and `B + n₀` **is** that boundary, never free
+(`boundary_not_free`).  Hence the walk stops at `n = n₀` on a boundary card and the
+destination is `q`, not `EXTRA`.  The two degenerate shapes close the same way: with
+nothing above the boundary the top *is* the boundary and `n = 1`; a solver-empty column
+is a king run whose cards are all free, so the walk would have to run past the king,
+against `VALUE B + n ≤ 13`.
+
+Still to prove for this line: the king-frontier half — for `B = kings[su]` with `su`
+unpiled, no column top is `B + 1` (it would force an un-free same-suit card above
+`kings[su]`, against `king_frontier`).
+
+Open, in rough risk order:
+
+1. **the recursion assembly** — the mirror of `RecStepSound` + `RecLoopSound` +
+   `RecCheckSound` + `SolveSound` (~2 500 lines of `forIn`/memo/`partial_fixpoint`
+   plumbing) against `RecCheckSolvableComplete`.  Low risk, high volume; the loop
+   invariant is the persistence one above rather than `SoundBits.union`;
+2. steps 3–5 of the chain: CP-normalize after the critical move and identify the
+   result with the solver's child (`matches_of_depth_match` + `merge_complete` pins
+   the depth; `critical_child_depthMatch` supplies the depth match), then run the
+   drain;
+3. `subsetTable` / `forcedKings` completeness (`SubsetComplete`) — the physical half
+   only: the tables are already characterized as `↔` (`subsetAt_spec_pos`,
+   `KingVacates`, `component_run_eq`);
+4. component completeness (`ComponentComplete`), same remark;
+5. small pieces: re-exposing phases 2–3 of the simulation with `NormReach`
+   instead of `Reach`.  (The CP-only normal form is done — `exists_cpNormalForm`
+   in `CPNormal.lean`, with `CPReach.solvable_iff`.)
+
 ---
 
 ## Open Questions / Harder Parts
 
-1. **Termination of `solverRecCheckSolvable`**: the hash strictly decreases with each recursive call (at least one `pileDepth` decreases), so the recursion terminates. Formalising this requires a well-founded measure on `SolverPosType`.  We can also
-use the sum of depths as measure, which shows the max 50 moves limit.
+1. ~~**Termination of `solverRecCheckSolvable`**~~ *(resolved)*: `move_merged` exports
+`DepthSum p' < DepthSum p`, and both the soundness and the completeness statements take
+the successful run as a hypothesis, so the `partial_fixpoint` never has to be shown total.
 
 2. **King-configuration component closure**: the `computeComponentKingBits` / `componentTable` logic encodes reachability between king configurations. A separate proof that the component table is correct (matching `kingOnPileMap` and the reachability relation) would be needed.  There is something started in BitmapProofs, but it needs more work.
 

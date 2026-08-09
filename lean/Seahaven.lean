@@ -52,3 +52,11 @@ import Seahaven.ConvertSound
 import Seahaven.ConvertSim
 import Seahaven.SolveSound
 import Seahaven.DealMatches
+import Seahaven.CPNormal
+import Seahaven.MatchesDepth
+import Seahaven.DeckCount
+import Seahaven.DepthMatch
+import Seahaven.CriticalMove
+import Seahaven.DestComplete
+import Seahaven.ExtraDest
+import Seahaven.CompletenessSkeleton
