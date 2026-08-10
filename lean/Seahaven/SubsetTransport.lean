@@ -28,11 +28,6 @@ piles at least what the parent's block configuration does.  That is the re-assem
 on the soundness side.
 -/
 
-/-- `MaskSub` is transitive: piling at least what something piles is. -/
-theorem MaskSub.trans {a b c : Fin 16} (h1 : MaskSub a b) (h2 : MaskSub b c) : MaskSub a c := by
-  rw [MaskSub_iff] at h1 h2 ⊢
-  exact fun su h => h2 su (h1 su h)
-
 /-- **The completeness reading of the `forcedKings` intersection.**  Converse of
 `kingStep_transport`: a bit the child's answer has at a configuration that survives
 `fk` is still there after the intersection, at any configuration that configuration
@@ -50,7 +45,7 @@ theorem kingStep_transport_complete (p' : SolverPosType) {T fk : UInt16} {FK : F
   obtain ⟨i, hi, hbT, hd⟩ := (subsetAt_spec_pos p' hT k').1 hbit
   -- the stored configuration `d` covers `k'`, so it survives `fk` too …
   have hdfk : BitSet fk (globalCfg (closureInfoOf p') i) := hv.mono hd hfk
-  refine (subsetAt_spec_pos p' (LocalMask.and_left _ hT) gi).2 ⟨i, hi, ?_, hd.trans hsub⟩
+  refine (subsetAt_spec_pos p' (LocalMask.and_left _ hT) gi).2 ⟨i, hi, ?_, hd.mono hsub⟩
   rw [UInt16.toNat_and, Nat.testBit_and, Bool.and_eq_true]
   refine ⟨hbT, ?_⟩
   -- … and bit `i` of `fk >>> shift` is bit `shift + i` of `fk`

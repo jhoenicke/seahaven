@@ -221,6 +221,10 @@ def allCards (idx : Fin 52) : Card :=
     suit := List.get allSuits (⟨idx / 13, by omega⟩ : Fin 4)
   }
 
+structure Shuffle where
+  perm : Fin 52 → Card
+  inj : ∀ (i j : Fin 52), perm i = perm j → i = j
+
 /-- One arbitrary legal move. -/
 def MoveStep (s t : State) : Prop := ∃ m : Move, applyMove s m = some t
 
