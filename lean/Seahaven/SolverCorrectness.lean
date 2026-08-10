@@ -33,7 +33,7 @@ def correctness :
      ∧ inv shuffle g')
     ∧
     (∀ g : Globals, inv shuffle g →
-     ∀ s : State, Reach (init shuffle.perm) s →
+     ∀ s : State, isReachable (init shuffle.perm) s →
      ∃ g' : Globals, ∃ res : UInt8,
         EStateM.run (solve (pilesKingsFromState s)) g = .ok res g'
         ∧ inv shuffle g'

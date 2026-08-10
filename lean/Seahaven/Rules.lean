@@ -1,5 +1,3 @@
-import Mathlib.Logic.Relation
-
 inductive Suit
   | clubs | diamonds | hearts | spades
   deriving DecidableEq, Repr, BEq, Hashable
@@ -225,11 +223,6 @@ structure Shuffle where
   perm : Fin 52 → Card
   inj : ∀ (i j : Fin 52), perm i = perm j → i = j
 
-/-- One arbitrary legal move. -/
-def MoveStep (s t : State) : Prop := ∃ m : Move, applyMove s m = some t
-
-/-- `Reach s t` : `t` is reachable from `s` by legal moves. -/
-abbrev Reach : State → State → Prop := Relation.ReflTransGen MoveStep
-
-/-- Solvability -/
 def isSolvable (s : State) := ∃ sol : List Move, isSolution s sol
+
+def isReachable (s : State) (s' : State) := ∃ sol : List Move, List.foldl applyMoveOpt (some s) sol = some s'
