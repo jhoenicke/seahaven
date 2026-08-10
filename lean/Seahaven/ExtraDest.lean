@@ -266,3 +266,134 @@ theorem no_column_accepts_of_extra {g : Globals} {u : State} {p : SolverPosType}
         -- `n₀ < n`: the walk claims the boundary itself is free
         exact hbnf (hBn ▸ hwalk n₀ (by omega) hlt)
       exact hnoB q hidx5 hdpos (by rw [← hBdef, hBn, hn])
+
+/-! ## Only an empty column accepts the king frontier
+
+The other half of "fits nowhere".  When the solver's destination is the king pile
+`10 + su`, the card `B` is that suit's king frontier (`kings[su] = B`), and then **no
+non-empty column can take it**:
+
+* a column of positive depth would have to hold, above or at its boundary, a same-suit
+  card of value above `kings[su]`, and its boundary is never free
+  (`boundary_not_free`) — while `king_frontier` says every same-suit card above
+  `kings[su]` *is* free;
+* a solver-empty column that took it would be carrying `su`'s own run, i.e. `su` would
+  be piled — which is excluded exactly when `su` is unpiled in `k_t`.
+
+So an unpiled king frontier can only go to a cell or to an *empty* column, and the
+latter is the case `k_t` absorbs by construction (the moved king joins `k_t`).  Hence
+under "unpiled in `k_t`" the move is a park, and the extra cell for
+`possibleKings[fluteLen]` is there. -/
+theorem empty_of_accepts_king_frontier {g : Globals} {u : State} {p : SolverPosType}
+    (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
+    (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
+    (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
+    {c : Card} {su : Fin 4} (hkings : p.kings.get su = encodeCard c)
+    (hnotpiled : ¬ PiledSuit u p (natToSuit su))
+    {q : Fin 10} (hhead : (u.tableau q).head? = nextCard c) :
+    u.tableau q = [] := by
+  by_contra hne
+  have hL : 0 < (u.tableau q).length := List.length_pos_iff_ne_nil.2 hne
+  obtain ⟨e, hee⟩ : ∃ e, (u.tableau q).head? = some e := by
+    cases hcol : u.tableau q with
+    | nil => exact absurd hcol hne
+    | cons x xs => exact ⟨x, rfl⟩
+  have hnc : nextCard c = some e := by rw [← hhead, hee]
+  have hcode1 : encodeCard e = encodeCard c + 1 :=
+    encodeCard_succ (congrArg suitToNat (nextCard_suit hnc)) (nextCard_rank hnc)
+  have hrl : (u.tableau q).length - 1 < (u.tableau q).reverse.length := by
+    simp only [List.length_reverse]; omega
+  have htop : (u.tableau q).reverse[(u.tableau q).length - 1]'hrl = e := by
+    have := head?_reverse_last hL hrl
+    rw [hee] at this
+    exact (Option.some.inj this).symm
+  -- the codes of `c` and `e`
+  obtain ⟨hSc4, hVc1, hVc13⟩ : IsRealCard (encodeCard c) := encodeCard_real c
+  obtain ⟨hSe4, hVe1, hVe13⟩ : IsRealCard (encodeCard e) := encodeCard_real e
+  have hVc := VALUE_toNat (encodeCard c)
+  have hSc := SUIT_toNat (encodeCard c)
+  have hVe := VALUE_toNat (encodeCard e)
+  have hSe := SUIT_toNat (encodeCard e)
+  have hone : ((1 : UInt8)).toNat = 1 := rfl
+  have hCsize := (encodeCard c).toNat_lt_size
+  have hcode1N : (encodeCard e).toNat = (encodeCard c).toNat + 1 := by
+    rw [hcode1, UInt8.toNat_add, hone]
+    omega
+  -- the suit index, as `SUIT` reads it
+  have hSK : (SUIT (p.kings.get su)).toNat = su.val := by
+    rw [(hb.aces_kings_valid su).2.2.1]
+    show (su.val.toUInt8).toNat = su.val
+    rw [Nat.toUInt8, UInt8.toNat_ofNat']
+    have := su.isLt; omega
+  have hScsu : (SUIT (encodeCard c)).toNat = su.val := by rw [← hkings]; exact hSK
+  by_cases hd0 : (p.pileDepth.get q).toNat = 0
+  · -- ## a solver-empty column: it carries `su`'s run, so `su` is piled
+    refine hnotpiled ?_
+    obtain ⟨d, hd⟩ : ∃ d, (u.tableau q).getLast? = some d := by
+      cases hl : (u.tableau q).getLast? with
+      | none => exact absurd (List.getLast?_eq_none_iff.1 hl) hne
+      | some d => exact ⟨d, rfl⟩
+    refine ⟨q, hd0, d, hd, ?_⟩
+    obtain ⟨su', hrun⟩ := (hdm q).king_run hd0
+    have hr0l : 0 < (u.tableau q).reverse.length := by simp only [List.length_reverse]; omega
+    have hdeep : (u.tableau q).reverse[0]'hr0l = d := by
+      have h1 : (u.tableau q).reverse.head? = some d := by rw [List.head?_reverse]; exact hd
+      have h2 : (u.tableau q).reverse.head? = (u.tableau q).reverse[0]? :=
+        List.head?_eq_getElem?
+      rw [h1, List.getElem?_eq_getElem hr0l] at h2
+      exact (Option.some.inj h2).symm
+    obtain ⟨hsd, -⟩ := hrun 0 hr0l
+    obtain ⟨hse, -⟩ := hrun ((u.tableau q).length - 1) hrl
+    rw [hdeep] at hsd
+    rw [htop] at hse
+    have hSd := SUIT_toNat (encodeCard d)
+    have hsuits : suitToNat d.suit = su.val := by
+      have h1 : (SUIT (encodeCard d)).toNat = (SUIT (encodeCard e)).toNat := by
+        rw [hsd, hse]
+      have h2 : suitToNat d.suit = (SUIT (encodeCard d)).toNat := by
+        rw [encodeCard_SUIT, UInt8.toNat_ofNat']
+        have := suitToNat_lt d.suit; omega
+      omega
+    rw [← natToSuit_suitToNat d.suit]
+    exact congrArg natToSuit (Fin.ext hsuits)
+  · -- ## an ordinary column: its boundary is an un-free same-suit card above the frontier
+    exfalso
+    have hdpos : 0 < (p.pileDepth.get q).toNat := by omega
+    have hidx5 : (p.pileDepth.get q).toNat - 1 < 5 := by have := hb.pileDepth_bound q; omega
+    set B := (g.pos2card.get q).get (⟨(p.pileDepth.get q).toNat - 1, hidx5⟩ : Fin 5) with hBdef
+    obtain ⟨hSB4, hVB1, hVB13⟩ : IsRealCard B := hwf.pos2card_real q _
+    have hSB := SUIT_toNat B
+    have hVB := VALUE_toNat B
+    have hnL : (p.pileDepth.get q).toNat ≤ (u.tableau q).length := (hdm q).1
+    -- the boundary is at least the top card, and of the same suit
+    have hkey : (SUIT B).toNat = (SUIT (encodeCard e)).toNat ∧
+        (encodeCard e).toNat ≤ B.toNat := by
+      by_cases hLD : (u.tableau q).length = (p.pileDepth.get q).toNat
+      · -- the top *is* the boundary
+        have hres : encodeCard e = B := by
+          rw [← htop, (hdm q).resident_code
+            (show (u.tableau q).length - 1 < (p.pileDepth.get q).toNat by omega) hrl]
+          congr 1
+          exact Fin.ext (by simp; omega)
+        exact ⟨by rw [hres], by rw [hres]⟩
+      · have hcn : (encodeCard ((u.tableau q).reverse[(u.tableau q).length - 1]'hrl)).toNat
+            + ((u.tableau q).length - 1 - (p.pileDepth.get q).toNat) + 1 = B.toNat :=
+          above_code_nat hwf hd6 hdm hdpos
+            (r := (u.tableau q).length - 1) (by omega) hrl hidx5
+        rw [htop] at hcn
+        obtain ⟨hs0, -⟩ := (hdm q).above_code hdpos
+          (r := (u.tableau q).length - 1)
+          (show (p.pileDepth.get q).toNat ≤ (u.tableau q).length - 1 by omega) hrl
+        rw [htop] at hs0
+        exact ⟨by rw [hs0], by omega⟩
+    -- so `king_frontier` says it is free, while a boundary never is
+    obtain ⟨-, hfree⟩ := hb.king_frontier su
+    refine boundary_not_free hwf hb q hdpos (hfree B ?_ ?_ ?_)
+    · apply UInt8.toNat_inj.mp
+      show (SUIT B).toNat = (su.val.toUInt8).toNat
+      rw [Nat.toUInt8, UInt8.toNat_ofNat']
+      have := su.isLt
+      omega
+    · rw [hkings]
+      omega
+    · omega

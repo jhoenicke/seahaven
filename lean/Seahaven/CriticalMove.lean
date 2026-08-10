@@ -259,7 +259,8 @@ theorem exists_critical_move_aces {g : Globals} {p : SolverPosType}
         (∀ c : Card, countState t₀ c = 1) ∧
         (∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (t₀.foundations su)) ∧
         applyMove t₀ m = some t₁ ∧ Reach t₁ w ∧
-        t₀.tableau a = c :: rest ∧ rest.length + 1 = (p.pileDepth.get a).toNat := by
+        t₀.tableau a = c :: rest ∧ rest.length + 1 = (p.pileDepth.get a).toNat ∧
+        m.src = Position.pile a ∧ ¬ DepthMatchesV g t₁ (depthVec p hd6) := by
   intro ms
   induction ms with
   | nil =>
@@ -292,13 +293,13 @@ theorem exists_critical_move_aces {g : Globals} {p : SolverPosType}
           intro su
           rw [foundations_of_nonFoundation_move hmv hdest]
           exact haces su
-        obtain ⟨t₀, t₁, m', a, c, rst, hr, hdm, hct, hac, hap, hr2, hcol, hlen⟩ :=
+        obtain ⟨t₀, t₁, m', a, c, rst, hr, hdm, hct, hac, hap, hr2, hcol, hlen, hs, hbk⟩ :=
           ih u' w hcount' hd' haces' hrun hgoal
         exact ⟨t₀, t₁, m', a, c, rst, Relation.ReflTransGen.head ⟨m, hmv⟩ hr, hdm, hct, hac,
-          hap, hr2, hcol, hlen⟩
-      · obtain ⟨a, c, rst, -, hcol, hlen⟩ := exists_boundary_of_break hmv hd hd'
+          hap, hr2, hcol, hlen, hs, hbk⟩
+      · obtain ⟨a, c, rst, hs, hcol, hlen⟩ := exists_boundary_of_break hmv hd hd'
         exact ⟨u, u', m, a, c, rst, Relation.ReflTransGen.refl, hd, hcount, haces, hmv,
-          reach_of_foldl hrun, hcol, hlen⟩
+          reach_of_foldl hrun, hcol, hlen, hs, hd'⟩
 
 /-! ## The packaged first step -/
 
@@ -323,7 +324,8 @@ theorem exists_critical_state {g : Globals} {s : State} {p : SolverPosType}
       Reach s t₀ ∧ DepthPlusKings g t₀ p ∧ Solvable t₀ ∧
       applyMove t₀ m = some t₁ ∧ Solvable t₁ ∧
       t₀.tableau a = c :: rest ∧ (t₀.tableau a).length = (p.pileDepth.get a).toNat ∧
-      0 < (p.pileDepth.get a).toNat := by
+      0 < (p.pileDepth.get a).toNat ∧
+      m.src = Position.pile a ∧ ¬ DepthMatchesV g t₁ (depthVec p hmt.depth_lt6) := by
   have hb : SolverInvBase g p := hcan.toSolverInvBase
   obtain ⟨sol, hsol⟩ := exists_solution_of_solvable hsolv
   unfold isSolution at hsol
@@ -331,12 +333,13 @@ theorem exists_critical_state {g : Globals} {s : State} {p : SolverPosType}
   | none => rw [hr] at hsol; simp at hsol
   | some w =>
     rw [hr] at hsol
-    obtain ⟨t₀, t₁, m, a, c, rest, hreach, hdm, hcount, haces, hap, hr2, hcol, hlen⟩ :=
+    obtain ⟨t₀, t₁, m, a, c, rest, hreach, hdm, hcount, haces, hap, hr2, hcol, hlen,
+        hsrc, hbk⟩ :=
       exists_critical_move_aces hwf hcan hmt.depth_lt6 hpos sol s w hmt.cards_count
         hmt.depth_match hmt.aces_match hr hsol
     refine ⟨t₀, t₁, m, a, c, rest, hreach,
       DepthPlusKings.of_depthMatch hwf hb hcan.pileMerged hmt.depth_lt6 hdm hcount haces,
-      ?_, hap, ?_, hcol, ?_, ?_⟩
+      ?_, hap, ?_, hcol, ?_, ?_, hsrc, hbk⟩
     · exact Solvable.step m hap (Solvable.of_reach hr2 (Solvable.done hsol))
     · exact Solvable.of_reach hr2 (Solvable.done hsol)
     · rw [hcol]; simpa using hlen
@@ -409,11 +412,13 @@ theorem exists_critical_state_affordable {g : Globals} {s : State} {p : SolverPo
       applyMove t₀ m = some t₁ ∧ Solvable t₁ ∧
       t₀.tableau a = c :: rest ∧ (t₀.tableau a).length = (p.pileDepth.get a).toNat ∧
       0 < (p.pileDepth.get a).toNat ∧
-      ((p.pileFlute.get a).toNat : Int) - 1 ≤ freeCellsOf p (cfgOf t₀ p) := by
-  obtain ⟨t₀, t₁, m, a, c, rest, hreach, hdpk, hsolv0, hap, hsolv1, hcol, hlen, hda⟩ :=
+      ((p.pileFlute.get a).toNat : Int) - 1 ≤ freeCellsOf p (cfgOf t₀ p) ∧
+      m.src = Position.pile a ∧ ¬ DepthMatchesV g t₁ (depthVec p hmt.depth_lt6) := by
+  obtain ⟨t₀, t₁, m, a, c, rest, hreach, hdpk, hsolv0, hap, hsolv1, hcol, hlen, hda,
+      hsrc, hbk⟩ :=
     exists_critical_state hwf hcan hmt hsolv hpos
   exact ⟨t₀, t₁, m, a, c, rest, hreach, hdpk.toCfg, hsolv0, hap, hsolv1, hcol, hlen, hda,
-    hdpk.toCfg.flute_sub_one_le_freeCellsOf hcan.toSolverInvBase a hda hlen⟩
+    hdpk.toCfg.flute_sub_one_le_freeCellsOf hcan.toSolverInvBase a hda hlen, hsrc, hbk⟩
 
 /-- **The sharp space bound over the middle layer.**  Free cells at the critical
 moment are extra slack, which is what the `EXTRA` and king-pile branches of
@@ -428,3 +433,137 @@ theorem DepthPlusKingsCfg.flute_add_freeCells_le_freeCellsOf {g : Globals} {u : 
     h.toDepthPlusKings.aces_match h.toDepthPlusKings.flute_le h.toDepthPlusKings.king_le
     (fun _ _ hi hj {_ _} hd he hsu => h.toDepthPlusKings.empty_pile_unique hi hj hd he hsu)
     h.no_pile a hda hcol
+
+/-! ## `k_t`: the piled suits, plus the king about to be piled
+
+The configuration the completeness argument works at is **the piled kings of the
+critical position, plus the moved king when the critical move puts a king on an empty
+column**.  `cfgOf` (`DepthMatch`) is the base; this section adds the one extra suit.
+
+The extension is well defined *because* the base is physical: `PiledSuit` requires a
+solver-empty column with a deepest card, so every suit the base assigns sits on a
+**non-empty** column.  The column the king is about to move onto is empty, hence
+claimed by nobody, and the enlarged assignment stays injective.  `OwnsPile`'s second
+disjunct licenses the claim — it asks exactly for an empty column and
+`VALUE kings[su₀] = 13`, which holds because the moved card is the suit's king.
+
+Note the extension is free: `su₀` refunds `13 - VALUE kings[su₀] = 0`, so
+`freeCellsOf` does not change.  What it buys is the *branch* — with `su₀` piled,
+`solverGetMovable`'s king-pile mask fires through
+`possibleKings[fluteLen-1] &&& kingOnPile` rather than `possibleKings[fluteLen]`. -/
+
+open Classical in
+/-- The internal mask of "piled suits, plus `su₀`": bit set = no pile. -/
+noncomputable def piledPlusMaskNat (u : State) (p : SolverPosType) (su₀ : Suit) : Nat :=
+  (if PiledSuit u p Suit.clubs ∨ Suit.clubs = su₀ then 0 else 1)
+    + (if PiledSuit u p Suit.diamonds ∨ Suit.diamonds = su₀ then 0 else 2)
+    + (if PiledSuit u p Suit.hearts ∨ Suit.hearts = su₀ then 0 else 4)
+    + (if PiledSuit u p Suit.spades ∨ Suit.spades = su₀ then 0 else 8)
+
+theorem piledPlusMaskNat_lt (u : State) (p : SolverPosType) (su₀ : Suit) :
+    piledPlusMaskNat u p su₀ < 16 := by
+  unfold piledPlusMaskNat
+  split_ifs <;> omega
+
+theorem piledPlusMaskNat_bit (u : State) (p : SolverPosType) (su₀ su : Suit) :
+    piledPlusMaskNat u p su₀ / 2 ^ (suitToNat su) % 2 = 1
+      ↔ ¬ (PiledSuit u p su ∨ su = su₀) := by
+  unfold piledPlusMaskNat
+  cases su <;> simp only [suitToNat] <;> split_ifs <;> simp_all
+
+/-- **`k_t`.**  The configuration the critical state is in, with `su₀` claiming the
+column its king is about to occupy. -/
+noncomputable def cfgOfPlus (u : State) (p : SolverPosType) (su₀ : Suit) : Fin 16 :=
+  cfgOfMask ⟨piledPlusMaskNat u p su₀, piledPlusMaskNat_lt u p su₀⟩
+
+theorem cfgBitSet_cfgOfPlus (u : State) (p : SolverPosType) (su₀ su : Suit) :
+    CfgBitSet (cfgOfPlus u p su₀) su ↔ ¬ (PiledSuit u p su ∨ su = su₀) := by
+  rw [cfgOfPlus, cfgBitSet_cfgOfMask]
+  exact piledPlusMaskNat_bit u p su₀ su
+
+/-- The extension piles more, so affordability transports to it (`freeCellsOf_mono`). -/
+theorem maskSub_cfgOfPlus (u : State) (p : SolverPosType) (su₀ : Suit) :
+    MaskSub (cfgOfPlus u p su₀) (cfgOf u p) := by
+  rw [MaskSub_iff]
+  intro su hbit
+  rw [cfgBitSet_cfgOf]
+  exact fun hp => (cfgBitSet_cfgOfPlus u p su₀ su).1 hbit (Or.inl hp)
+
+open Classical in
+/-- **The critical state realizes `k_t`.**  The base assignment is `cfgOf`'s; `su₀` is
+sent to the empty column `i₀`, which no other suit can be using because every other
+assigned column carries a deepest card. -/
+theorem DepthPlusKings.toCfgPlus {g : Globals} {u : State} {p : SolverPosType}
+    (h : DepthPlusKings g u p) {su₀ : Suit} {i₀ : Fin 10}
+    (hd0 : (p.pileDepth.get i₀).toNat = 0) (hempty : u.tableau i₀ = [])
+    (hking : (VALUE (p.kings.get (finOfSuit su₀))).toNat = 13) :
+    DepthPlusKingsCfg g u p (cfgOfPlus u p su₀) where
+  toDepthPlusKings := h
+  no_pile := fun su hbit =>
+    noKingPile_of_not_piled (fun hp => (cfgBitSet_cfgOfPlus u p su₀ su).1 hbit (Or.inl hp))
+  realizes := by
+    refine ⟨fun s' => if hp : PiledSuit u p s' then some hp.choose
+                      else if s' = su₀ then some i₀ else none, ?_, ?_, ?_⟩
+    · -- every assigned column is owned
+      intro su i hassign
+      simp only [] at hassign
+      by_cases hp : PiledSuit u p su
+      · rw [dif_pos hp] at hassign
+        have hi : hp.choose = i := Option.some.inj hassign
+        obtain ⟨hpd0, d, hd, hsu⟩ := hp.choose_spec
+        rw [hi] at hpd0 hd
+        exact ⟨hpd0, Or.inl ⟨d, hd, hsu,
+          h.empty_pile_king i hpd0 (Option.mem_def.1 hd)⟩⟩
+      · rw [dif_neg hp] at hassign
+        by_cases hsu : su = su₀
+        · rw [if_pos hsu] at hassign
+          obtain rfl : i₀ = i := Option.some.inj hassign
+          subst hsu
+          exact ⟨hd0, Or.inr ⟨hempty, hking⟩⟩
+        · rw [if_neg hsu] at hassign
+          simp at hassign
+    · -- the assignment is injective
+      intro su su' i h1 h2
+      simp only [] at h1 h2
+      -- a piled suit's column is non-empty; `i₀` is empty
+      have hne : ∀ s' : Suit, ∀ hp : PiledSuit u p s', hp.choose = i₀ → False := by
+        intro s' hp hchoose
+        obtain ⟨-, d, hd, -⟩ := hp.choose_spec
+        rw [hchoose, hempty] at hd
+        simp at hd
+      by_cases hp : PiledSuit u p su <;> by_cases hp' : PiledSuit u p su'
+      · rw [dif_pos hp] at h1
+        rw [dif_pos hp'] at h2
+        obtain ⟨-, d, hd, hsu⟩ := hp.choose_spec
+        obtain ⟨-, d', hd', hsu'⟩ := hp'.choose_spec
+        rw [Option.some.inj h1, Option.mem_def] at hd
+        rw [Option.some.inj h2, Option.mem_def] at hd'
+        rw [← hsu, ← hsu', congrArg Card.suit (Option.some.inj (hd.symm.trans hd'))]
+      · rw [dif_pos hp] at h1
+        rw [dif_neg hp'] at h2
+        by_cases hsu' : su' = su₀
+        · rw [if_pos hsu'] at h2
+          exact (hne su hp (by rw [Option.some.inj h1, ← Option.some.inj h2])).elim
+        · rw [if_neg hsu'] at h2; simp at h2
+      · rw [dif_neg hp] at h1
+        rw [dif_pos hp'] at h2
+        by_cases hsu : su = su₀
+        · rw [if_pos hsu] at h1
+          exact (hne su' hp' (by rw [Option.some.inj h2, ← Option.some.inj h1])).elim
+        · rw [if_neg hsu] at h1; simp at h1
+      · rw [dif_neg hp] at h1
+        rw [dif_neg hp'] at h2
+        by_cases hsu : su = su₀ <;> by_cases hsu' : su' = su₀
+        · rw [hsu, hsu']
+        · rw [if_neg hsu'] at h2; simp at h2
+        · rw [if_neg hsu] at h1; simp at h1
+        · rw [if_neg hsu] at h1; simp at h1
+    · -- assigned exactly when the bit is clear
+      intro su
+      simp only []
+      rw [cfgBitSet_cfgOfPlus]
+      by_cases hp : PiledSuit u p su
+      · simp [hp]
+      · by_cases hsu : su = su₀
+        · subst hsu; simp [hp]
+        · simp [hp, hsu]

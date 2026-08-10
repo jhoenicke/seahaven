@@ -296,3 +296,56 @@ theorem one_le_freeCells_of_no_fit {u v : State} {m : Move} {a : Fin 10} {c : Ca
   obtain ⟨j, -, hnone⟩ := cell_dest_of_no_fit hcol hsrc hap hnf hother hself
   have hmem : j ∈ freeCells u := mem_freeCells.2 hnone
   exact List.length_pos_iff_ne_nil.2 (fun hnil => by rw [hnil] at hmem; simp at hmem)
+
+/-- `cell_dest_of_no_fit`, with the source column excluded by `dest_ne_source`
+instead of by an explicit hypothesis on the shortened column. -/
+theorem cell_dest_of_no_fit' {u v : State} {m : Move} {a : Fin 10} {c : Card} {rest : Column}
+    (hcol : u.tableau a = c :: rest) (hsrc : m.src = Position.pile a)
+    (hap : applyMove u m = some v) (hnf : ∀ t, ¬ FMStep u t)
+    (hdst : m.dest ≠ Position.pile a)
+    (hother : ∀ q : Fin 10, q ≠ a → (u.tableau q).head? ≠ nextCard c) :
+    ∃ j : Fin 4, m.dest = Position.cell j ∧ u.cells j = none := by
+  cases hd : m.dest with
+  | foundation =>
+    exact absurd ⟨m.src, by rw [Move.foundation_eta hd]; exact hap⟩ (hnf v)
+  | cell j =>
+    refine ⟨j, rfl, ?_⟩
+    refine freeCell_of_cell_dest (a := a) (v := v) ?_
+    have hm : (⟨Position.pile a, Position.cell j⟩ : Move) = m := by
+      obtain ⟨src, dest⟩ := m
+      simp only at hsrc hd
+      rw [hsrc, hd]
+    rw [hm]; exact hap
+  | pile q =>
+    exfalso
+    by_cases hqa : q = a
+    · exact hdst (by rw [hd, hqa])
+    · rw [applyMove_eq, hsrc] at hap
+      obtain ⟨c', s0, htake, hdrop⟩ := hap
+      simp only [takeFromPosition, takeFromCol_eq] at htake
+      obtain ⟨rest', hcol', rfl⟩ := htake
+      rw [hcol] at hcol'
+      obtain ⟨hc, -⟩ : c = c' ∧ rest = rest' := by simpa using hcol'
+      rw [hd] at hdrop
+      simp only [dropPosition, dropCol_eq] at hdrop
+      obtain ⟨hhead, -⟩ := hdrop
+      rw [← hc] at hhead
+      exact hother q hqa (by
+        simpa only [updateColumn_tableau, update, if_neg (Ne.symm hqa)] using hhead)
+
+/-- The destination column of a legal move, in the *pre-move* state (`q ≠ a`). -/
+theorem dest_head_of_move' {u v : State} {m : Move} {a q : Fin 10} {c : Card} {rest : Column}
+    (hcol : u.tableau a = c :: rest) (hsrc : m.src = Position.pile a)
+    (hd : m.dest = Position.pile q) (hqa : q ≠ a) (hap : applyMove u m = some v) :
+    (u.tableau q).head? = nextCard c := by
+  rw [applyMove_eq, hsrc] at hap
+  obtain ⟨c', s0, htake, hdrop⟩ := hap
+  simp only [takeFromPosition, takeFromCol_eq] at htake
+  obtain ⟨rest', hcol', rfl⟩ := htake
+  rw [hcol] at hcol'
+  obtain ⟨hc, -⟩ : c = c' ∧ rest = rest' := by simpa using hcol'
+  rw [hd] at hdrop
+  simp only [dropPosition, dropCol_eq] at hdrop
+  obtain ⟨hhead, -⟩ := hdrop
+  rw [← hc] at hhead
+  simpa only [updateColumn_tableau, update, if_neg (Ne.symm hqa)] using hhead

@@ -59,4 +59,10 @@ import Seahaven.DepthMatch
 import Seahaven.CriticalMove
 import Seahaven.DestComplete
 import Seahaven.ExtraDest
+import Seahaven.DestAfford
+import Seahaven.MaximalCfg
+import Seahaven.DepthUnique
+import Seahaven.CPNormMatch
+import Seahaven.NormReachBridge
+import Seahaven.SimulatesNorm
 import Seahaven.CompletenessSkeleton

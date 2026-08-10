@@ -518,9 +518,59 @@ nothing above the boundary the top *is* the boundary and `n = 1`; a solver-empty
 is a king run whose cards are all free, so the walk would have to run past the king,
 against `VALUE B + n ≤ 13`.
 
-Still to prove for this line: the king-frontier half — for `B = kings[su]` with `su`
-unpiled, no column top is `B + 1` (it would force an un-free same-suit card above
-`kings[su]`, against `king_frontier`).
+The king-frontier half is **proved** too — `ExtraDest.empty_of_accepts_king_frontier`:
+when `B = kings[su]`, *only an empty column* can accept it.  A positive-depth column
+would need a same-suit card above `kings[su]` at or above its boundary, and boundaries
+are never free while `king_frontier` says every such card *is* free; a solver-empty
+column that took it would be carrying `su`'s own run, i.e. `su` would be piled.
+
+And the dispatch is assembled: `DestAfford.critical_dest_affordable` takes `DestValid`
+and the play's critical move and returns a configuration the state realizes together
+with the disjunction `solverGetMovable`'s mask *is* — either `fluteLen` cells are free,
+or `fluteLen - 1` are and the destination is a column or a piled king.  `k_t` itself is
+`CriticalMove.cfgOfPlus` (`cfgOf` plus the moved king), realized by
+`DepthPlusKings.toCfgPlus`; `maskSub_cfgOfPlus` + `freeCellsOf_mono` carry the space
+bound to it.  `DestAfford.head_eq_boundary` identifies the abstract boundary card with
+the column's head, and step 1 now exports `m.src` and the depth-match break so
+`dest_ne_source` applies.
+
+#### From `k_t` to a bit the loop actually iterates over
+
+`closureInfo_block` says a block holds exactly the **maximal** assignments —
+`min(freePiles,4)` suits piled — so `k_t` itself usually has no bit; it enters through
+the `subsetTable` expansion.  `MaximalCfg.exists_block_cfg_maskSub` supplies the
+covering configuration (`MaskSub d k_t` with `d` in the block, decided against the
+tables from `card_clear_le_freePiles`), and `exists_block_cfg_afford` carries the space
+bound to it via `freeCellsOf_mono`.  `GetMovableSpec.getMovable_bitSet` — the converse
+of `getMovable_cells`, cheap because `KingInfoCorrect` and `bitSet_kingOnPileMap` are
+both `↔` — then turns that budget into `BitSet movable i`.  So the chain
+
+> play parks `fluteLen-1` cards ⟹ affordability at `k_t` ⟹ affordability at a block
+> configuration `d ⊇ k_t` ⟹ the solver's `movable` has `d`'s bit
+
+is closed.  What is *not* closed is the physical half: that the state can be brought
+into configuration `d` (moving king runs from the cells onto empty columns), which is
+what `SubsetComplete` needs beyond the counting.
+
+#### Step 4 is depth arithmetic
+
+`DepthUnique.lean` proves the minimality the plan assumed: `merge_complete` read through
+`PileMatches` says `pileDepth i` is the **least** depth the physical column matches
+(`le_of_pileMatches_of_mergeCond`, via `PileMatches.succ_below` — a smaller match would
+extend the descent down to `pos2card[i][m-2], pos2card[i][m-1]` and make them
+consecutive).  Hence `pileDepth_eq_of_matches`: two merged positions matching the same
+state have the same depth vector, and `canonical_eq_of_matches`: **a state determines
+the canonical position it matches** (`IsCanonicalPos_unique` supplies the rest).
+
+So step 4 needs no reasoning about the merge loop's history: whatever canonical position
+the post-move state matches *is* the one `SolverMove` + `SolverCleanupPile` computed.
+
+One corner is isolated rather than proved: `merge_complete` is vacuous at depth `≤ 1`,
+so the argument does not separate depth `1` from depth `0` when the single dealt card is
+a king with its run above it — such a column genuinely matches both.  Cleanup's
+lone-king branch vacates that pile to depth `0`, so the solver never emits one, but that
+is not recorded in `PileMerged`; it is carried as the hypothesis `NoLoneKing`.
+**Discharging `NoLoneKing` from the cleanup development is a small open item.**
 
 Open, in rough risk order:
 
