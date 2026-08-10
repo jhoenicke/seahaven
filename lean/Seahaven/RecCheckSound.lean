@@ -1619,7 +1619,7 @@ theorem recBodyStep : RecBodyStep := by
         have hfin : (⟨(UInt32.ofNat pile).toNat % 10, by omega⟩ : Fin 10)
             = ⟨(UInt32.ofNat pile).toNat, hidx⟩ := Fin.ext (Nat.mod_eq_of_lt hidx)
         refine ⟨Or.inr ⟨p', UInt32.ofNat pile, toPile, mv, cs, fk, hmvloc, hidx, ?_, hgd, ?_,
-          hmove, hcsloc, hcssound, ?_, ?_⟩, hms₃, hm₃, rfl⟩
+          hmove, hcsloc, hcssound, ⟨_, hcs⟩, ?_, ?_⟩, hms₃, hm₃, rfl⟩
         · rw [hfin]; exact hd
         · rw [hfin]; exact hmvrun
         · rw [hrval, movableComp_eq, movablePrime]

@@ -242,14 +242,17 @@ theorem kingVacates_cleanupPile {g : Globals} {w : State} {q0 : SolverPosType}
       PileMatches g (w.tableau i) i ⟨(q0.pileDepth.get i).toNat, h⟩)
     {fk : UInt16} {p' : SolverPosType}
     (hrun' : EStateM.run (_root_.SolverCleanupPile pile) (g, q0) = .ok fk (g, p')) :
-    ∃ FK : Finset Suit, KingVacates FK fk ∧ ∀ su ∈ FK, PiledSuit w p' su := by
+    ∃ FK : Finset Suit, KingVacates FK fk ∧ (∀ su ∈ FK, PiledSuit w p' su) ∧
+      VacateSites q0 p' FK := by
+  have hle := cleanupPile_depth_le hwf hpile hb hdm hrun'
   rcases SolverSpec.cleanupPile_eq pile g q0 hpile hwf hb with
     ⟨hd0, hsd, hrunE⟩ | ⟨B, hs4, hd, hd1, hd5, hidx, hBdef, hBrange, hnfp, m, f,
       hm_le, hmcards, hmstop, hf_le, hf_le_tight, hffree, hfstop, hak, hbranch⟩
   · -- **Empty pile**: nothing is vacated.
     injection hrun'.symm.trans hrunE with h1 h2
     subst h1
-    exact ⟨∅, KingVacates.empty, fun su hsu => absurd hsu (Finset.notMem_empty su)⟩
+    exact ⟨∅, KingVacates.empty, fun su hsu => absurd hsu (Finset.notMem_empty su),
+      VacateSites.of_depth_le hle⟩
   · have hdNat : (q0.pileDepth.get ⟨pile.toNat, hpile⟩).toNat
         = (q0.pileDepth[pile.toNat]'hpile).toNat := rfl
     have hres : cleanupRunResult pile hpile B (pileHashes[pile.toNat]'hpile) hs4
@@ -287,7 +290,22 @@ theorem kingVacates_cleanupPile {g : Globals} {w : State} {q0 : SolverPosType}
     have hp'snd : (cleanupRunResult pile hpile B (pileHashes[pile.toNat]'hpile) hs4
         (q0.pileDepth[pile.toNat]'hpile) m f q0).2 = p' := congrArg Prod.snd hres
     refine ⟨_, hfkeq ▸ cleanupRunResult_kingVacates pile hpile B
-      (pileHashes[pile.toNat]'hpile) hs4 (q0.pileDepth[pile.toNat]'hpile) m f q0, ?_⟩
+      (pileHashes[pile.toNat]'hpile) hs4 (q0.pileDepth[pile.toNat]'hpile) m f q0, ?_, ?_⟩
+    swap
+    · -- the vacate freed the pile it was called on
+      by_cases hk : ((q0.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m == 1 &&
+          VALUE (B + UInt8.ofNat m) == 13) = true
+      · rw [if_pos hk]
+        obtain ⟨hqd, -, -, -⟩ := cleanupRunResult_fields_king pile hpile B
+          (pileHashes[pile.toNat]'hpile) hs4 (q0.pileDepth[pile.toNat]'hpile) m f q0 hk
+        rw [hp'snd] at hqd
+        refine VacateSites.single (a := ⟨pile.toNat, hpile⟩) hle hd1 ?_
+        rw [hqd]
+        show ((q0.pileDepth.set pile.toNat (0 : UInt8) hpile)[pile.toNat]'hpile).toNat = 0
+        rw [Vector.getElem_set_self]
+        rfl
+      · rw [if_neg hk]
+        exact VacateSites.of_depth_le hle
     intro su hsu
     by_cases hk : ((q0.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m == 1 &&
         VALUE (B + UInt8.ofNat m) == 13) = true
@@ -404,7 +422,8 @@ theorem kingVacates_removeFlute {g : Globals} {w : State} {gameA : SolverPosType
         ⟨((removeFlutePre pile hpile gameA).pileDepth.get i).toNat, h⟩)
     {fk : UInt16} {p' : SolverPosType}
     (hrun : _root_.SolverRemoveFlute pile (g, gameA) = .ok fk (g, p')) :
-    ∃ FK : Finset Suit, KingVacates FK fk ∧ ∀ su ∈ FK, PiledSuit w p' su := by
+    ∃ FK : Finset Suit, KingVacates FK fk ∧ (∀ su ∈ FK, PiledSuit w p' su) ∧
+      VacateSites (removeFlutePre pile hpile gameA) p' FK := by
   have hrun' : EStateM.run (_root_.SolverRemoveFlute pile) (g, gameA) = .ok fk (g, p') := hrun
   rw [removeFlute_eq pile g gameA hpile] at hrun'
   exact kingVacates_cleanupPile hwf hpile hb hdm hrun'

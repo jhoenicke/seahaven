@@ -89,6 +89,17 @@ def CPStep (s t : State) : Prop :=
   ∃ (i : Fin 4) (q : Fin 10), s.tableau q ≠ [] ∧
     applyMove s ⟨Position.cell i, Position.pile q⟩ = some t
 
+/-- A cell → pile drop onto **one particular** pile.  `no_free_succ_exposed` only
+ever builds a drop onto the pile it is analysing, so this is the shape its hypothesis
+really needs — and it is what a normalization that skips one pile still provides for
+all the others (`CPNormExcept`). -/
+def CPStepOn (i : Fin 10) (s t : State) : Prop :=
+  ∃ j : Fin 4, s.tableau i ≠ [] ∧ applyMove s ⟨Position.cell j, Position.pile i⟩ = some t
+
+theorem CPStepOn.toCPStep {i : Fin 10} {s t : State} (h : CPStepOn i s t) : CPStep s t := by
+  obtain ⟨j, hne, hap⟩ := h
+  exact ⟨j, i, hne, hap⟩
+
 /-- A single normalizing step: advance a foundation, or return a card from a
 cell to a pile. -/
 def NormStep (s t : State) : Prop := FMStep s t ∨ CPStep s t

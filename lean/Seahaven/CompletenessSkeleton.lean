@@ -143,6 +143,23 @@ theorem CompAllOrNothing.transfer {v comp : UInt16} (h : CompAllOrNothing v comp
     {i j : Fin 16} (hj : BitSet v j) (hcj : BitSet comp j) (hci : BitSet comp i) :
     BitSet v i := h j i hcj hj hci
 
+/-! ## The contribution reaches the accumulator
+
+Two one-liners that say the loop never *loses* a bit once an iteration has produced it:
+the `component` widening only ever adds, and the accumulator only ever `|||`s. -/
+
+/-- The `component` widening keeps every bit `movable'` had. -/
+theorem bitSet_movableComp {mv' comp : UInt16} {k : Fin 16} (h : BitSet mv' k) :
+    BitSet (movableComp mv' comp) k := by
+  unfold movableComp
+  split_ifs
+  · exact (BitSet_or _ _ k).2 (Or.inl h)
+  · exact h
+
+/-- And the accumulator keeps it. -/
+theorem bitSet_accum {v mv'' : UInt16} {k : Fin 16} (h : BitSet mv'' k) :
+    BitSet (v ||| mv'') k := (BitSet_or _ _ k).2 (Or.inr h)
+
 /-! ## The `hash = 0` leaf
 
 `solverRecCheckSolvable` answers `1` when the hash is zero.  Soundness reads that
@@ -178,6 +195,21 @@ def HashmapComplete (g : Globals) : Prop :=
   ∀ (p : SolverPosType), IsCanonicalPos g p →
     ∀ v : UInt8, EStateM.run (getSlot p.hash) g = .ok v g →
       v = UInt8.ofNat FREESLOT ∨ (CompleteBits g p v.toUInt16 ∧ LocalMask p v.toUInt16)
+
+/-! ## The induction hypothesis, completeness side
+
+Mirror of `RecCheckSound.ChildSpec`: what the recursive call is known to satisfy,
+guarded by the measure `move_merged` makes drop.  `HashmapComplete` is self-maintaining
+(`CompletenessSkeleton`'s opening remark), so unlike the soundness version this one
+never has to be entangled with its dual. -/
+
+def ChildSpecComplete (p : SolverPosType) : Prop :=
+  ∀ (child : SolverPosType) (g₁ g₂ : Globals) (w : UInt16),
+    SolverSpec.DepthSum child < SolverSpec.DepthSum p → WellFormedLayout g₁ →
+    IsCanonicalPos g₁ child → HashmapComplete g₁ →
+    EStateM.run (solverRecCheckSolvable child) g₁ = .ok w g₂ →
+    (CompleteBits g₁ child w ∧ LocalMask child w) ∧ HashmapComplete g₂ ∧
+      ∃ hm : Vector UInt16 BIG_HASH_SIZE, g₂ = { g₁ with hashmap := hm }
 
 /-! ## The statements to discharge
 

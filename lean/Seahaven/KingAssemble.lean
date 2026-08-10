@@ -47,12 +47,14 @@ theorem KingConfigEquiv.refl {g : Globals} {p : SolverPosType} {s : State} {k : 
 
 /-- Piling one more suit, with the round trip composed on. -/
 theorem pile_kingConfigEquiv {g : Globals} {p : SolverPosType} {s : State} {k : Fin 16}
-    {su : Suit} (hwf : WellFormedLayout g) (hm : SolverInvMerged g p)
+    {su : Suit} (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
+    (hfp : p.freePiles.toNat
+      ≤ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card)
     (h : KingConfigEquiv g p s k) (hsu : CfgBitSet k su)
     (hcard : (piledSet k).card < p.freePiles.toNat) :
     KingConfigEquiv g p s (clearCfgBit k su) := by
   obtain ⟨s1, hf1, hb1, hs1⟩ := h
-  obtain ⟨s2, hf2, hb2, hs2⟩ := kingPileEquiv g p s1 k su hwf hm hs1 hsu hcard
+  obtain ⟨s2, hf2, hb2, hs2⟩ := kingPileEquiv g p s1 k su hwf hb hfp hs1 hsu hcard
   exact ⟨s2, hf1.trans hf2, hb2.trans hb1, hs2⟩
 
 /-! ## Up to any configuration that piles more
@@ -61,7 +63,9 @@ The induction of `maskSub_kingConfigReachable`, with the round trip carried alon
 one suit per round, and `d`'s own pile count bounds the columns in use throughout. -/
 
 theorem maskSub_kingConfigEquiv {g : Globals} {p : SolverPosType} {s : State} {d : Fin 16}
-    (hwf : WellFormedLayout g) (hm : SolverInvMerged g p)
+    (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
+    (hfp : p.freePiles.toNat
+      ≤ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card)
     (hd : (piledSet d).card ≤ p.freePiles.toNat) :
     ∀ (m : Nat) (c : Fin 16), (piledSet d \ piledSet c).card ≤ m →
       piledSet c ⊆ piledSet d → KingConfigEquiv g p s c → KingConfigEquiv g p s d := by
@@ -84,7 +88,7 @@ theorem maskSub_kingConfigEquiv {g : Globals} {p : SolverPosType} {s : State} {d
     have hlt : (piledSet c).card < (piledSet d).card :=
       Finset.card_lt_card ((Finset.ssubset_iff_of_subset hsub).2 ⟨su, hsud, hsuc⟩)
     refine ih (clearCfgBit c su) ?_ ?_
-      (pile_kingConfigEquiv hwf hm h hbit (by omega))
+      (pile_kingConfigEquiv hwf hb hfp h hbit (by omega))
     · rw [piledSet_clearCfgBit, Finset.sdiff_insert, Finset.card_erase_of_mem hsu]
       omega
     · rw [piledSet_clearCfgBit]
@@ -97,10 +101,12 @@ theorem maskSub_kingConfigEquiv {g : Globals} {p : SolverPosType} {s : State} {d
 
 /-- **Reshuffling up to a configuration that piles more, reversibly.** -/
 theorem kingConfigEquiv_of_maskSub {g : Globals} {p : SolverPosType} {s : State} {k d : Fin 16}
-    (hwf : WellFormedLayout g) (hm : SolverInvMerged g p)
+    (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
+    (hfp : p.freePiles.toNat
+      ≤ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card)
     (hk : StateMatchesKingConfig g s p k) (hsub : MaskSub d k)
     (hd : (piledSet d).card ≤ p.freePiles.toNat) : KingConfigEquiv g p s d :=
-  maskSub_kingConfigEquiv hwf hm hd _ k le_rfl
+  maskSub_kingConfigEquiv hwf hb hfp hd _ k le_rfl
     (fun su hsu => by
       rw [mem_piledSet] at hsu ⊢
       exact fun hc => hsu ((MaskSub_iff d k).1 hsub su hc))
@@ -114,7 +120,9 @@ when the original was.
 indexed by, so this is what lets the child's answer be read at a configuration
 piling everything the parent's block configuration piles. -/
 theorem exists_block_match {g : Globals} {p : SolverPosType} {s : State} {k : Fin 16}
-    (hwf : WellFormedLayout g) (hm : SolverInvMerged g p)
+    (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
+    (hfp : p.freePiles.toNat
+      ≤ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card)
     (hk : StateMatchesKingConfig g s p k) {i : Nat}
     (hi : i < (closureInfoOf p).numBits.toNat)
     (hsub : MaskSub (globalCfg (closureInfoOf p) i) k) :
@@ -124,8 +132,8 @@ theorem exists_block_match {g : Globals} {p : SolverPosType} {s : State} {k : Fi
     rw [card_piledSet_globalCfg p i hi]
     unfold numPiledKings
     omega
-  obtain ⟨t, hf, hb, ht⟩ := kingConfigEquiv_of_maskSub hwf hm hk hsub hd
-  exact ⟨t, ht, ⟨fun hs => Solvable.of_reach hb hs, fun hs => Solvable.of_reach hf hs⟩⟩
+  obtain ⟨t, hf, hbk, ht⟩ := kingConfigEquiv_of_maskSub hwf hb hfp hk hsub hd
+  exact ⟨t, ht, ⟨fun hs => Solvable.of_reach hbk hs, fun hs => Solvable.of_reach hf hs⟩⟩
 
 /-- **And a block configuration always exists.**  Every configuration a position can
 realize is covered by one of its block's (`MaximalCfg`), so the completion is never
@@ -137,5 +145,6 @@ theorem exists_block_match_of_realizes {g : Globals} {p : SolverPosType} {s : St
       MaskSub (globalCfg (closureInfoOf p) i) k ∧
       StateMatchesKingConfig g t p (globalCfg (closureInfoOf p) i) ∧ (Solvable s ↔ Solvable t) := by
   obtain ⟨i, hi, hsub⟩ := exists_block_cfg_maskSub hm hk.realizes
-  obtain ⟨t, ht, hsolv⟩ := exists_block_match hwf hm hk hi hsub
+  obtain ⟨t, ht, hsolv⟩ := exists_block_match hwf hm.toSolverInvBase
+    (le_of_eq (card_empty_piles_eq_freePiles hm).symm) hk hi hsub
   exact ⟨i, t, hi, hsub, ht, hsolv⟩

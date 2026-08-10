@@ -319,6 +319,24 @@ theorem freeCellsOf_cfgOf_nonneg {g : Globals} {w : State} {p : SolverPosType}
   unfold freeCellsOf
   linarith
 
+/-- **Every configuration a state stands for is affordable.**  The same count as
+`freeCellsOf_cfgOf_nonneg`, at an arbitrary realized configuration rather than the
+physical one: `no_pile` is all `kingList_le_kingRefund_of` needs. -/
+theorem DepthPlusKingsCfg.freeCellsOf_nonneg {g : Globals} {w : State} {p : SolverPosType}
+    {k : Fin 16} (hb : SolverInvBase g p) (hw : DepthPlusKingsCfg g w p k) :
+    0 ≤ freeCellsOf p k := by
+  have h1 := usedSpace_le_outside hb hw.toDepthPlusKings.cards_count
+    hw.toDepthPlusKings.aces_match hw.toDepthPlusKings.flute_le
+  have h2 := kingList_le_kingRefund_of (k := k) hb
+    (fun i hi d hd => hw.toDepthPlusKings.king_le i hi d hd)
+    (fun _ _ hi hj {_ _} hd he hsu => hw.toDepthPlusKings.empty_pile_unique hi hj hd he hsu)
+    hw.no_pile
+  have h3 : ((cellList w).length : Int) ≤ 4 := by
+    have h := cellList_length_add_freeCells w
+    exact_mod_cast (by omega : (cellList w).length ≤ 4)
+  unfold freeCellsOf
+  linarith
+
 /-! ## The conclusion of the physical half -/
 
 /-- **`k` has a feasible subset with a column to spare.**  Some configuration

@@ -355,7 +355,7 @@ theorem DepthPlusKings.of_depthMatch {g : Globals} {u : State} {p : SolverPosTyp
   depth_match := hdm
   king_le := fun i hi => king_le_of_depth hwf hb hd6 hdm hcount haces i hi
   aces_match := haces
-  flute_le := fun i hi => flute_le_of_depth hwf hb hpm hd6 hdm hcount haces i hi
+  flute_le := fun i hi => flute_le_of_depth hwf hb hd6 hdm hcount haces i (hpm i) hi
 
 /-! ## The prefix, as a chain
 

@@ -220,6 +220,7 @@ def Contributes (p : SolverPosType) (kingInfo : KingInfo) (comp : UInt8)
       (p.pileFlute.get ⟨pile.toNat % 10, by omega⟩) toPile) g = .ok mv g ∧
     EStateM.run (SolverMove pile toPile) (g, p) = .ok fk (g, p') ∧
     LocalMask p' cs ∧ SoundBits g p' cs ∧
+    (∃ g'' : Globals, EStateM.run (solverRecCheckSolvable p') g = .ok cs g'') ∧
     v' = v ||| movableComp (movablePrime p p' mv cs fk) comp.toUInt16 ∧
     LoopFrame p comp g g'
 
@@ -233,7 +234,7 @@ theorem LoopInv.step (hSS : SubsetSound) (hMS : MoveSimulated)
     (h : LoopInv p comp v g) (hc : Contributes p kingInfo comp v g v' g') :
     LoopInv p comp v' g' := by
   rcases hc with ⟨rfl, rfl⟩ | ⟨p', pile, toPile, mv, cs, fk, hmvloc, hpile, hdepth, hdest, hmv,
-    hrun, hcs, hchild, rfl, hframe⟩
+    hrun, hcs, hchild, -, rfl, hframe⟩
   · exact h
   · obtain ⟨hwf, hcanon, hcomprun, hsound⟩ := hframe
     have hcontrib : SoundBits g p (movableComp (movablePrime p p' mv cs fk) comp.toUInt16) :=

@@ -554,15 +554,17 @@ missed empty column carries nothing — whatever its deepest card's suit were, t
 suit either owns a *different* column (`empty_pile_unique`, so this one would be
 assigned after all) or owns none at all (`no_pile`). -/
 private theorem exists_spare_col {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
-    (hm : SolverInvMerged g p) (hk : StateMatchesKingConfig g s p k)
+    (hfp : p.freePiles.toNat
+      ≤ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card)
+    (hk : StateMatchesKingConfig g s p k)
     {assign : Suit → Option (Fin 10)}
     (hassOwn : ∀ su i, assign su = some i → OwnsPile s p su i)
     (hiff : ∀ su, (assign su).isSome ↔ ¬ CfgBitSet k su)
     (hcard : (piledSet k).card < p.freePiles.toNat) :
     ∃ j : Fin 10, (p.pileDepth.get j).toNat = 0 ∧ s.tableau j = [] ∧
       ∀ su' : Suit, assign su' ≠ some j := by
-  have hEcard : (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card
-      = p.freePiles.toNat := card_empty_piles_eq_freePiles hm
+  have hEcard : p.freePiles.toNat
+      ≤ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card := hfp
   have hImgcard : ((piledSet k).image (fun su => (assign su).getD 0)).card ≤ (piledSet k).card :=
     Finset.card_image_le
   have hnsub : ¬ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0))
@@ -609,14 +611,15 @@ When nothing of the suit is freed yet (`VALUE kings[su] = 13`) the run is empty 
 no card moves at all; the spare column is claimed through `OwnsPile`'s reservation
 branch, and both reaches are `refl`. -/
 theorem kingPileEquiv (g : Globals) (p : SolverPosType) (s : State) (k : Fin 16) (su : Suit)
-    (hwf : WellFormedLayout g) (hm : SolverInvMerged g p)
+    (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
+    (hfp : p.freePiles.toNat
+      ≤ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card)
     (hk : StateMatchesKingConfig g s p k) (hsu : CfgBitSet k su)
     (hcard : (piledSet k).card < p.freePiles.toNat) :
     ∃ t : State, Reach s t ∧ Reach t s ∧
       StateMatchesKingConfig g t p (clearCfgBit k su) := by
-  have hb := hm.toSolverInvBase
   obtain ⟨assign, hassOwn, hinj, hiff⟩ := hk.realizes
-  obtain ⟨j, hjd, hjnil, hjassign⟩ := exists_spare_col hm hk hassOwn hiff hcard
+  obtain ⟨j, hjd, hjnil, hjassign⟩ := exists_spare_col hfp hk hassOwn hiff hcard
   have hV13 : (VALUE (p.kings.get (finOfSuit su))).toNat ≤ 13 :=
     (hb.aces_kings_valid (finOfSuit su)).2.2.2.1
   set V := (VALUE (p.kings.get (finOfSuit su))).toNat with hVdef
@@ -686,7 +689,8 @@ theorem kingPileEquiv (g : Globals) (p : SolverPosType) (s : State) (k : Fin 16)
 /-- **`KingPileReachable`**, the one-way form the soundness development consumes. -/
 theorem kingPileReachable : KingPileReachable := by
   intro g p s k su hwf hm hk hsu hcard
-  obtain ⟨t, hf, -, hmt⟩ := kingPileEquiv g p s k su hwf hm hk hsu hcard
+  obtain ⟨t, hf, -, hmt⟩ := kingPileEquiv g p s k su hwf hm.toSolverInvBase
+    (le_of_eq (card_empty_piles_eq_freePiles hm).symm) hk hsu hcard
   exact ⟨t, hf, hmt⟩
 
 /-! ## The obligation, discharged -/

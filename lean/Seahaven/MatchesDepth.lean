@@ -230,10 +230,10 @@ theorem no_free_succ_exposed {g : Globals} {u : State} {p : SolverPosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
-    (hcount : ∀ c : Card, countState u c = 1) (hcp : ∀ t, ¬ CPStep u t)
+    (hcount : ∀ c : Card, countState u c = 1) {i : Fin 10} (hcp : ∀ t, ¬ CPStepOn i u t)
     {x e : Card} (hfree : isFreeCard g p (encodeCard x))
     (huncov : countFoundation u.foundations x ≠ 1)
-    {i : Fin 10} (hhe : (u.tableau i).head? = some e) (hsucc : nextCard x = some e) : False := by
+    (hhe : (u.tableau i).head? = some e) (hsucc : nextCard x = some e) : False := by
   have hnd : NoDupState u := fun c => le_of_eq (hcount c)
   -- the exposed card, as a reverse index
   have hne : u.tableau i ≠ [] := by intro h0; rw [h0] at hhe; simp at hhe
@@ -255,7 +255,7 @@ theorem no_free_succ_exposed {g : Globals} {u : State} {p : SolverPosType}
   · exact huncov hf
   · -- in a cell: the drop is a `CPStep`
     refine hcp (updateColumn (updateCell u j none) i (x :: (updateCell u j none).tableau i))
-      ⟨j, i, hne, ?_⟩
+      ⟨j, hne, ?_⟩
     rw [applyMove_eq]
     refine ⟨x, updateCell u j none, ?_, ?_⟩
     · rw [takeFromPosition, takeFromCell_eq]
@@ -348,12 +348,12 @@ So the column cannot reach that far.  Note this half needs *no* CP-normality: it
 the `flute_le` field of `DepthPlusKings`, valid at every parked state. -/
 theorem flute_le_of_depth {g : Globals} {u : State} {p : SolverPosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
-    (hpm : ∀ i : Fin 10, PileMerged g p i (hb.pileDepth_bound i))
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     (hcount : ∀ c : Card, countState u c = 1)
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
-    (i : Fin 10) (hdpos : 0 < (p.pileDepth.get i).toNat) :
+    (i : Fin 10) (hpm : PileMerged g p i (hb.pileDepth_bound i))
+    (hdpos : 0 < (p.pileDepth.get i).toNat) :
     (u.tableau i).length + 1 ≤ (p.pileDepth.get i).toNat + (p.pileFlute.get i).toNat := by
   have hnL : (p.pileDepth.get i).toNat ≤ (u.tableau i).length := (hdm i).1
   have hnval : (⟨(p.pileDepth.get i).toNat, hd6 i⟩ : Fin 6).val
@@ -393,7 +393,7 @@ theorem flute_le_of_depth {g : Globals} {u : State} {p : SolverPosType}
       apply UInt8.toNat_inj.mp
       rw [UInt8.toNat_sub_of_le _ _ hle]
       omega
-    rcases (hpm i).flute_maximal with hz | hmax
+    rcases hpm.flute_maximal with hz | hmax
     · rw [hz] at hdpos; simp at hdpos
     · dsimp only at hmax
       rw [← hBdef] at hmax
@@ -422,12 +422,12 @@ theorem flute_le_of_depth {g : Globals} {u : State} {p : SolverPosType}
 
 theorem flute_match_of_depth {g : Globals} {u : State} {p : SolverPosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
-    (hpm : ∀ i : Fin 10, PileMerged g p i (hb.pileDepth_bound i))
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
-    (hcount : ∀ c : Card, countState u c = 1) (hcp : ∀ t, ¬ CPStep u t)
+    (hcount : ∀ c : Card, countState u c = 1)
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
-    (i : Fin 10) (hdpos : 0 < (p.pileDepth.get i).toNat) :
+    (i : Fin 10) (hpm : PileMerged g p i (hb.pileDepth_bound i))
+    (hcp : ∀ t, ¬ CPStepOn i u t) (hdpos : 0 < (p.pileDepth.get i).toNat) :
     (u.tableau i).length + 1 = (p.pileDepth.get i).toNat + (p.pileFlute.get i).toNat := by
   have hnL : (p.pileDepth.get i).toNat ≤ (u.tableau i).length := (hdm i).1
   have hnval : (⟨(p.pileDepth.get i).toNat, hd6 i⟩ : Fin 6).val
@@ -446,7 +446,7 @@ theorem flute_match_of_depth {g : Globals} {u : State} {p : SolverPosType}
     exact this
   have hs4 : (SUIT B).toNat < 4 := hBreal.1
   have hlt : (u.tableau i).length - (p.pileDepth.get i).toNat < (p.pileFlute.get i).toNat := by
-    have := flute_le_of_depth hwf hb hpm hd6 hdm hcount haces i hdpos
+    have := flute_le_of_depth hwf hb hd6 hdm hcount haces i hpm hdpos
     omega
   -- nor can it stop short
   have hge : (p.pileFlute.get i).toNat
@@ -608,9 +608,9 @@ theorem king_pile_of_depth {g : Globals} {u : State} {p : SolverPosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
-    (hcount : ∀ c : Card, countState u c = 1) (hcp : ∀ t, ¬ CPStep u t)
+    (hcount : ∀ c : Card, countState u c = 1)
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
-    (i : Fin 10) (hd0 : (p.pileDepth.get i).toNat = 0) :
+    (i : Fin 10) (hcp : ∀ t, ¬ CPStepOn i u t) (hd0 : (p.pileDepth.get i).toNat = 0) :
     ∀ d ∈ (u.tableau i).getLast?,
       (u.tableau i).length + (VALUE (p.kings.get (finOfSuit d.suit))).toNat = 13 := by
   intro d hd
@@ -712,6 +712,23 @@ theorem king_pile_of_depth {g : Globals} {u : State} {p : SolverPosType}
 /-- **A merged position matches every CP-normal state with its depths.**  The
 converse of `StateMatchesSolverPos.no_cpStep`: together they say that, at a merged
 position, the depth vector (plus the foundations) is all there is to the match. -/
+theorem matches_of_depth_match_at {g : Globals} {u : State} {p : SolverPosType}
+    (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
+    (hpm : ∀ i : Fin 10, PileMerged g p i (hb.pileDepth_bound i))
+    (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
+    (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
+    (hcount : ∀ c : Card, countState u c = 1)
+    (hcp : ∀ (i : Fin 10) (t : State), ¬ CPStepOn i u t)
+    (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su)) :
+    StateMatchesSolverPos g u p where
+  cards_count := hcount
+  depth_lt6 := hd6
+  depth_match := hdm
+  flute_match := fun i hi => flute_match_of_depth hwf hb hd6 hdm hcount haces i (hpm i) (hcp i) hi
+  king_pile := fun i hi => king_pile_of_depth hwf hb hd6 hdm hcount haces i (hcp i) hi
+  aces_match := haces
+
+/-- The global form, as the existing callers use it. -/
 theorem matches_of_depth_match {g : Globals} {u : State} {p : SolverPosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hpm : ∀ i : Fin 10, PileMerged g p i (hb.pileDepth_bound i))
@@ -719,10 +736,6 @@ theorem matches_of_depth_match {g : Globals} {u : State} {p : SolverPosType}
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     (hcount : ∀ c : Card, countState u c = 1) (hcp : ∀ t, ¬ CPStep u t)
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su)) :
-    StateMatchesSolverPos g u p where
-  cards_count := hcount
-  depth_lt6 := hd6
-  depth_match := hdm
-  flute_match := fun i hi => flute_match_of_depth hwf hb hpm hd6 hdm hcount hcp haces i hi
-  king_pile := fun i hi => king_pile_of_depth hwf hb hd6 hdm hcount hcp haces i hi
-  aces_match := haces
+    StateMatchesSolverPos g u p :=
+  matches_of_depth_match_at hwf hb hpm hd6 hdm hcount
+    (fun _ t h => hcp t h.toCPStep) haces

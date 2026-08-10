@@ -54,11 +54,12 @@ theorem exists_movable_bit_of_critical
     (hmvrun : EStateM.run (solverGetMovable ki (closureInfoOf p).shiftValue
       (p.pileFlute.get a) toPile) g = .ok m g) :
     ∃ (i : Nat) (k : Fin 16), i < (closureInfoOf p).numBits.toNat ∧
-      DepthPlusKingsCfg g t₀ p k ∧ MaskSub (globalCfg (closureInfoOf p) i) k ∧
+      DepthPlusKingsCfg g t₀ p k ∧ (∀ su : Suit, PiledSuit t₁ p su → ¬ CfgBitSet k su) ∧
+      MaskSub (globalCfg (closureInfoOf p) i) k ∧
       BitSet m ⟨min i 15, by omega⟩ := by
   have hb : SolverInvBase g p := hcan.toSolverInvBase
   have hmerged : SolverInvMerged g p := hcan.toSolverInvMerged
-  obtain ⟨k, hcfg, haff⟩ :=
+  obtain ⟨k, hcfg, hpres, haff⟩ :=
     critical_dest_affordable hwf hcan h hcol hlen hda hsrc hap hdst hdv
   -- the block configuration above `k`, and the affordability transported to it
   obtain ⟨i, hi, hsub⟩ := exists_block_cfg_maskSub hmerged hcfg.realizes
@@ -69,7 +70,7 @@ theorem exists_movable_bit_of_critical
   have h4 : freeCellsOf p k ≤ 4 := freeCellsOf_le_four hwf hb k
   have hfl5 : (p.pileFlute.get a).toNat ≤ 5 := by
     rcases haff with h1 | ⟨h1, -⟩ <;> omega
-  refine ⟨i, k, hi, hcfg, hsub, getMovable_bitSet hchar hfl1 hfl5 hmvrun hi ?_⟩
+  refine ⟨i, k, hi, hcfg, hpres, hsub, getMovable_bitSet hchar hfl1 hfl5 hmvrun hi ?_⟩
   have hcast : (((p.pileFlute.get a).toNat - 1 : Nat) : Int)
       = ((p.pileFlute.get a).toNat : Int) - 1 := by omega
   rcases haff with h1 | ⟨h1, h2⟩
@@ -78,3 +79,24 @@ theorem exists_movable_bit_of_critical
     rcases h2 with hlt | ⟨h10, h14, hsu⟩
     · exact Or.inl hlt
     · exact Or.inr ⟨h10, h14, fun su hs => maskSub_piled hsub (hsu su hs)⟩
+
+/-! ## The loop's early `break`
+
+`solverRecCheckSolvable` stops the pile loop as soon as `solvable == allkings`, where
+`allkings = possibleKings[0]` — the configurations that leave at least *zero* free
+cells, i.e. the feasible ones.  So a break can only hurt completeness if the bit we
+want is missing from `allkings`, and it never is: the bit belongs to a configuration
+some state actually stands for, and a realized configuration is feasible by the deck
+count (`DepthPlusKingsCfg.freeCellsOf_nonneg`).  Piling more only frees cells, so it
+survives the passage to the block configuration (`freeCellsOf_mono`). -/
+
+/-- **`allkings` misses no realizable configuration.** -/
+theorem bitSet_allkings_of_cfg {g : Globals} {w : State} {p : SolverPosType} {k : Fin 16}
+    {ki : KingInfo} (hb : SolverInvBase g p) (hchar : KingInfoCorrect p ki)
+    (hw : DepthPlusKingsCfg g w p k) {i : Nat} (hi : i < (closureInfoOf p).numBits.toNat)
+    (hsub : MaskSub (globalCfg (closureInfoOf p) i) k) :
+    BitSet (ki.possibleKings.get ⟨0, by omega⟩).toUInt16 ⟨min i 15, by omega⟩ := by
+  refine (hchar 0 (by omega) i hi).2 ?_
+  have h0 : ((0 : Nat) : Int) = 0 := rfl
+  rw [h0]
+  exact le_trans (hw.freeCellsOf_nonneg hb) (freeCellsOf_mono hb hsub)

@@ -55,6 +55,7 @@ import Seahaven.ConvertSim
 import Seahaven.SolveSound
 import Seahaven.DealMatches
 import Seahaven.CPNormal
+import Seahaven.CPNormExcept
 import Seahaven.MatchesDepth
 import Seahaven.DeckCount
 import Seahaven.DepthMatch
@@ -75,4 +76,5 @@ import Seahaven.CleanupDepth
 import Seahaven.CriticalChild
 import Seahaven.MovableBit
 import Seahaven.SubsetTransport
+import Seahaven.CriticalIteration
 import Seahaven.SolverCorrectness

@@ -193,3 +193,161 @@ theorem StateMatchesSolverPos.cleanupExtend_solvable_iff {g : Globals} {s v : St
     {p : SolverPosType} (h : StateMatchesSolverPos g s p) (hr : CPReach s v) :
     Solvable s ↔ Solvable v :=
   normReach_solvable_iff h.cards_count hr.toNormReach
+
+/-- **More depth-zero piles.**  A position whose depths are all at most another's has at
+least as many free piles.  Composed with `movePre_depth_le` / `removeFlute_depth_le`,
+this is what says the child never has *fewer* empty columns than the parent — the column
+budget the re-assembly at the child runs on. -/
+theorem freePiles_mono {g : Globals} {p q : SolverPosType}
+    (hm : SolverInvMerged g p) (hm' : SolverInvMerged g q)
+    (h : ∀ i : Fin 10, (q.pileDepth.get i).toNat ≤ (p.pileDepth.get i).toNat) :
+    p.freePiles.toNat ≤ q.freePiles.toNat := by
+  rw [← card_empty_piles_eq_freePiles hm, ← card_empty_piles_eq_freePiles hm']
+  refine Finset.card_le_card (fun i hi => ?_)
+  simp only [Finset.mem_filter] at hi ⊢
+  refine ⟨Finset.mem_univ _, ?_⟩
+  have hp0 : (p.pileDepth.get i).toNat = 0 := by rw [hi.2]; rfl
+  have hle := h i
+  have hq0 : (q.pileDepth.get i).toNat = 0 := by omega
+  exact UInt8.toNat_inj.mp (by rw [hq0]; rfl)
+
+/-- **Each vacate buys a free pile.**  If every suit of `FK` can be pointed at a pile
+that was occupied at `p` and is empty at `q`, and distinct suits at distinct piles, then
+`q` has at least `FK.card` more free piles than `p`.
+
+This is the *arithmetic* half of the column budget the re-assembly at the child needs.
+The semantic half — producing `site`, the pile each vacated king was freed from — is not
+recorded by `Simulates`/`SimulatesNorm`, whose `FK` is a bare `Finset Suit`. -/
+theorem freePiles_add_card_le {g : Globals} {p q : SolverPosType}
+    (hm : SolverInvMerged g p) (hm' : SolverInvMerged g q)
+    (hle : ∀ i : Fin 10, (q.pileDepth.get i).toNat ≤ (p.pileDepth.get i).toNat)
+    {FK : Finset Suit} (site : Suit → Fin 10)
+    (hsite : ∀ su ∈ FK, 0 < (p.pileDepth.get (site su)).toNat ∧
+      (q.pileDepth.get (site su)).toNat = 0)
+    (hinj : Set.InjOn site ↑FK) :
+    p.freePiles.toNat + FK.card ≤ q.freePiles.toNat := by
+  classical
+  have hz : ∀ (r : SolverPosType) (i : Fin 10),
+      r.pileDepth.get i = 0 ↔ (r.pileDepth.get i).toNat = 0 := by
+    intro r i
+    constructor
+    · intro h; rw [h]; rfl
+    · intro h; exact UInt8.toNat_inj.mp (by rw [h]; rfl)
+  set Ep : Finset (Fin 10) := Finset.univ.filter (fun i => p.pileDepth.get i = 0) with hEp
+  set Eq : Finset (Fin 10) := Finset.univ.filter (fun i => q.pileDepth.get i = 0) with hEq
+  have hsub : Ep ⊆ Eq := by
+    intro i hi
+    rw [hEp, Finset.mem_filter, hz] at hi
+    rw [hEq, Finset.mem_filter, hz]
+    exact ⟨Finset.mem_univ _, by have := hle i; omega⟩
+  have hSsub : FK.image site ⊆ Eq := by
+    intro i hi
+    obtain ⟨su, hsu, rfl⟩ := Finset.mem_image.1 hi
+    rw [hEq, Finset.mem_filter, hz]
+    exact ⟨Finset.mem_univ _, (hsite su hsu).2⟩
+  have hdisj : Disjoint Ep (FK.image site) := by
+    rw [Finset.disjoint_right]
+    intro i hi hiEp
+    obtain ⟨su, hsu, rfl⟩ := Finset.mem_image.1 hi
+    rw [hEp, Finset.mem_filter, hz] at hiEp
+    have := (hsite su hsu).1
+    omega
+  have hcard : Ep.card + (FK.image site).card ≤ Eq.card := by
+    rw [← Finset.card_union_of_disjoint hdisj]
+    exact Finset.card_le_card (Finset.union_subset hsub hSsub)
+  rw [Finset.card_image_of_injOn hinj] at hcard
+  rw [← card_empty_piles_eq_freePiles hm, ← card_empty_piles_eq_freePiles hm']
+  exact hcard
+
+/-! ## Counting the piles a phase frees
+
+`FK` is a set of *suits*, but the column budget the completeness re-assembly runs on is
+about *piles*.  The link is that every vacate empties a pile of its own — and the
+cheapest way to record it is to carry the **pile number**: it is right there at the
+vacate (`vacatePile`'s `a`, whose depth goes `1 → 0`), and unlike a `freePiles`
+inequality it needs no position invariants either to state or to compose.  The
+invariants enter only once, at the very end, to turn depth-zero counts back into
+`freePiles` (`VacateSites.freePiles_add_card_le`). -/
+
+/-- What a phase does to the pile depths, together with the piles its vacates freed. -/
+structure VacateSites (p p' : SolverPosType) (FK : Finset Suit) : Prop where
+  /-- Depths never rise, so a solver-empty column stays solver-empty. -/
+  depth_le : ∀ i : Fin 10, (p'.pileDepth.get i).toNat ≤ (p.pileDepth.get i).toNat
+  /-- Each vacated suit freed a pile of its own: occupied before, empty after. -/
+  sites : ∃ site : Suit → Fin 10, Set.InjOn site ↑FK ∧
+    ∀ su ∈ FK, 0 < (p.pileDepth.get (site su)).toNat ∧
+      (p'.pileDepth.get (site su)).toNat = 0
+
+/-- A phase that changes nothing. -/
+theorem VacateSites.rfl' (p : SolverPosType) : VacateSites p p ∅ where
+  depth_le := fun _ => le_rfl
+  sites := ⟨fun _ => 0, by simp, by simp⟩
+
+/-- A phase that vacates nothing: only the depths have to fall. -/
+theorem VacateSites.of_depth_le {p p' : SolverPosType}
+    (h : ∀ i : Fin 10, (p'.pileDepth.get i).toNat ≤ (p.pileDepth.get i).toNat) :
+    VacateSites p p' ∅ where
+  depth_le := h
+  sites := ⟨fun _ => 0, by simp, by simp⟩
+
+/-- A single vacate, at the pile it freed. -/
+theorem VacateSites.single {p p' : SolverPosType} {a : Fin 10} {su : Suit}
+    (hle : ∀ i : Fin 10, (p'.pileDepth.get i).toNat ≤ (p.pileDepth.get i).toNat)
+    (hd : 0 < (p.pileDepth.get a).toNat) (hq : (p'.pileDepth.get a).toNat = 0) :
+    VacateSites p p' {su} where
+  depth_le := hle
+  sites := ⟨fun _ => a, by
+      intro x hx y hy _
+      simp only [Finset.coe_singleton, Set.mem_singleton_iff] at hx hy
+      rw [hx, hy], fun _ _ => ⟨hd, hq⟩⟩
+
+/-- Forgetting some vacates. -/
+theorem VacateSites.subset {p p' : SolverPosType} {FK FK' : Finset Suit}
+    (h : VacateSites p p' FK) (hsub : FK' ⊆ FK) : VacateSites p p' FK' := by
+  obtain ⟨site, hinj, hsite⟩ := h.sites
+  exact ⟨h.depth_le, site, hinj.mono (by exact_mod_cast hsub), fun su hsu => hsite su (hsub hsu)⟩
+
+open Classical in
+/-- **Composition.**  The two site maps have disjoint ranges for free: the first
+phase's piles are already empty at the join, the second phase's are not. -/
+theorem VacateSites.trans {p q r : SolverPosType} {F₁ F₂ : Finset Suit}
+    (h₁ : VacateSites p q F₁) (h₂ : VacateSites q r F₂) : VacateSites p r (F₁ ∪ F₂) := by
+  obtain ⟨s₁, hi₁, hp₁⟩ := h₁.sites
+  obtain ⟨s₂, hi₂, hp₂⟩ := h₂.sites
+  refine ⟨fun i => le_trans (h₂.depth_le i) (h₁.depth_le i),
+    fun su => if su ∈ F₁ then s₁ su else s₂ su, ?_, ?_⟩
+  · intro x hx y hy hxy
+    simp only [Finset.coe_union, Set.mem_union, Finset.mem_coe] at hx hy
+    by_cases hx1 : x ∈ F₁ <;> by_cases hy1 : y ∈ F₁
+    · simp only [if_pos hx1, if_pos hy1] at hxy
+      exact hi₁ (by exact_mod_cast hx1) (by exact_mod_cast hy1) hxy
+    · simp only [if_pos hx1, if_neg hy1] at hxy
+      have h0 := (hp₁ x hx1).2
+      have h1 := (hp₂ y (hy.resolve_left hy1)).1
+      rw [hxy] at h0
+      omega
+    · simp only [if_neg hx1, if_pos hy1] at hxy
+      have h0 := (hp₁ y hy1).2
+      have h1 := (hp₂ x (hx.resolve_left hx1)).1
+      rw [← hxy] at h0
+      omega
+    · simp only [if_neg hx1, if_neg hy1] at hxy
+      exact hi₂ (by exact_mod_cast hx.resolve_left hx1) (by exact_mod_cast hy.resolve_left hy1) hxy
+  · intro su hsu
+    rw [Finset.mem_union] at hsu
+    simp only []
+    by_cases h1 : su ∈ F₁
+    · rw [if_pos h1]
+      exact ⟨(hp₁ su h1).1, by have := h₂.depth_le (s₁ su); have := (hp₁ su h1).2; omega⟩
+    · rw [if_neg h1]
+      exact ⟨by have := h₁.depth_le (s₂ su); have := (hp₂ su (hsu.resolve_left h1)).1; omega,
+        (hp₂ su (hsu.resolve_left h1)).2⟩
+
+/-- **The column budget.**  The invariants enter only here, to read `freePiles` off the
+depth-zero count. -/
+theorem VacateSites.freePiles_add_card_le {g : Globals} {p p' : SolverPosType}
+    {FK : Finset Suit} (h : VacateSites p p' FK)
+    (hm : SolverInvMerged g p) (hm' : SolverInvMerged g p') :
+    p.freePiles.toNat + FK.card ≤ p'.freePiles.toNat := by
+  obtain ⟨site, hinj, hsite⟩ := h.sites
+  exact _root_.freePiles_add_card_le hm hm' h.depth_le site hsite hinj
