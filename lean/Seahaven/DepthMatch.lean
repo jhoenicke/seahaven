@@ -357,6 +357,42 @@ theorem DepthPlusKings.of_depthMatch {g : Globals} {u : State} {p : SolverPosTyp
   aces_match := haces
   flute_le := fun i hi => flute_le_of_depth hwf hb hpm hd6 hdm hcount haces i hi
 
+/-! ## The prefix, as a chain
+
+`exists_critical_move_aces` walks the winning play until the depth vector breaks.
+Plain `Reach` forgets what happened in between, but the king-configuration argument
+(`EmptyPileCfg`) has to look at *every* state of that prefix — it asks where a
+column first became physically empty.  So the extraction hands back a chain whose
+every state is still a middle-layer match.
+
+`DepthPlusKings` is carried on the *target* of each step; the source of the whole
+chain has to be supplied separately, which is exactly how the caller has it. -/
+
+/-- One move of the prefix: a legal move whose target still matches `p` at the
+middle layer. -/
+def PrefixStep (g : Globals) (p : SolverPosType) (u v : State) : Prop :=
+  MoveStep u v ∧ DepthPlusKings g v p
+
+/-- Reachability through states that all still match `p` at the middle layer. -/
+abbrev PrefixReach (g : Globals) (p : SolverPosType) : State → State → Prop :=
+  Relation.ReflTransGen (PrefixStep g p)
+
+theorem PrefixStep.toMoveStep {g : Globals} {p : SolverPosType} {u v : State}
+    (h : PrefixStep g p u v) : MoveStep u v := h.1
+
+theorem PrefixReach.toReach {g : Globals} {p : SolverPosType} {u v : State}
+    (h : PrefixReach g p u v) : Reach u v := by
+  induction h with
+  | refl => exact Relation.ReflTransGen.refl
+  | tail _ hstep ih => exact ih.tail hstep.toMoveStep
+
+/-- **Every state of the chain matches**, the far end included. -/
+theorem PrefixReach.dpk {g : Globals} {p : SolverPosType} {u v : State}
+    (hu : DepthPlusKings g u p) (h : PrefixReach g p u v) : DepthPlusKings g v p := by
+  induction h with
+  | refl => exact hu
+  | tail _ hstep _ => exact hstep.2
+
 /-! ## The king configuration a state *is* in
 
 Nothing has to choose a configuration: the piled suits are a function of the

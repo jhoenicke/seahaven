@@ -1,4 +1,4 @@
-import Seahaven.CPNormMatch
+import Seahaven.CPNormal
 
 /-!
 # The drain's moves are normalizing moves

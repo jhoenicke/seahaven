@@ -1,3 +1,5 @@
+import Mathlib.Logic.Relation
+
 inductive Suit
   | clubs | diamonds | hearts | spades
   deriving DecidableEq, Repr, BEq, Hashable
@@ -218,3 +220,12 @@ def allCards (idx : Fin 52) : Card :=
     rank := Option.getD (natToRank ((idx % 13) + 1)) Rank.ace,
     suit := List.get allSuits (⟨idx / 13, by omega⟩ : Fin 4)
   }
+
+/-- One arbitrary legal move. -/
+def MoveStep (s t : State) : Prop := ∃ m : Move, applyMove s m = some t
+
+/-- `Reach s t` : `t` is reachable from `s` by legal moves. -/
+abbrev Reach : State → State → Prop := Relation.ReflTransGen MoveStep
+
+/-- Solvability -/
+def isSolvable (s : State) := ∃ sol : List Move, isSolution s sol

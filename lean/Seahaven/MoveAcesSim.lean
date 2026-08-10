@@ -5,10 +5,10 @@ import Seahaven.SolverSpecMoveAces
 # `SolverMoveAces`, simulated end to end
 
 `SimulateMoveAces.lean` proves the two *kinds* of step the `busyAces` drain makes on
-the `Rules` side — the sync step (`Simulates.syncPlays`, composed with
-`Simulates.ofCleanupRun`) and the walk's tail (`Simulates.tailPlays`,
+the `Rules` side — the sync step (`SimulatesNorm.syncPlays`, composed with
+`SimulatesNorm.ofCleanupRun`) and the walk's tail (`SimulatesNorm.tailPlays`,
 `StateMatchesSolverPos.tailPlaysComplete`).  This file runs the loop and assembles the
-call: **`Simulates.moveAces`** is the end-to-end statement, 0 sorries.
+call: **`SimulatesNorm.moveAces`** is the end-to-end statement, 0 sorries.
 
 The walk itself is `moveAcesLoop_run`, which is parametric in a predicate carried
 across its one position-changing step (`SolverSpec.MoveAcesSyncStep`).  Instantiating
@@ -19,24 +19,10 @@ that predicate with
 
 turns the loop into the induction we need: the counting iterations leave the position
 alone (so the predicate rides along untouched — this is what the deferral design buys),
-and the sync iterations are exactly one `Simulates.trans`.  The mask bookkeeping comes
-out right because `Simulates.trans` intersects masks exactly as the code's
+and the sync iterations are exactly one `SimulatesNorm.trans`.  The mask bookkeeping comes
+out right because `SimulatesNorm.trans` intersects masks exactly as the code's
 `forcedKings := forcedKings &&& (← SolverRemoveFlute pile)` does.
 -/
-
-/-- **Extending a simulation by a phase that leaves the configuration alone.**
-`Simulates.trans` would intersect the masks; here the second phase's mask is
-discarded instead, which is what the drain wants at its two "free" joins (the
-sync step's `syncPlays` prologue and the walk's tail), where the *solver* does
-not intersect anything either. -/
-theorem Simulates.extend {g : Globals} {s w v : State} {p q r : SolverPosType}
-    {k kk : Fin 16} {FK FK' : Finset Suit} {fk fk' : UInt16}
-    (h : Simulates g s p k w q kk FK fk) (h' : Simulates g w q kk v r kk FK' fk') :
-    Simulates g s p k v r kk FK fk where
-  reach := h.reach.trans h'.reach
-  cfg := h'.cfg
-  vacates := h.vacates
-  bound := h.bound
 
 /-- **The drain's carried relation.**  `fk` is the walk's accumulated `forcedKings`,
 `q` the position it has reached; the state that realizes `q` and the configuration
@@ -44,7 +30,7 @@ it realizes it at are existential — nothing downstream of the loop needs to na
 them. -/
 def MoveAcesSim (g : Globals) (s : State) (p : SolverPosType) (k : Fin 16)
     (fk : UInt16) (q : SolverPosType) : Prop :=
-  ∃ (w : State) (k' : Fin 16) (FK : Finset Suit), Simulates g s p k w q k' FK fk
+  ∃ (w : State) (k' : Fin 16) (FK : Finset Suit), SimulatesNorm g s p k w q k' FK fk
 
 /-! ## The sync step -/
 
@@ -95,18 +81,18 @@ drain's sync step hand over.
 `removeFlute_eq` reduces the call to `SolverCleanupPile` at `removeFlutePre …`, and
 `cleanupPile_eq` runs it: the empty-pile case is a `freePiles` bump, invisible to the
 matching, and the loop-bearing case hands over exactly the merge/freed data
-`Simulates.ofCleanupRun` needs — `hmcards` becomes the chain by `chain_of_mcards`, and
+`SimulatesNorm.ofCleanupRun` needs — `hmcards` becomes the chain by `chain_of_mcards`, and
 `hffree` is already the extension's per-card freeness.  The entry point differs from
 the cleanup's own by the (unread, stale) `pileFlute[pile]`, which
 `cleanupRunResult_fluteNorm` discharges. -/
-theorem Simulates.ofCleanupPile {g : Globals} {v : State} {q0 : SolverPosType}
+theorem SimulatesNorm.ofCleanupPile {g : Globals} {v : State} {q0 : SolverPosType}
     {kk : Fin 16} (hwf : WellFormedLayout g) {pile : UInt32} (hpile : pile.toNat < 10)
     (hb : SolverInvBase g (SolverSpec.fluteNorm pile hpile q0))
     (hk : StateMatchesKingConfig g v (SolverSpec.fluteNorm pile hpile q0) kk)
     {fk : UInt16} {p' : SolverPosType}
     (hrun' : EStateM.run (_root_.SolverCleanupPile pile) (g, q0) = .ok fk (g, p')) :
     ∃ (v' : State) (k' : Fin 16) (FK : Finset Suit),
-      Simulates g v (SolverSpec.fluteNorm pile hpile q0) kk v' p' k' FK fk := by
+      SimulatesNorm g v (SolverSpec.fluteNorm pile hpile q0) kk v' p' k' FK fk := by
   have hdq : (SolverSpec.fluteNorm pile hpile q0).pileDepth = q0.pileDepth := rfl
   rcases SolverSpec.cleanupPile_eq pile g q0 hpile hwf hb with
     ⟨hd0, hsd, hrunE⟩ | ⟨B, hs4, hd, hd1, hd5, hidx, hBdef, hBrange, hnfp, m, f,
@@ -178,7 +164,7 @@ theorem Simulates.ofCleanupPile {g : Globals} {v : State} {q0 : SolverPosType}
       rw [hidxSame]
       exact h
     obtain ⟨v', k', FK, hsim⟩ :=
-      Simulates.ofCleanupRun (p := SolverSpec.fluteNorm pile hpile q0)
+      SimulatesNorm.ofCleanupRun (p := SolverSpec.fluteNorm pile hpile q0)
         (ph := pileHashes[pile.toNat]'hpile) hwf hb hk hpile hs4
         hidxN hd1N hfl1 hB' hmN hchain hfN hfree haces hBflute1
     -- and the solver's own result is that `cleanupRunResult`
@@ -213,7 +199,7 @@ theorem Simulates.ofCleanupPile {g : Globals} {v : State} {q0 : SolverPosType}
         injection hrun'.symm.trans hrunE with h1 h2
         injection h2 with _hg hp2
         rw [h1, hp2]
-    have hsim' : Simulates g v (SolverSpec.fluteNorm pile hpile q0) kk v'
+    have hsim' : SimulatesNorm g v (SolverSpec.fluteNorm pile hpile q0) kk v'
         (cleanupRunResult pile hpile B (pileHashes[pile.toNat]'hpile) hs4
           (q0.pileDepth[pile.toNat]'hpile) m f
           (SolverSpec.fluteNorm pile hpile q0)).2 k' FK
@@ -227,8 +213,8 @@ theorem Simulates.ofCleanupPile {g : Globals} {v : State} {q0 : SolverPosType}
 `fluteNorm ∘ removeFlutePre` point the cleanup is entered at — the same state
 `removeFlute_merged` is stated at, and the one both `SolverMove`'s phase 1 and the
 drain's sync step hand over.  `removeFlute_eq` reduces the call to
-`SolverCleanupPile` at `removeFlutePre …`; the rest is `Simulates.ofCleanupPile`. -/
-theorem Simulates.ofRemoveFlute {g : Globals} {v : State} {gameA : SolverPosType}
+`SolverCleanupPile` at `removeFlutePre …`; the rest is `SimulatesNorm.ofCleanupPile`. -/
+theorem SimulatesNorm.ofRemoveFlute {g : Globals} {v : State} {gameA : SolverPosType}
     {kk : Fin 16} (hwf : WellFormedLayout g) {pile : UInt32} (hpile : pile.toNat < 10)
     (hready : SolverSpec.CleanupReady g
       (SolverSpec.fluteNorm pile hpile (removeFlutePre pile hpile gameA)) pile)
@@ -237,18 +223,18 @@ theorem Simulates.ofRemoveFlute {g : Globals} {v : State} {gameA : SolverPosType
     {fk : UInt16} {p' : SolverPosType}
     (hrun : _root_.SolverRemoveFlute pile (g, gameA) = .ok fk (g, p')) :
     ∃ (v' : State) (k' : Fin 16) (FK : Finset Suit),
-      Simulates g v (SolverSpec.fluteNorm pile hpile (removeFlutePre pile hpile gameA))
+      SimulatesNorm g v (SolverSpec.fluteNorm pile hpile (removeFlutePre pile hpile gameA))
         kk v' p' k' FK fk := by
   obtain ⟨hb, -, -⟩ := hready
   have hrun' : EStateM.run (_root_.SolverRemoveFlute pile) (g, gameA) = .ok fk (g, p') := hrun
   rw [removeFlute_eq pile g gameA hpile] at hrun'
-  exact Simulates.ofCleanupPile hwf hpile hb hk hrun'
+  exact SimulatesNorm.ofCleanupPile hwf hpile hb hk hrun'
 
-/-- **The walk's one position-changing step is simulated.**  `Simulates.syncPlays`
+/-- **The walk's one position-changing step is simulated.**  `SimulatesNorm.syncPlays`
 plays the pile's flute together with its boundary onto the foundation — landing
 exactly at the position the cleanup is entered at, since `MoveAcesInv` pins the flute
-to the walked run (`found + 1` cards) — and `Simulates.ofRemoveFlute` takes over from
-there.  The masks compose by `Simulates.trans`, matching the code's
+to the walked run (`found + 1` cards) — and `SimulatesNorm.ofRemoveFlute` takes over from
+there.  The masks compose by `SimulatesNorm.trans`, matching the code's
 `forcedKings &&& (← SolverRemoveFlute pile)`. -/
 theorem moveAcesSim_sync {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
     (hwf : WellFormedLayout g) (suit : Fin 4) :
@@ -306,14 +292,14 @@ theorem moveAcesSim_sync {g : Globals} {s : State} {p : SolverPosType} {k : Fin 
       (removeFlutePre pile hpile gameA)).aces.get (finOfSuit (natToSuit suit))
       = encodeCard bc := by rw [hfin, hqas, hbc]
   obtain ⟨v, hsim1⟩ :=
-    Simulates.syncPlays (su := natToSuit suit) (bc := bc) (found := found.toNat)
+    SimulatesNorm.syncPlays (su := natToSuit suit) (bc := bc) (found := found.toNat)
       hsimW.cfg ⟨pile.toNat, hpile⟩ hd hidx hbsuit (hbc.trans hB.symm) hflute hbval hqd'
       (fun j hj => hqdne j (fun hc => hj (Fin.ext hc))) hqf'
       (fun j hj => hqfne j (fun hc => hj (Fin.ext hc))) hqk hqasu'
       (fun su' hsu' => hqane (finOfSuit su')
         (fun hc => hsu' (suitToNat_inj (by rw [hsu]; exact congrArg Fin.val hc))))
   -- and the `SolverRemoveFlute` call that follows
-  obtain ⟨v', k', FK', hsim2⟩ := Simulates.ofRemoveFlute hwf hpile hready hsim1.cfg hrun
+  obtain ⟨v', k', FK', hsim2⟩ := SimulatesNorm.ofRemoveFlute hwf hpile hready hsim1.cfg hrun
   exact ⟨v', k', FK ∪ FK', (hsimW.extend hsim1).trans hsim2⟩
 
 /-! ## The tail
@@ -474,7 +460,7 @@ provides.  `StateMatchesKingConfig.framePile` cannot see this, since it insists 
 `q.kings = p.kings`; every other column is untouched, and no *other* suit can own the
 emptied one, because a solver-empty column carries a single suit and this one carried
 `su`. -/
-theorem Simulates.tailPlaysComplete {g : Globals} {w : State} {gameF pF : SolverPosType}
+theorem SimulatesNorm.tailPlaysComplete {g : Globals} {w : State} {gameF pF : SolverPosType}
     {kk : Fin 16} (hwf : WellFormedLayout g) (hb : SolverInvBase g gameF)
     (hk : StateMatchesKingConfig g w gameF kk) {su : Suit} {found : Nat}
     (hfree : ∀ d ∈ runFrom (nextFoundationCard w su) found, isFreeCard g gameF (encodeCard d))
@@ -488,7 +474,7 @@ theorem Simulates.tailPlaysComplete {g : Globals} {w : State} {gameF pF : Solver
     (hpFkne : ∀ su' : Suit, su' ≠ su →
       pF.kings.get (finOfSuit su') = gameF.kings.get (finOfSuit su'))
     (hpFksu : (VALUE (pF.kings.get (finOfSuit su))).toNat = 13) :
-    ∃ v : State, Simulates g w gameF kk v pF kk ∅ 0xffff := by
+    ∃ v : State, SimulatesNorm g w gameF kk v pF kk ∅ 0xffff := by
   obtain ⟨v, hall, hcount, hdich⟩ :=
     hk.toMatches.tailPlaysComplete hwf hb hfree hnotfree
   -- the suit's foundation is now its king; the other foundations do not move
@@ -569,7 +555,7 @@ theorem Simulates.tailPlaysComplete {g : Globals} {w : State} {gameF pF : Solver
     rcases hdich' i with hsame | ⟨hnil, -, -⟩
     · exact hk.no_pile su'' hbit i hd0 d (by rw [← hsame]; exact hd)
     · rw [hnil] at hd; simp at hd
-  exact ⟨v, Simulates.ofReach hall.toReach ⟨hmatch, hrealizes, hnp⟩⟩
+  exact ⟨v, SimulatesNorm.ofNormReach hall.toNormReach ⟨hmatch, hrealizes, hnp⟩⟩
 
 /-- **The walk's tail is simulated.**  After the loop exits, the solver plays the
 `found` counted cards to the foundation (`aces[suit] := card - 1`) and, if the suit
@@ -579,12 +565,12 @@ counted run; nothing else about the position changes.
 The exit the loop reports decides which half applies:
 
 * *`VALUE cardF ≤ 13`* — the walk stopped at a buried card, so the run comes out of the
-  cells and the tableau is untouched (`Simulates.tailPlays`).  `hstopbnd` is the
+  cells and the tableau is untouched (`SimulatesNorm.tailPlays`).  `hstopbnd` is the
   `pos2card_inj` argument `moveAces_merged` also makes for `hboundaryNeCardF`: a buried
   card (`cardDepth + 1 < pileDepth`) is nobody's boundary.
 * *`VALUE cardF = 14`* — the suit ran out, so the run's tail is the suit's whole freed
   king stack and it comes off that one column, which ends up empty
-  (`Simulates.tailPlaysComplete`).
+  (`SimulatesNorm.tailPlaysComplete`).
 
 Either way the leftover premise is that `pF.aces` reads off the *new* foundations, which
 is `playsAll_runFrom_foundation` for `su` and `PlaysAll.runFrom_foundations` plus
@@ -592,7 +578,7 @@ is `playsAll_runFrom_foundation` for `su` and `PlaysAll.runFrom_foundations` plu
 disjunction on purpose: the `kings[su]` write happens *exactly* when the suit completes,
 and the suit-complete branch needs `VALUE kings[su] = 13`, which the un-written value need
 not satisfy (`kings[su] = aces[su] < 13` is legal while `busyAces` is pending). -/
-theorem Simulates.moveAcesTail {g : Globals} {w : State} {gameF pF : SolverPosType}
+theorem SimulatesNorm.moveAcesTail {g : Globals} {w : State} {gameF pF : SolverPosType}
     {kk : Fin 16} (hwf : WellFormedLayout g) {suit : Fin 4} {su : Suit}
     (hsu : suitToNat su = suit.val) {cardF card2 foundF : UInt8}
     (hk : StateMatchesKingConfig g w gameF kk)
@@ -609,7 +595,7 @@ theorem Simulates.moveAcesTail {g : Globals} {w : State} {gameF pF : SolverPosTy
     (hpFkne : ∀ t : Fin 4, t ≠ suit → pF.kings.get t = gameF.kings.get t)
     (hpFk13 : (VALUE cardF).toNat = 14 → pF.kings.get suit = card2)
     (hpFkid : (VALUE cardF).toNat ≠ 14 → pF.kings.get suit = gameF.kings.get suit) :
-    ∃ v : State, Simulates g w gameF kk v pF kk ∅ 0xffff := by
+    ∃ v : State, SimulatesNorm g w gameF kk v pF kk ∅ 0xffff := by
   have hinv' := hinv
   obtain ⟨hmerged, hf0, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩ := hinv
   have hfin : finOfSuit su = suit := Fin.ext hsu
@@ -678,7 +664,7 @@ theorem Simulates.moveAcesTail {g : Globals} {w : State} {gameF pF : SolverPosTy
       have h4 := SUIT_toNat (encodeCard ({ suit := su, rank := Rank.king } : Card))
       have h5 := VALUE_toNat (encodeCard ({ suit := su, rank := Rank.king } : Card))
       omega
-    refine Simulates.tailPlaysComplete (found := foundF.toNat) hwf hmerged.toSolverInvBase hk
+    refine SimulatesNorm.tailPlaysComplete (found := foundF.toNat) hwf hmerged.toSolverInvBase hk
       hfree (fun c h1 h2 h3 => hnotfree0 c h1 h2 (by rw [hacesEq]; omega)) (by omega)
       hpFd hpFf ?_ ?_ ?_ ?_
     · intro su' hsu'
@@ -725,7 +711,7 @@ theorem Simulates.moveAcesTail {g : Globals} {w : State} {gameF pF : SolverPosTy
       · subst ht; exact hpFkid hV14
       · exact hpFkne t ht
     obtain ⟨v, hall, himp⟩ :=
-      Simulates.tailPlays (found := foundF.toNat) (stop := cardF) hwf
+      SimulatesNorm.tailPlays (found := foundF.toNat) (stop := cardF) hwf
         hmerged.toSolverInvBase hk hfree (by rw [hcardsuitN, hsu])
         (by rw [hfin]; omega) (by omega) hnf (fun j hdj => hstopbnd j hdj _)
         (fun c h1 h2 h3 => hnotfree0 c h1 h2 h3) hpFd hpFf hqkings
@@ -739,14 +725,14 @@ set_option maxHeartbeats 1000000 in
 /-- **`SolverMoveAces` is simulated.**  One `busyAces` drain step: the solver advances
 one suit's foundation as far as the position allows, and the `Rules` side plays exactly
 those cards.  The returned `forcedKings` mask is the `Simulates`' own mask, so this
-composes straight into `SolverMove`'s accumulator with `Simulates.trans`. -/
-theorem Simulates.moveAces {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
+composes straight into `SolverMove`'s accumulator with `SimulatesNorm.trans`. -/
+theorem SimulatesNorm.moveAces {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
     (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p) (hbusy : p.busyAces ≠ 0)
     (hk : StateMatchesKingConfig g s p k) :
     ∃ (fk : UInt16) (p' : SolverPosType),
       EStateM.run _root_.SolverMoveAces (g, p) = .ok fk (g, p') ∧
       ∃ (s' : State) (k' : Fin 16) (FK : Finset Suit),
-        Simulates g s p k s' p' k' FK fk := by
+        SimulatesNorm g s p k s' p' k' FK fk := by
   -- the walked suit, exactly as `moveAces_merged` fixes it
   have hlow : p.busyAces &&& 0x0F ≠ 0 := by
     rw [SolverSpec.uint8_and_0xF_eq_self_of_lt16 p.busyAces hmerged.busyAces_lt16]
@@ -810,7 +796,7 @@ theorem Simulates.moveAces {g : Globals} {s : State} {p : SolverPosType} {k : Fi
       hloopdich, hsimF⟩ :=
     SolverSpec.moveAcesLoop_run g hwf suit suitU32 hsuitU32 (MoveAcesSim g s p k)
       (moveAcesSim_sync hwf suit) 15 card0 0xffff found0 p (by have := hval14_0; omega) hinv0
-      ⟨s, k, ∅, Simulates.refl hk⟩
+      ⟨s, k, ∅, SimulatesNorm.refl hk⟩
   obtain ⟨hmergedF, hf0F, hf13F, hsuitcardF, hval1F, hval14F, hcardeqF, hfoundfreeF, hbitF⟩ :=
     hloopinv
   have hloopinv' : SolverSpec.MoveAcesInv g suit cardF foundF gameF :=
@@ -847,7 +833,7 @@ theorem Simulates.moveAces {g : Globals} {s : State} {p : SolverPosType} {k : Fi
     have hVcardF14 : (VALUE cardF).toNat = 14 := by
       rw [← hcard2p1, VALUE_succ (cardF - 1) (by omega), hVC13]
     obtain ⟨v, hsimTail⟩ :=
-      Simulates.moveAcesTail (su := natToSuit suit)
+      SimulatesNorm.moveAcesTail (su := natToSuit suit)
         (pF := { gameF with
                    aces := gameF.aces.set suitU32.toNat (cardF - 1) hidx4,
                    kings := gameF.kings.set suitU32.toNat (cardF - 1) hidx4,
@@ -875,7 +861,7 @@ theorem Simulates.moveAces {g : Globals} {s : State} {p : SolverPosType} {k : Fi
       omega
     simp only [hVC, Bool.false_eq_true, reduceIte, EStateM.bind, EStateM.set, EStateM.pure]
     obtain ⟨v, hsimTail⟩ :=
-      Simulates.moveAcesTail (su := natToSuit suit)
+      SimulatesNorm.moveAcesTail (su := natToSuit suit)
         (pF := { gameF with
                    aces := gameF.aces.set suitU32.toNat (cardF - 1) hidx4,
                    usedSpace := gameF.usedSpace - foundF,

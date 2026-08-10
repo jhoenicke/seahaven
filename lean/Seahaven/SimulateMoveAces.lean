@@ -631,7 +631,7 @@ only pile touched either stays non-empty or ends up with a physically empty colu
 
 /-- **The drain's foundation plays are simulated**, landing exactly at the position
 `SolverCleanupPile` is entered at. -/
-theorem Simulates.syncPlays {g : Globals} {s : State} {p q : SolverPosType} {k : Fin 16}
+theorem SimulatesNorm.syncPlays {g : Globals} {s : State} {p q : SolverPosType} {k : Fin 16}
     (hk : StateMatchesKingConfig g s p k) (i : Fin 10)
     {su : Suit} {bc : Card} {found : Nat}
     (hd : 0 < (p.pileDepth.get i).toNat)
@@ -648,7 +648,7 @@ theorem Simulates.syncPlays {g : Globals} {s : State} {p q : SolverPosType} {k :
     (hqkings : q.kings = p.kings)
     (hqasu : q.aces.get (finOfSuit su) = encodeCard bc)
     (hqane : ∀ su' : Suit, su' ≠ su → q.aces.get (finOfSuit su') = p.aces.get (finOfSuit su')) :
-    ∃ v : State, Simulates g s p k v q k ∅ 0xffff := by
+    ∃ v : State, SimulatesNorm g s p k v q k ∅ 0xffff := by
   -- play the run off the column
   obtain ⟨w, hall, hwi, hwj, hlen⟩ :=
     hk.toMatches.playSyncRun i hd hidx hbsuit hflute hbval
@@ -670,7 +670,7 @@ theorem Simulates.syncPlays {g : Globals} {s : State} {p q : SolverPosType} {k :
   -- matching at the cleanup's entry position
   have hmatch := hk.toMatches.syncPile i hd hwi hwj hcount hlen hqd hqdne hqf hqfne hqkings hqaces
   -- and the king configuration is untouched
-  refine ⟨w, hk.framePile hreach hmatch hd ?_ hwj hqdne hqkings⟩
+  refine ⟨w, hk.framePile hall.toNormReach hmatch hd ?_ hwj hqdne hqkings⟩
   by_cases hd1 : 0 < (p.pileDepth.get i).toNat - 1
   · exact Or.inl (by omega)
   · refine Or.inr ?_
@@ -992,7 +992,7 @@ cells, so the tableau is untouched: `tailPile` gets `Or.inl` at every pile and
 `frameAll` carries the configuration.  The only thing the caller still owes is that the
 position's `aces` really read off the new foundations — which is exactly what the
 solver's `aces[su] := card - 1` write establishes. -/
-theorem Simulates.tailPlays {g : Globals} {s : State} {p q : SolverPosType} {k : Fin 16}
+theorem SimulatesNorm.tailPlays {g : Globals} {s : State} {p q : SolverPosType} {k : Fin 16}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hk : StateMatchesKingConfig g s p k) {su : Suit} {found : Nat} {stop : UInt8}
     (hfree : ∀ d ∈ runFrom (nextFoundationCard s su) found, isFreeCard g p (encodeCard d))
@@ -1010,7 +1010,7 @@ theorem Simulates.tailPlays {g : Globals} {s : State} {p q : SolverPosType} {k :
     (hqkings : q.kings = p.kings) :
     ∃ v : State, PlaysAll s (runFrom (nextFoundationCard s su) found) v ∧
       ((∀ su' : Suit, q.aces.get (finOfSuit su') = encodeFoundation su' (v.foundations su')) →
-        Simulates g s p k v q k ∅ 0xffff) := by
+        SimulatesNorm g s p k v q k ∅ 0xffff) := by
   obtain ⟨v, hall, hframe, hcount⟩ :=
     hk.toMatches.tailPlaysCells hwf hb hfree hstopsuit hstopval hstopreal hstopfree
       hstopbnd hnotfree
@@ -1020,7 +1020,7 @@ theorem Simulates.tailPlays {g : Globals} {s : State} {p q : SolverPosType} {k :
     intro i; rw [hqd]
   have hmatch := hk.toMatches.tailPile hcount (fun j => Or.inl (hframe j)) hqd hqf
     (fun j _ _ d _ => by rw [hqkings]) hqaces
-  exact hk.frameAll hall.toReach hmatch hframe hdeq hqkings
+  exact hk.frameAll hall.toNormReach hmatch hframe hdeq hqkings
 
 /-- **The suit-complete exit's frame.**  Once the walk has run the suit out to the
 king, a non-empty pile still gives up nothing (`no_flute_at_complete`), and the suit's

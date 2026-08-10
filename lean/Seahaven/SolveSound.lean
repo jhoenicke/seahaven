@@ -259,7 +259,7 @@ theorem solve_sound {g g' : Globals} {pk10 : Vector UInt8 11} {s : State}
   rw [solve_eq_explicit pk10] at hrun'
   simp only [bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get, hrunC,
     set, EStateM.set] at hrun'
-  exact solveTail_sound hwf hcan hs10 ⟨v, k', FK, hsim⟩ hrun'
+  exact solveTail_sound hwf hcan hs10 ⟨v, k', FK, hsim.toSimulates⟩ hrun'
 
 /-- **`solve` is sound, read against the position it computes.**  This is the
     interface the front end matches: the concrete state's freed runs are already

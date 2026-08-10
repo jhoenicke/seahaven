@@ -94,6 +94,55 @@ theorem CompleteBits.set_hashmap {g : Globals} {p : SolverPosType} {v : UInt16}
     CompleteBits { g with hashmap := hm } p v :=
   fun s k hk hsol => h s k ((StateMatchesKingConfig.hashmap_iff hm).1 hk) hsol
 
+/-! ## The component is all-or-nothing in the accumulator
+
+The pile loop skips an iteration entirely when `movable &&& ~~~solvable == 0`, and then
+the winning move's own bit is *already* in `solvable` — but the bit the caller asked
+about need not be, since the two are related only through the component
+(`cfg_eq_or_component_bits`).  What closes that hole is a second loop invariant:
+
+> once `solvable` contains **one** bit of `component`, it contains **all** of them.
+
+It holds because `component` is computed once per position, so every iteration's
+contribution is either disjoint from it (and then adds no component bit at all) or is
+widened to contain it outright — which is precisely what
+`movable'' := if movable' &&& component ≠ 0 then movable' ||| component else movable'`
+does.  Note the invariant survives the skip and the `break` for free: both leave
+`solvable` untouched. -/
+
+/-- Every component bit is in `v`, or none is. -/
+def CompAllOrNothing (v comp : UInt16) : Prop :=
+  ∀ b c : Fin 16, BitSet comp b → BitSet v b → BitSet comp c → BitSet v c
+
+/-- The loop starts at `solvable = 0`, where it holds vacuously. -/
+theorem CompAllOrNothing.zero (comp : UInt16) : CompAllOrNothing 0 comp :=
+  fun b _ _ hb _ => absurd hb (BitSet_zero b)
+
+/-- **The widening maintains it.**  Either the contribution meets the component — and is
+then widened to contain all of it — or it misses the component entirely, so the only
+component bits in the new accumulator are the old ones. -/
+theorem CompAllOrNothing.step {v comp : UInt16} (h : CompAllOrNothing v comp) (m : UInt16) :
+    CompAllOrNothing (v ||| (if m &&& comp != 0 then m ||| comp else m)) comp := by
+  intro b c hcb hvb hcc
+  by_cases hc : (m &&& comp != 0) = true
+  · rw [if_pos hc]
+    exact (BitSet_or _ _ c).2 (Or.inr ((BitSet_or _ _ c).2 (Or.inr hcc)))
+  · rw [if_neg hc] at hvb ⊢
+    rcases (BitSet_or _ _ b).1 hvb with hb | hb
+    · exact (BitSet_or _ _ c).2 (Or.inl (h b c hcb hb hcc))
+    · exfalso
+      have hz : m &&& comp = 0 := by simpa using hc
+      have hmc : BitSet (m &&& comp) b := (BitSet_and m comp b).2 ⟨hb, hcb⟩
+      rw [hz] at hmc
+      exact BitSet_zero b hmc
+
+/-- **What it is for.**  The winning move's configuration is in `solvable` and shares the
+component with the caller's, so the caller's is in `solvable` too — whether or not the
+iteration that put it there was the one that ran the move. -/
+theorem CompAllOrNothing.transfer {v comp : UInt16} (h : CompAllOrNothing v comp)
+    {i j : Fin 16} (hj : BitSet v j) (hcj : BitSet comp j) (hci : BitSet comp i) :
+    BitSet v i := h j i hcj hj hci
+
 /-! ## The `hash = 0` leaf
 
 `solverRecCheckSolvable` answers `1` when the hash is zero.  Soundness reads that
@@ -187,14 +236,24 @@ theorem recCheckSolvableSpec_of (hsound : RecCheckSolvableSound)
 /-! ## The semantic hypotheses the recursion will be built against
 
 The soundness development was written against `SubsetSound` / `ComponentSound` /
-`MoveSimulated` and only later discharged them.  The same three facts are needed in
+`MoveSimulated` and only later discharged them.  The same facts are needed in
 the opposite direction; naming them here lets the recursion assembly proceed while
 the physical arguments are still being written.
 
 The tables themselves are already characterized *bidirectionally* — `subsetAt_spec_pos`
 is an `↔`, `KingVacates` is an `↔` by definition and the code's `forcedKings` is proved
 to satisfy it, and `component_run_eq` pins the component mask bit-by-bit — so what
-these three ask for is only the physical half. -/
+these ask for is only the physical half.
+
+**No component obligation is listed.**  The mirror image of `ComponentSound` — two
+configurations *reachable from one state* lie in the same component mask — is not what
+the recursion needs, and abstract reachability does not supply it: it hands over no
+feasible one-suit-smaller configuration for the second of the two.  What the recursion
+actually has is two *different* states, the caller's and the critical one, joined by the
+winning play's prefix, and the play's own empty-column state is the witness.  That is
+`ComponentComplete.cfg_eq_or_component_bits`, proved outright — via "every configuration
+with a feasible subset that leaves a column spare is in the component"
+(`inComponent_of_hasSpareSubset` + `component_bit_of_inComponent`). -/
 
 /-- **(1) `subsetTable` completeness.**  If a configuration reachable from `s` lies
 in a local set `T`, then `s`'s own configuration lies in `T`'s expansion.  The
@@ -208,17 +267,3 @@ def SubsetComplete : Prop :=
     KingConfigReachable g p s (globalCfg (closureInfoOf p) i) →
     KingConfigReachable g p s c →
     BitSet (subsetAt ((closureInfoOf p).offset.toNat + T.toNat)) c
-
-/-- **(2) Component completeness.**  Two configurations of the same state lie in the
-same component mask.  The converse of `ComponentSound`, and what carries the bit
-from the configuration the play realizes (`k_t`) back to the one the caller asked
-about (`k`). -/
-def ComponentComplete : Prop :=
-  ∀ (g : Globals) (p : SolverPosType) (s : State) (comp : UInt8) (i j : Nat),
-    WellFormedLayout g → SolverInvMerged g p →
-    EStateM.run (computeComponentKingBits p) g = .ok comp g →
-    i < (closureInfoOf p).numBits.toNat → j < (closureInfoOf p).numBits.toNat →
-    KingConfigReachable g p s (globalCfg (closureInfoOf p) i) →
-    KingConfigReachable g p s (globalCfg (closureInfoOf p) j) →
-    BitSet comp.toUInt16 ⟨min i 15, by omega⟩ →
-    BitSet comp.toUInt16 ⟨min j 15, by omega⟩

@@ -28,12 +28,6 @@ them.
 
 /-! ## A generic reachability layer -/
 
-/-- One arbitrary legal move. -/
-def MoveStep (s t : State) : Prop := ∃ m : Move, applyMove s m = some t
-
-/-- `Reach s t` : `t` is reachable from `s` by legal moves. -/
-abbrev Reach : State → State → Prop := Relation.ReflTransGen MoveStep
-
 theorem MoveStep.toReach {s t : State} (h : MoveStep s t) : Reach s t :=
   Relation.ReflTransGen.single h
 

@@ -203,14 +203,46 @@ with the vacated suits cleared already satisfies `bound`. -/
 /-- One or more phases of a `SolverMove`, simulated: legal moves from `s` to `s'`,
 the successor position `p'` matched at configuration `k'`, the vacated suits `FK`
 with the `forcedKings` mask `fk` they force, and the guarantee that `k'` piles
-nothing beyond `k`'s piles and `FK`. -/
+**exactly** `k`'s piles together with `FK`.
+
+`bound` is an `↔`, and both halves are used:
+
+* `→` is soundness's: the recursion queries the child expansion at the *parent's*
+  configuration, and `kingStep_transport` needs `k'` to pile nothing unexpected.
+* `←` is completeness's: the child's answer bit has to be read at a configuration
+  that piles the parent's block configuration *and* survives the `&&& forcedKings`
+  intersection, which is exactly "piles `k` and `FK`".
+
+The `←` half costs nothing at any phase — no phase *unpiles* a suit, and a suit
+whose whole stack reaches the foundation keeps owning its (now empty) column
+through `OwnsPile`'s second disjunct, because `SolverMoveAces` writes the king
+into `kings` as it plays it. -/
 structure Simulates (g : Globals) (s : State) (p : SolverPosType) (k : Fin 16)
     (s' : State) (p' : SolverPosType) (k' : Fin 16)
     (FK : Finset Suit) (fk : UInt16) : Prop where
   reach : Reach s s'
   cfg : StateMatchesKingConfig g s' p' k'
   vacates : KingVacates FK fk
-  bound : ∀ su : Suit, ¬ CfgBitSet k' su → ¬ CfgBitSet k su ∨ su ∈ FK
+  bound : ∀ su : Suit, ¬ CfgBitSet k' su ↔ (¬ CfgBitSet k su ∨ su ∈ FK)
+
+/-- A suit the entry configuration piles is piled at the exit too. -/
+theorem Simulates.piled_of_piled {g : Globals} {s s' : State} {p p' : SolverPosType}
+    {k k' : Fin 16} {FK : Finset Suit} {fk : UInt16}
+    (h : Simulates g s p k s' p' k' FK fk) {su : Suit} (hk : ¬ CfgBitSet k su) :
+    ¬ CfgBitSet k' su := (h.bound su).2 (Or.inl hk)
+
+/-- A vacated suit is piled at the exit — what makes the exit configuration survive
+the `&&& forcedKings` intersection. -/
+theorem Simulates.piled_of_forced {g : Globals} {s s' : State} {p p' : SolverPosType}
+    {k k' : Fin 16} {FK : Finset Suit} {fk : UInt16}
+    (h : Simulates g s p k s' p' k' FK fk) {su : Suit} (hm : su ∈ FK) :
+    ¬ CfgBitSet k' su := (h.bound su).2 (Or.inr hm)
+
+/-- Hence the exit configuration survives its own `forcedKings` mask. -/
+theorem Simulates.bitSet_fk {g : Globals} {s s' : State} {p p' : SolverPosType}
+    {k k' : Fin 16} {FK : Finset Suit} {fk : UInt16}
+    (h : Simulates g s p k s' p' k' FK fk) : BitSet fk k' :=
+  (h.vacates k').2 (fun _ hm => h.piled_of_forced hm)
 
 /-- **Doing nothing simulates nothing**, and is the unit for `trans`. -/
 theorem Simulates.refl {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
@@ -218,7 +250,7 @@ theorem Simulates.refl {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16
   reach := Relation.ReflTransGen.refl
   cfg := h
   vacates := KingVacates.empty
-  bound := fun _ hk => Or.inl hk
+  bound := fun su => ⟨Or.inl, fun hc => hc.elim id (fun hm => absurd hm (Finset.notMem_empty su))⟩
 
 /-- **A phase that vacates no king**: the flute move, cleanup's merge and
 extension, and the foundation drain all keep the configuration and contribute the
@@ -229,7 +261,7 @@ theorem Simulates.ofReach {g : Globals} {s s' : State} {p p' : SolverPosType} {k
   reach := hr
   cfg := h
   vacates := KingVacates.empty
-  bound := fun _ hk => Or.inl hk
+  bound := fun su => ⟨Or.inl, fun hc => hc.elim id (fun hm => absurd hm (Finset.notMem_empty su))⟩
 
 /-- **A lone-king vacate** (`kingMove`): suit `su` joins the piled set, every
 other suit keeps its bit, and the contributed mask is `su`'s `kingOnPileMap` row.
@@ -237,14 +269,19 @@ The `Reach` is usually `refl` — vacating moves no card — but it is taken as 
 parameter so cleanup's extension can be folded in. -/
 theorem Simulates.vacate {g : Globals} {s s' : State} {p p' : SolverPosType} {k k' : Fin 16}
     {su : Suit} (hr : Reach s s') (h : StateMatchesKingConfig g s' p' k')
-    (hk' : ∀ su' : Suit, su' ≠ su → (CfgBitSet k' su' ↔ CfgBitSet k su')) :
+    (hk' : ∀ su' : Suit, su' ≠ su → (CfgBitSet k' su' ↔ CfgBitSet k su'))
+    (hsu : ¬ CfgBitSet k' su) :
     Simulates g s p k s' p' k' {su} (kingOnPileMap.get (finOfSuit su)) where
   reach := hr
   cfg := h
   vacates := KingVacates.single su
-  bound := fun su' hk =>
-    if hsu : su' = su then Or.inr (by simp [hsu])
-    else Or.inl (fun hc => hk ((hk' su' hsu).2 hc))
+  bound := fun su' => by
+    by_cases hx : su' = su
+    · subst hx
+      exact ⟨fun _ => Or.inr (Finset.mem_singleton_self _), fun _ => hsu⟩
+    · exact ⟨fun hk => Or.inl (fun hc => hk ((hk' su' hx).2 hc)),
+        fun hc => hc.elim (fun hnk hcc => hnk ((hk' su' hx).1 hcc))
+          (fun hm => absurd (Finset.mem_singleton.1 hm) hx)⟩
 
 /-- **Chaining.**  This is the only composition rule the phase lemmas need: run
 one phase, then the next from wherever it left off. -/
@@ -255,12 +292,21 @@ theorem Simulates.trans {g : Globals} {s s' s'' : State} {p p' p'' : SolverPosTy
   reach := h₁.reach.trans h₂.reach
   cfg := h₂.cfg
   vacates := h₁.vacates.inter h₂.vacates
-  bound := fun su hk => by
-    rcases h₂.bound su hk with hk' | hF₂
-    · rcases h₁.bound su hk' with hk0 | hF₁
-      · exact Or.inl hk0
-      · exact Or.inr (Finset.mem_union_left _ hF₁)
-    · exact Or.inr (Finset.mem_union_right _ hF₂)
+  bound := fun su => by
+    constructor
+    · intro hk
+      rcases (h₂.bound su).1 hk with hk' | hF₂
+      · rcases (h₁.bound su).1 hk' with hk0 | hF₁
+        · exact Or.inl hk0
+        · exact Or.inr (Finset.mem_union_left _ hF₁)
+      · exact Or.inr (Finset.mem_union_right _ hF₂)
+    · intro hc
+      refine (h₂.bound su).2 ?_
+      rcases hc with hk0 | hm
+      · exact Or.inl ((h₁.bound su).2 (Or.inl hk0))
+      · rcases Finset.mem_union.1 hm with hF₁ | hF₂
+        · exact Or.inl ((h₁.bound su).2 (Or.inr hF₁))
+        · exact Or.inr hF₂
 
 /-! ## The loop invariant -/
 
@@ -453,6 +499,14 @@ theorem MaskSub_iff (d c : Fin 16) :
     MaskSub d c ↔ ∀ su : Suit, CfgBitSet d su → CfgBitSet c su := by
   revert d c; decide
 
+/-- **`forcedKings` is upward closed under piling more.**  A configuration that
+piles at least what a surviving one piles survives too — so a `subsetTable`
+witness above the child's actual configuration is still in the mask after the
+`&&& forcedKings` intersection. -/
+theorem KingVacates.mono {FK : Finset Suit} {fk : UInt16} (h : KingVacates FK fk)
+    {d c : Fin 16} (hsub : MaskSub d c) (hc : BitSet fk c) : BitSet fk d :=
+  (h d).2 (fun su hsu hbit => (h c).1 hc su hsu ((MaskSub_iff d c).1 hsub su hbit))
+
 /-! ## The `forcedKings` transport, assembled
 
 `kingStep_transport` is what the per-contribution soundness argument uses: the
@@ -585,7 +639,7 @@ theorem Simulates.transport {g : Globals} {s s' : State} {p p' : SolverPosType}
     (hbit : BitSet (subsetAt ((closureInfoOf p').offset.toNat +
         (T &&& (fk >>> (closureInfoOf p').shiftValue.toUInt16)).toNat)) k) :
     BitSet (subsetAt ((closureInfoOf p').offset.toNat + T.toNat)) k' :=
-  kingStep_transport p' hT hsim.vacates hsim.bound hbit
+  kingStep_transport p' hT hsim.vacates (fun su => (hsim.bound su).1) hbit
 
 /-- **The direction of the step clause is not negotiable.**  It is an *upper*
 bound on what `k'` piles — "`k'` piles nothing beyond `gi`'s piles and the

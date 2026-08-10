@@ -1,4 +1,5 @@
 import Seahaven.CleanupSim
+import Seahaven.SimulatesNorm
 import Seahaven.SoundnessSkeleton
 
 /-!
@@ -166,14 +167,14 @@ alternative (its merge count satisfies `m < pileDepth[a]`); the drain's sync ste
 takes the second when it plays a depth-1 pile out entirely. -/
 theorem StateMatchesKingConfig.framePile {g : Globals} {s v : State} {p q : SolverPosType}
     {k : Fin 16} {a : Fin 10} (hk : StateMatchesKingConfig g s p k)
-    (hreach : Reach s v) (hmatch : StateMatchesSolverPos g v q)
+    (hreach : NormReach s v) (hmatch : StateMatchesSolverPos g v q)
     (hda : 0 < (p.pileDepth.get a).toNat)
     (hqda : 0 < (q.pileDepth.get a).toNat ∨ v.tableau a = [])
     (hframe : ∀ i : Fin 10, i ≠ a → v.tableau i = s.tableau i)
     (hqdne : ∀ i : Fin 10, i ≠ a → q.pileDepth.get i = p.pileDepth.get i)
     (hqkings : q.kings = p.kings) :
-    Simulates g s p k v q k ∅ 0xffff := by
-  refine Simulates.ofReach hreach ⟨hmatch, ?_, ?_⟩
+    SimulatesNorm g s p k v q k ∅ 0xffff := by
+  refine SimulatesNorm.ofNormReach hreach ⟨hmatch, ?_, ?_⟩
   · -- the same assignment still works, pile by pile
     obtain ⟨assign, hown, hinj, hiff⟩ := hk.realizes
     refine ⟨assign, fun su i hi => ?_, hinj, hiff⟩
@@ -321,7 +322,7 @@ and `clearCfgBit` leaves an already-clear bit alone.  Injectivity is what makes
 the re-pointing safe: no other suit can have owned `a`, since `a` had depth `1`. -/
 theorem StateMatchesKingConfig.vacatePile {g : Globals} {s v : State} {p q : SolverPosType}
     {k : Fin 16} {a : Fin 10} {su : Suit} (hk : StateMatchesKingConfig g s p k)
-    (hreach : Reach s v) (hmatch : StateMatchesSolverPos g v q)
+    (hreach : NormReach s v) (hmatch : StateMatchesSolverPos g v q)
     (hda : 0 < (p.pileDepth.get a).toNat)
     (hqd : (q.pileDepth.get a).toNat = 0)
     (hqdne : ∀ i : Fin 10, i ≠ a → q.pileDepth.get i = p.pileDepth.get i)
@@ -329,7 +330,7 @@ theorem StateMatchesKingConfig.vacatePile {g : Globals} {s v : State} {p q : Sol
     (hbot : ∃ c ∈ (v.tableau a).getLast?, c.suit = su ∧ c.rank = Rank.king)
     (hqkne : ∀ su' : Suit, su' ≠ su →
       q.kings.get (finOfSuit su') = p.kings.get (finOfSuit su')) :
-    Simulates g s p k v q (clearCfgBit k su) {su} (kingOnPileMap.get (finOfSuit su)) := by
+    SimulatesNorm g s p k v q (clearCfgBit k su) {su} (kingOnPileMap.get (finOfSuit su)) := by
   -- the vacated column's deepest card is `su`'s king, so no other suit sees it
   have hnotsu : ∀ d ∈ (v.tableau a).getLast?, ∀ x : Suit, x ≠ su → d.suit ≠ x := by
     obtain ⟨c, hc, hcsu, _⟩ := hbot
@@ -337,8 +338,8 @@ theorem StateMatchesKingConfig.vacatePile {g : Globals} {s v : State} {p q : Sol
     obtain rfl : c = d :=
       Option.some.inj ((Option.mem_def.1 hc).symm.trans (Option.mem_def.1 hd))
     rw [hcsu]; exact fun hcc => hx hcc.symm
-  refine Simulates.vacate hreach ⟨hmatch, ?_, ?_⟩
-    (fun su' hsu' => clearCfgBit_ne su su' k hsu')
+  refine SimulatesNorm.vacate hreach ⟨hmatch, ?_, ?_⟩
+    (fun su' hsu' => clearCfgBit_ne su su' k hsu') (clearCfgBit_self su k)
   · -- re-point `su` at the vacated column; everyone else keeps theirs
     obtain ⟨assign, hown, hinj, hiff⟩ := hk.realizes
     set assign' : Suit → Option (Fin 10) := fun x => if x = su then some a else assign x
@@ -404,10 +405,11 @@ equations from the `SolverSpec` field lemmas. -/
 `cleanupPileSim`; `hqda` (the pile is still non-empty afterwards) is the caller's,
 since it follows from the merge count's `m < pileDepth[pile]` — read off with
 `cleanupRunResult_fields_ordinary`. -/
-theorem Simulates.preCleanupPile {g : Globals} {s v : State} {p : SolverPosType} {k : Fin 16}
+theorem SimulatesNorm.preCleanupPile {g : Globals} {s v : State} {p : SolverPosType}
+    {k : Fin 16}
     {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {ph : UInt32}
     (hs4 : (SUIT B).toUInt32.toNat < 4) {m f : Nat}
-    (hk : StateMatchesKingConfig g s p k) (hreach : Reach s v)
+    (hk : StateMatchesKingConfig g s p k) (hreach : NormReach s v)
     (hmatch : StateMatchesSolverPos g v
       (preCleanupPile pile hpile B ph hs4
         (p.pileDepth[pile.toNat]'hpile) m f p))
@@ -416,7 +418,7 @@ theorem Simulates.preCleanupPile {g : Globals} {s v : State} {p : SolverPosType}
     (hqda : 0 < ((preCleanupPile pile hpile B ph hs4
       (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth.get
         ⟨pile.toNat, hpile⟩).toNat) :
-    Simulates g s p k v
+    SimulatesNorm g s p k v
       (preCleanupPile pile hpile B ph hs4
         (p.pileDepth[pile.toNat]'hpile) m f p) k ∅ 0xffff :=
   hk.framePile hreach hmatch hda (Or.inl hqda) hframe
@@ -429,7 +431,7 @@ exactly the vacated suit.  `hsucode` is the bridge from the solver's suit *code*
 the `Rules` suit, and `hbot` says the depth-1 column really is topped out at that
 suit's king (which is the branch's own `VALUE (B + m) = 13` test, transported to
 the state — the derivation inside `cleanupPileSimKing`). -/
-theorem Simulates.kingMove {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
+theorem SimulatesNorm.kingMove {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
     {pile : UInt32} (hpile : pile.toNat < 10) {suit : UInt8}
     (hs4 : suit.toUInt32.toNat < 4) {ph : UInt32} {su : Suit}
     (hk : StateMatchesKingConfig g s p k)
@@ -438,7 +440,7 @@ theorem Simulates.kingMove {g : Globals} {s : State} {p : SolverPosType} {k : Fi
     (hd1 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat = 1)
     (hbot : ∃ c ∈ (s.tableau ⟨pile.toNat, hpile⟩).getLast?,
       c.suit = su ∧ c.rank = Rank.king) :
-    Simulates g s p k s (kingMove pile hpile suit hs4 ph p)
+    SimulatesNorm g s p k s (kingMove pile hpile suit hs4 ph p)
       (clearCfgBit k su) {su} (kingOnPileMap.get (finOfSuit su)) := by
   refine hk.vacatePile Relation.ReflTransGen.refl hmatch (by omega) ?_ ?_
     (fun _ _ => rfl) hbot ?_
@@ -527,14 +529,14 @@ only pile either touches is the cleaned one.  Composing with the no-op
 `Simulates.refl` reproduces the mask exactly as the code accumulates it
 (`0xffff &&& kingOnPileMap[suit]`), with `FK = ∅ ∪ {suit}`. -/
 
-theorem Simulates.cleanupPile {g : Globals} {s v : State} {p : SolverPosType}
+theorem SimulatesNorm.cleanupPile {g : Globals} {s v : State} {p : SolverPosType}
     {k : Fin 16} {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {ph : UInt32}
     (hs4 : (SUIT B).toUInt32.toNat < 4) {m f : Nat}
     (hk : StateMatchesKingConfig g s p k)
     (hda : 0 < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hd5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat ≤ 5)
     (hm : m ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1)
-    (hreach : Reach s v)
+    (hreach : NormReach s v)
     (hmatch : StateMatchesSolverPos g v
       (cleanupRunResult pile hpile B ph hs4
         (p.pileDepth[pile.toNat]'hpile) m f p).2)
@@ -544,7 +546,7 @@ theorem Simulates.cleanupPile {g : Globals} {s v : State} {p : SolverPosType}
       ∃ c ∈ (v.tableau ⟨pile.toNat, hpile⟩).getLast?,
         c.suit = suitOfCode (SUIT B) hs4 ∧ c.rank = Rank.king) :
     ∃ (k' : Fin 16) (FK : Finset Suit),
-      Simulates g s p k v
+      SimulatesNorm g s p k v
         (cleanupRunResult pile hpile B ph hs4
           (p.pileDepth[pile.toNat]'hpile) m f p).2
         k' FK
@@ -568,7 +570,7 @@ theorem Simulates.cleanupPile {g : Globals} {s v : State} {p : SolverPosType}
       rfl
     refine ⟨clearCfgBit k (suitOfCode (SUIT B) hs4), ∅ ∪ {suitOfCode (SUIT B) hs4}, ?_⟩
     rw [hfk, ← hfin]
-    refine (Simulates.refl hk).trans (hk.vacatePile hreach hmatch hdane ?_ ?_ hframe
+    refine (SimulatesNorm.refl hk).trans (hk.vacatePile hreach hmatch hdane ?_ ?_ hframe
       (hbot hbranch) ?_)
     · rw [hqd]
       show ((p.pileDepth.set pile.toNat 0 hpile)[pile.toNat]'hpile).toNat = 0
@@ -620,7 +622,7 @@ column's deepest card is the boundary suit's king.  Gluing the two gives a
 `Simulates` for a whole `SolverCleanupPile` call from the same hypotheses the
 matching simulation takes. -/
 
-theorem Simulates.ofCleanupRun {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
+theorem SimulatesNorm.ofCleanupRun {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hk : StateMatchesKingConfig g s p k)
     {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {ph : UInt32} {m f : Nat}
@@ -643,7 +645,7 @@ theorem Simulates.ofCleanupRun {g : Globals} {s : State} {p : SolverPosType} {k 
       ∀ hidxj : (p.pileDepth.get j).toNat - 1 < 5,
       (g.pos2card.get j).get ⟨_, hidxj⟩ = B → p.pileFlute.get j = 1) :
     ∃ (v : State) (k' : Fin 16) (FK : Finset Suit),
-      Simulates g s p k v
+      SimulatesNorm g s p k v
         (cleanupRunResult pile hpile B ph hs4'
           (p.pileDepth[pile.toNat]'hpile) m f p).2
         k' FK
@@ -656,8 +658,8 @@ theorem Simulates.ofCleanupRun {g : Globals} {s : State} {p : SolverPosType} {k 
     hb.pileDepth_bound ⟨pile.toNat, hpile⟩
   have hmN : m < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat := hm
   have hdaN : 0 < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat := by omega
-  obtain ⟨k', FK, hsim⟩ := Simulates.cleanupPile hpile hs4' hk hdaN hd5 (by omega)
-    hreach hmatch hframe
+  obtain ⟨k', FK, hsim⟩ := SimulatesNorm.cleanupPile hpile hs4' hk hdaN hd5 (by omega)
+    hreach.toNormReach hmatch hframe
     (fun hbranch => by
       obtain ⟨c, hc, hcsuit, hcrank⟩ := hexport hbranch
       -- the exported suit is stated by code; convert it to the `Suit` the vacate names
@@ -899,12 +901,12 @@ new solver-empty pile appears.  This is the drain's tail, where the whole run co
 of the cells. -/
 theorem StateMatchesKingConfig.frameAll {g : Globals} {s v : State} {p q : SolverPosType}
     {k : Fin 16} (hk : StateMatchesKingConfig g s p k)
-    (hreach : Reach s v) (hmatch : StateMatchesSolverPos g v q)
+    (hreach : NormReach s v) (hmatch : StateMatchesSolverPos g v q)
     (hframe : ∀ i : Fin 10, v.tableau i = s.tableau i)
     (hqd : ∀ i : Fin 10, q.pileDepth.get i = p.pileDepth.get i)
     (hqkings : q.kings = p.kings) :
-    Simulates g s p k v q k ∅ 0xffff := by
-  refine Simulates.ofReach hreach ⟨hmatch, ?_, ?_⟩
+    SimulatesNorm g s p k v q k ∅ 0xffff := by
+  refine SimulatesNorm.ofNormReach hreach ⟨hmatch, ?_, ?_⟩
   · obtain ⟨assign, hown, hinj, hiff⟩ := hk.realizes
     exact ⟨assign, fun su i hi =>
       (hown su i hi).frame (hqd i) (by rw [hqkings]) (hframe i), hinj, hiff⟩

@@ -13,11 +13,11 @@ reach.
 
 The two ingredients are already available:
 
-* `Simulates.ofCleanupPile` — one `SolverCleanupPile` call, simulated;
-* `Simulates.drain` — the whole `busyAces` drain, simulated.
+* `SimulatesNorm.ofCleanupPile` — one `SolverCleanupPile` call, simulated;
+* `SimulatesNorm.drain` — the whole `busyAces` drain, simulated.
 
 `MoveAcesSim g s P k fk q` (`∃ w k' FK, Simulates g s P k w q k' FK fk`) is the
-carrier: it is exactly what `Simulates.drain` already threads, and
+carrier: it is exactly what `SimulatesNorm.drain` already threads, and
 `Simulates.trans` is what each cleanup iteration does to it.
 -/
 
@@ -36,7 +36,7 @@ theorem fluteNorm_self (pile : UInt32) (hpile : pile.toNat < 10) (q : SolverPosT
   show { q with pileFlute := q.pileFlute.set pile.toNat 1 hpile } = q
   rw [hsf]
 
-/-- **The cleanup loop is simulated**, one `Simulates.ofCleanupPile` per pile,
+/-- **The cleanup loop is simulated**, one `SimulatesNorm.ofCleanupPile` per pile,
     accumulated by `Simulates.trans` exactly as the loop accumulates
     `forcedKings := forcedKings &&& …`. -/
 theorem cvCleanupLoop_sim (g : Globals) (hwf : WellFormedLayout g)
@@ -70,7 +70,7 @@ theorem cvCleanupLoop_sim (g : Globals) (hwf : WellFormedLayout g)
     have hkcfg : StateMatchesKingConfig g w (fluteNorm (UInt32.ofNat j) hpile q) kk := by
       rw [hfn]; exact hsim.cfg
     obtain ⟨w', kk', FK', hsim'⟩ :=
-      Simulates.ofCleanupPile hwf hpile hb hkcfg hrun1
+      SimulatesNorm.ofCleanupPile hwf hpile hb hkcfg hrun1
     rw [hfn] at hsim'
     have hP1 : MoveAcesSim g s P k (fk &&& fk0) q1 := ⟨w', kk', FK ∪ FK', hsim.trans hsim'⟩
     obtain ⟨fk', q', hrun', hq', hP'⟩ := ih (j + 1) (by omega) (fk &&& fk0) q1 hq1 hP1
@@ -91,16 +91,16 @@ theorem convert_simulates (g : Globals) (hwf : WellFormedLayout g) (pk : Vector 
     ∃ (fk : UInt16) (p' : SolverPosType) (s' : State) (k' : Fin 16) (FK : Finset Suit),
       EStateM.run (_root_.SolverConvertFromPilesKings pk) (g, p0) = .ok fk (g, p') ∧
       IsCanonicalPos g p' ∧
-      Simulates g s (convertPre g pk) k s' p' k' FK fk := by
+      SimulatesNorm g s (convertPre g pk) k s' p' k' FK fk := by
   have hcount : CvCountBound g pk := cvCountBound g hwf pk hpk
   -- loop 3, with the simulation riding along
   obtain ⟨fk1, q1, hrun1, hq1, hP1⟩ :=
     cvCleanupLoop_sim g hwf s (convertPre g pk) k 10 0 rfl 0xffff (convertPre g pk)
       (convertPre_mergedUpTo_zero g pk hwf hpk)
-      ⟨s, k, ∅, Simulates.refl hk⟩
+      ⟨s, k, ∅, SimulatesNorm.refl hk⟩
   have hmerged : SolverInvMerged g q1 := mergedUpTo_ten_iff.mp hq1
   -- loop 4
-  obtain ⟨fk2, q2, hrun2, hcan, hP2⟩ := Simulates.drain hwf hmerged hP1
+  obtain ⟨fk2, q2, hrun2, hcan, hP2⟩ := SimulatesNorm.drain hwf hmerged hP1
   obtain ⟨s', k', FK, hsim⟩ := hP2
   refine ⟨fk2, q2, s', k', FK, ?_, hcan, hsim⟩
   show _root_.SolverConvertFromPilesKings pk (g, p0) = _

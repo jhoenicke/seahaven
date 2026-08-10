@@ -37,6 +37,8 @@ import Seahaven.UsedSpaceBound
 import Seahaven.ComputeKingSpaces
 import Seahaven.ComponentKingBits
 import Seahaven.CleanupSim
+import Seahaven.NormReachBridge
+import Seahaven.SimulatesNorm
 import Seahaven.KingConfigSim
 import Seahaven.SimulateMoveAces
 import Seahaven.RecCheckSound
@@ -63,6 +65,13 @@ import Seahaven.DestAfford
 import Seahaven.MaximalCfg
 import Seahaven.DepthUnique
 import Seahaven.CPNormMatch
-import Seahaven.NormReachBridge
-import Seahaven.SimulatesNorm
 import Seahaven.CompletenessSkeleton
+import Seahaven.EmptyPileCfg
+import Seahaven.ComponentComplete
+import Seahaven.CPNormCfg
+import Seahaven.KingAssemble
+import Seahaven.MovePreMatch
+import Seahaven.CleanupDepth
+import Seahaven.CriticalChild
+import Seahaven.MovableBit
+import Seahaven.SubsetTransport

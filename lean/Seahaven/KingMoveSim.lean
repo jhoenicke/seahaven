@@ -263,19 +263,52 @@ One move per card, highest value first: the king lands on the physically empty
 column (`dropCol` accepts it, since `nextCard` of a king is `none`), and every
 later card lands on its successor. -/
 
+/-! ## Cell → pile drops undo themselves
+
+The piling direction has to be *solvability-preserving forwards*, which a bare
+`Reach` does not give.  It comes for free from one observation: a drop out of a
+cell onto a column is inverted by taking that card straight back — the cell it
+came from is empty by then, so the take is always legal, and the result is the
+original state on the nose.  (Note this needs no hypothesis on the destination
+column: unlike `CPStep`, it also covers dropping a king onto an *empty* column,
+which is exactly the move that pins a king run to a spare pile.) -/
+
+/-- **A cell → pile drop is invertible.** -/
+theorem applyMove_cell_pile_inv {s t : State} {c : Fin 4} {j : Fin 10}
+    (h : applyMove s ⟨Position.cell c, Position.pile j⟩ = some t) :
+    applyMove t ⟨Position.pile j, Position.cell c⟩ = some s := by
+  rw [applyMove_eq] at h
+  obtain ⟨card, s0, htake, hdrop⟩ := h
+  simp only [takeFromPosition, takeFromCell_eq] at htake
+  obtain ⟨hcell, rfl⟩ := htake
+  simp only [dropPosition, dropCol_eq, updateCell_tableau] at hdrop
+  obtain ⟨-, rfl⟩ := hdrop
+  rw [applyMove_eq]
+  refine ⟨card, updateColumn (updateColumn (updateCell s c none) j
+    (card :: s.tableau j)) j (s.tableau j), ?_, ?_⟩
+  · simp only [takeFromPosition, takeFromCol_eq]
+    exact ⟨s.tableau j, by simp [update], rfl⟩
+  · simp only [dropPosition, dropCell_eq]
+    refine ⟨by simp [update], ?_⟩
+    refine State.ext' ?_ rfl ?_
+    · show s.cells = update (update s.cells c none) c (some card)
+      rw [update2, ← hcell, update_self]
+    · show s.tableau = update (update s.tableau j (card :: s.tableau j)) j (s.tableau j)
+      rw [update2, update_self]
+
 theorem reach_pile_run (su : Suit) (V : Nat) :
     ∀ (n : Nat) (s : State) (j : Fin 10), V + 1 + n ≤ 14 →
       s.tableau j = kingRun su (V + 1 + n) →
       (∀ m, V < m → m < V + 1 + n → ∃ c : Fin 4, s.cells c = some (cardOf su m)) →
-      ∃ t : State, Reach s t ∧ t.tableau j = kingRun su (V + 1) ∧
+      ∃ t : State, Reach s t ∧ Reach t s ∧ t.tableau j = kingRun su (V + 1) ∧
         (∀ q, q ≠ j → t.tableau q = s.tableau q) ∧ t.foundations = s.foundations ∧
         (∀ c : Fin 4, t.cells c = s.cells c ∨ t.cells c = none) := by
   intro n
   induction n with
   | zero =>
     intro s j _ hcol _
-    exact ⟨s, Relation.ReflTransGen.refl, by simpa using hcol, fun _ _ => rfl, rfl,
-      fun _ => Or.inl rfl⟩
+    exact ⟨s, Relation.ReflTransGen.refl, Relation.ReflTransGen.refl,
+      by simpa using hcol, fun _ _ => rfl, rfl, fun _ => Or.inl rfl⟩
   | succ n ih =>
     intro s j hle hcol hcells
     -- the highest card still in a cell goes next
@@ -316,8 +349,9 @@ theorem reach_pile_run (su : Suit) (V : Nat) :
       rw [hs1]
       simp only [updateColumn_cells, updateCell_cells, update, if_neg hne]
       exact hc'
-    obtain ⟨t, hreach, htj, htq, htf, hcellsub⟩ := ih s1 j (by omega) hcolnew hcellsnew
-    refine ⟨t, Relation.ReflTransGen.head ⟨_, hstep⟩ hreach, htj, ?_, ?_, ?_⟩
+    obtain ⟨t, hreach, hback, htj, htq, htf, hcellsub⟩ := ih s1 j (by omega) hcolnew hcellsnew
+    refine ⟨t, Relation.ReflTransGen.head ⟨_, hstep⟩ hreach,
+      hback.tail ⟨_, applyMove_cell_pile_inv hstep⟩, htj, ?_, ?_, ?_⟩
     · intro q hq
       rw [htq q hq, hs1]
       simp [updateColumn, update, Ne.symm hq]
@@ -562,11 +596,24 @@ private theorem exists_spare_col {g : Globals} {s : State} {p : SolverPosType} {
 
 /-! ## Piling, assembled -/
 
-/-- **The pile step.**  The run is in the cells (`run_card_in_cell`), a spare empty
-column is available (`exists_spare_col`), and `reach_pile_run` drops the cards on
-one at a time.  No cell arithmetic: piling only frees cells. -/
-theorem kingPileReachable : KingPileReachable := by
-  intro g p s k su hwf hm hk hsu hcard
+/-- **The pile step, with the inverse reach.**  The run is in the cells
+(`run_card_in_cell`), a spare empty column is available (`exists_spare_col`), and
+`reach_pile_run` drops the cards on one at a time.  No cell arithmetic: piling only
+frees cells.  It also hands back `Reach t s`:
+every move it makes is a cell → pile drop, and
+`applyMove_cell_pile_inv` undoes each one.  The two states are therefore *equi*-solvable,
+which is what completeness needs — a bare `Reach s t` only carries solvability
+backwards.
+
+When nothing of the suit is freed yet (`VALUE kings[su] = 13`) the run is empty and
+no card moves at all; the spare column is claimed through `OwnsPile`'s reservation
+branch, and both reaches are `refl`. -/
+theorem kingPileEquiv (g : Globals) (p : SolverPosType) (s : State) (k : Fin 16) (su : Suit)
+    (hwf : WellFormedLayout g) (hm : SolverInvMerged g p)
+    (hk : StateMatchesKingConfig g s p k) (hsu : CfgBitSet k su)
+    (hcard : (piledSet k).card < p.freePiles.toNat) :
+    ∃ t : State, Reach s t ∧ Reach t s ∧
+      StateMatchesKingConfig g t p (clearCfgBit k su) := by
   have hb := hm.toSolverInvBase
   obtain ⟨assign, hassOwn, hinj, hiff⟩ := hk.realizes
   obtain ⟨j, hjd, hjnil, hjassign⟩ := exists_spare_col hm hk hassOwn hiff hcard
@@ -574,7 +621,7 @@ theorem kingPileReachable : KingPileReachable := by
     (hb.aces_kings_valid (finOfSuit su)).2.2.2.1
   set V := (VALUE (p.kings.get (finOfSuit su))).toNat with hVdef
   -- drop the run, card by card, onto the spare column
-  obtain ⟨t, hreach, htj, htq, htf, -⟩ :=
+  obtain ⟨t, hreach, hback, htj, htq, htf, -⟩ :=
     reach_pile_run su V (13 - V) s j (by omega)
       (by rw [hjnil, show V + 1 + (13 - V) = 14 from by omega, kingRun_of_14])
       (fun m hm1 hm2 => run_card_in_cell hwf hb hk hsu (by omega) (by omega))
@@ -587,7 +634,8 @@ theorem kingPileReachable : KingPileReachable := by
     · exact Or.inr ⟨by rw [htj, show V + 1 = 14 from by omega, kingRun_of_14], by
         rw [← hVdef]; omega⟩
     · exact Or.inl ⟨cardOf su 13, by rw [htj]; exact kingRun_getLast? su (by omega), rfl, rfl⟩
-  refine ⟨t, hreach, hmt, ⟨fun su' => if su' = su then some j else assign su', ?_, ?_, ?_⟩, ?_⟩
+  refine ⟨t, hreach, hback, hmt,
+    ⟨fun su' => if su' = su then some j else assign su', ?_, ?_, ?_⟩, ?_⟩
   · intro su' i' hi'
     by_cases hc : su' = su
     · subst hc
@@ -634,6 +682,12 @@ theorem kingPileReachable : KingPileReachable := by
         rw [← hd]
         exact fun hc => hne hc.symm
     · exact Or.inl ⟨hi, htq i hij⟩
+
+/-- **`KingPileReachable`**, the one-way form the soundness development consumes. -/
+theorem kingPileReachable : KingPileReachable := by
+  intro g p s k su hwf hm hk hsu hcard
+  obtain ⟨t, hf, -, hmt⟩ := kingPileEquiv g p s k su hwf hm hk hsu hcard
+  exact ⟨t, hf, hmt⟩
 
 /-! ## The obligation, discharged -/
 

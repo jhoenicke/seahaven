@@ -245,7 +245,11 @@ theorem foundations_of_nonFoundation_move {u u' : State} {m : Move}
 available (`no_fmStep_of_depthMatch`), so every move's destination is a cell or a
 pile and the foundations are constant; the card count is preserved by every move.
 Both therefore reach the critical state, which is what turns its depth match into
-a `DepthPlusKings` match. -/
+a `DepthPlusKings` match.
+
+The prefix is returned as a `PrefixReach` chain rather than a bare `Reach`: every
+one of its states still matches at the middle layer, which is what the
+king-configuration argument (`EmptyPileCfg`) inspects. -/
 theorem exists_critical_move_aces {g : Globals} {p : SolverPosType}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
@@ -255,7 +259,7 @@ theorem exists_critical_move_aces {g : Globals} {p : SolverPosType}
       (∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su)) →
       List.foldl applyMoveOpt (some u) ms = some w → isGoal w = true →
       ∃ (t₀ t₁ : State) (m : Move) (a : Fin 10) (c : Card) (rest : Column),
-        Reach u t₀ ∧ DepthMatchesV g t₀ (depthVec p hd6) ∧
+        PrefixReach g p u t₀ ∧ DepthMatchesV g t₀ (depthVec p hd6) ∧
         (∀ c : Card, countState t₀ c = 1) ∧
         (∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (t₀.foundations su)) ∧
         applyMove t₀ m = some t₁ ∧ Reach t₁ w ∧
@@ -295,7 +299,11 @@ theorem exists_critical_move_aces {g : Globals} {p : SolverPosType}
           exact haces su
         obtain ⟨t₀, t₁, m', a, c, rst, hr, hdm, hct, hac, hap, hr2, hcol, hlen, hs, hbk⟩ :=
           ih u' w hcount' hd' haces' hrun hgoal
-        exact ⟨t₀, t₁, m', a, c, rst, Relation.ReflTransGen.head ⟨m, hmv⟩ hr, hdm, hct, hac,
+        have hdpk' : DepthPlusKings g u' p :=
+          DepthPlusKings.of_depthMatch hwf hcan.toSolverInvBase hcan.pileMerged hd6 hd'
+            hcount' haces'
+        exact ⟨t₀, t₁, m', a, c, rst,
+          Relation.ReflTransGen.head ⟨⟨m, hmv⟩, hdpk'⟩ hr, hdm, hct, hac,
           hap, hr2, hcol, hlen, hs, hbk⟩
       · obtain ⟨a, c, rst, hs, hcol, hlen⟩ := exists_boundary_of_break hmv hd hd'
         exact ⟨u, u', m, a, c, rst, Relation.ReflTransGen.refl, hd, hcount, haces, hmv,
@@ -321,7 +329,7 @@ theorem exists_critical_state {g : Globals} {s : State} {p : SolverPosType}
     (hmt : StateMatchesSolverPos g s p) (hsolv : Solvable s)
     {i₀ : Fin 10} (hpos : 0 < (p.pileDepth.get i₀).toNat) :
     ∃ (t₀ t₁ : State) (m : Move) (a : Fin 10) (c : Card) (rest : Column),
-      Reach s t₀ ∧ DepthPlusKings g t₀ p ∧ Solvable t₀ ∧
+      PrefixReach g p s t₀ ∧ DepthPlusKings g t₀ p ∧ Solvable t₀ ∧
       applyMove t₀ m = some t₁ ∧ Solvable t₁ ∧
       t₀.tableau a = c :: rest ∧ (t₀.tableau a).length = (p.pileDepth.get a).toNat ∧
       0 < (p.pileDepth.get a).toNat ∧
@@ -408,7 +416,7 @@ theorem exists_critical_state_affordable {g : Globals} {s : State} {p : SolverPo
     (hmt : StateMatchesSolverPos g s p) (hsolv : Solvable s)
     {i₀ : Fin 10} (hpos : 0 < (p.pileDepth.get i₀).toNat) :
     ∃ (t₀ t₁ : State) (m : Move) (a : Fin 10) (c : Card) (rest : Column),
-      Reach s t₀ ∧ DepthPlusKingsCfg g t₀ p (cfgOf t₀ p) ∧ Solvable t₀ ∧
+      PrefixReach g p s t₀ ∧ DepthPlusKingsCfg g t₀ p (cfgOf t₀ p) ∧ Solvable t₀ ∧
       applyMove t₀ m = some t₁ ∧ Solvable t₁ ∧
       t₀.tableau a = c :: rest ∧ (t₀.tableau a).length = (p.pileDepth.get a).toNat ∧
       0 < (p.pileDepth.get a).toNat ∧

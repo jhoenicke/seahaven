@@ -1,5 +1,6 @@
 import Seahaven.MoveSim
 import Seahaven.GetDestination
+import Seahaven.CPNormal
 
 /-!
 # Simulating `SolverCleanupPile`, phase 2 of `SolverMove`
@@ -170,6 +171,87 @@ theorem PileMatches_vacate {g : Globals} {col : Column} {a : Fin 10}
   rw [hsplit]
   exact isSameSuitDescending_cons (by rw [hking] at hfl; exact hfl) (by rw [hb0])
     (by rw [hb0]; exact hking)
+
+/-! ## The cleanup's unpark run is a `CPReach`
+
+`StateMatchesSolverPos.cleanupExtend` (`CleanupSim`) exports not just a `Reach` but the
+explicit move list `unparkMoves a cells` that realizes it.  Every move on that list is
+`⟨cell i, pile a⟩`, and column `a` only ever *grows* along the run, so each step is a
+`CPStep` — the run is a `CPReach`, hence solvability-neutral in both directions.
+
+This is what lets the re-exposure be done from outside: the existing statements need
+only have their `Reach` replaced by `CPReach`, with the witness read off the move list
+already in their conclusions. -/
+
+/-- A cell→pile drop never empties a column: the take is from a cell and the drop only
+pushes a card on top. -/
+theorem CPStep.column_ne_nil {u v : State} (h : CPStep u v) {a : Fin 10}
+    (hne : u.tableau a ≠ []) : v.tableau a ≠ [] := by
+  obtain ⟨i, q, -, hap⟩ := h
+  rw [applyMove_eq] at hap
+  obtain ⟨c, s0, htake, hdrop⟩ := hap
+  simp only [takeFromPosition, takeFromCell_eq] at htake
+  obtain ⟨-, rfl⟩ := htake
+  simp only [dropPosition, dropCol_eq] at hdrop
+  obtain ⟨-, rfl⟩ := hdrop
+  by_cases hqa : q = a
+  · subst hqa
+    simp [updateColumn_tableau, update]
+  · simpa only [updateColumn_tableau, update, if_neg hqa, updateCell_tableau] using hne
+
+theorem CPReach.column_ne_nil {u v : State} (h : CPReach u v) {a : Fin 10}
+    (hne : u.tableau a ≠ []) : v.tableau a ≠ [] := by
+  induction h with
+  | refl => exact hne
+  | tail _ hbc ih => exact hbc.column_ne_nil ih
+
+/-- Every move of an unpark run is a cell→pile drop onto a column that stays non-empty,
+so the run is a `CPReach`. -/
+theorem cpReach_of_unparkMoves {a : Fin 10} :
+    ∀ (cells : List (Fin 4)) {s v : State}, s.tableau a ≠ [] →
+      List.foldl applyMoveOpt (some s) (unparkMoves a cells) = some v → CPReach s v := by
+  intro cells
+  induction cells with
+  | nil =>
+    intro s v _ h
+    simp only [unparkMoves, List.foldl_nil, Option.some.injEq] at h
+    subst h
+    exact Relation.ReflTransGen.refl
+  | cons i is ih =>
+    intro s v hne h
+    rw [unparkMoves, List.foldl_append] at h
+    -- the prefix runs the rest of the list …
+    cases hmid : List.foldl applyMoveOpt (some s) (unparkMoves a is) with
+    | none => rw [hmid] at h; simp [applyMoveOpt] at h
+    | some w =>
+      rw [hmid] at h
+      have hprefix : CPReach s w := ih hne hmid
+      -- … and column `a` is still non-empty there (drops only add cards)
+      have hwne : w.tableau a ≠ [] := hprefix.column_ne_nil hne
+      simp only [List.foldl_cons, List.foldl_nil, applyMoveOpt] at h
+      exact hprefix.tail ⟨i, a, hwne, h⟩
+
+/-- **`cleanupExtend`, with its reach upgraded — from outside.**  The lemma already
+publishes the move list, so no change to `CleanupSim` is needed to see that its run is
+normalizing. -/
+theorem StateMatchesSolverPos.cleanupExtend_cp {g : Globals} {s : State} {p q : SolverPosType}
+    (h : StateMatchesSolverPos g s p) (a : Fin 10)
+    {ds rest : Column} {e : Card} {cells : List (Fin 4)}
+    (hcol : s.tableau a = e :: rest)
+    (hd : 0 < (p.pileDepth.get a).toNat)
+    (hnd : cells.Nodup)
+    (hhold : HoldsCards s.cells cells ds)
+    (hrun : IsRun (ds ++ [e]))
+    (hqd : q.pileDepth = p.pileDepth)
+    (hqf : (q.pileFlute.get a).toNat = (p.pileFlute.get a).toNat + ds.length)
+    (hqfne : ∀ i : Fin 10, i ≠ a → q.pileFlute.get i = p.pileFlute.get i)
+    (hqaces : q.aces = p.aces) (hqkings : q.kings = p.kings) :
+    ∃ v : State, CPReach s v ∧
+      (∀ i : Fin 10, i ≠ a → v.tableau i = s.tableau i) ∧
+      StateMatchesSolverPos g v q := by
+  obtain ⟨v, -, hfold, hframe, hmatch⟩ :=
+    h.cleanupExtend a hcol hd hnd hhold hrun hqd hqf hqfne hqaces hqkings
+  exact ⟨v, cpReach_of_unparkMoves cells (by rw [hcol]; simp) hfold, hframe, hmatch⟩
 
 /-- **The lone-king vacate moves no card.**  It trades `pileDepth[a] = 1` for
 `pileDepth[a] = 0` plus the `king_pile` bookkeeping, on the *same* state. -/
@@ -914,7 +996,7 @@ theorem StateMatchesSolverPos.cleanupPileSim {g : Globals} {s : State} {p q : So
     (hqdne : ∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ → q.pileDepth.get i = p.pileDepth.get i)
     (hqfne : ∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ → q.pileFlute.get i = p.pileFlute.get i)
     (hqaces : q.aces = p.aces) (hqkings : q.kings = p.kings) :
-    ∃ v : State, Reach s v ∧ (∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ →
+    ∃ v : State, CPReach s v ∧ (∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ →
       v.tableau i = s.tableau i) ∧ StateMatchesSolverPos g v q := by
   set a : Fin 10 := ⟨pile.toNat, hpile⟩ with hadef
   have hBreal : IsRealCard B := by rw [← hB]; exact hwf.pos2card_real a _
@@ -989,7 +1071,7 @@ theorem StateMatchesSolverPos.cleanupPileSim {g : Globals} {s : State} {p q : So
       have h2 := hp₁d
       omega
     · rw [hqdne i hia, hp₁dne i hia]
-  obtain ⟨v, hreach, _, hframe, hmatch₂⟩ := hmatch₁.cleanupExtend a hcol
+  obtain ⟨v, hreach, hframe, hmatch₂⟩ := hmatch₁.cleanupExtend_cp a hcol
     (by rw [hp₁d]; omega) hcnd hhold (hdsrun e hecode) hdepthEq
     (by rw [hp₁f, hdslen]; exact hqf)
     (fun i hi => by rw [hqfne i hi, hp₁fne i hi])
@@ -1134,7 +1216,7 @@ theorem StateMatchesSolverPos.cleanupPileSimKing {g : Globals} {s : State}
     (hqk_ne : ∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ → (p.pileDepth.get i).toNat = 0 →
       ∀ d ∈ (s.tableau i).getLast?,
         q.kings.get (finOfSuit d.suit) = p.kings.get (finOfSuit d.suit)) :
-    ∃ v : State, Reach s v ∧
+    ∃ v : State, CPReach s v ∧
       (∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ → v.tableau i = s.tableau i) ∧
       StateMatchesSolverPos g v q ∧
       ∃ c ∈ (v.tableau ⟨pile.toNat, hpile⟩).getLast?,
@@ -1362,7 +1444,7 @@ theorem StateMatchesSolverPos.cleanupRunResult_sim {g : Globals} {s : State}
     (hBflute1 : ∀ (j : Fin 10), 0 < (p.pileDepth.get j).toNat →
       ∀ hidxj : (p.pileDepth.get j).toNat - 1 < 5,
       (g.pos2card.get j).get ⟨_, hidxj⟩ = B → p.pileFlute.get j = 1) :
-    ∃ v : State, Reach s v ∧
+    ∃ v : State, CPReach s v ∧
       (∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ → v.tableau i = s.tableau i) ∧
       StateMatchesSolverPos g v
       (cleanupRunResult pile hpile B ph hs4'
