@@ -1,6 +1,5 @@
 import Seahaven.Rules
 import Seahaven.Solver
-import Seahaven.DealMatches
 
 def removeFlute (col : Column) :=
   match col with
@@ -25,17 +24,38 @@ def pilesKingsFromState (s : State) : (Vector UInt8 11) :=
 def cardToNat (c : Card) : Nat :=
   13 * (allSuits.idxOf c.suit) + rankToNat c.rank
 
+def Shuffle.vector (s : Shuffle) :=
+  Vector.ofFn (fun i : Fin 52 => UInt8.ofNat (cardToNat (s.perm i)))
+
+/--
+The main correctness property of the Solver.
+
+If the solver is initialized with the correct shuffle and it is given the encoding `pilesKingsFromState s`
+of a state reachable from the initial state of that shuffle, then it will give always the right result:
+`NOMOVE` if `s` is not solvable and `SUCCESS` if `s` is solvable.
+
+The solver can be queried for multiple states and will always answer correctly, provided it was initialized
+with the correct shuffle.
+
+We encode a global invariant `inv` for the global variables of the solver (card2pos, hash table, etc) that
+depends on the initial shuffle.  Calling `initcard` on an arbitrary state guarantees that `inv shuffle` holds.
+Calling `solve` on the `pilesKingsFromState s` encoding of a reachable state `s` will preserves `inv shuffle`
+and return the correct result.
+
+Note that calling `solve` on an invalid encoding may result in undefined behavior (although it should do that
+only if any pileDepth is greater than 5).
+
+-/
+
 def correctness :
   ∃ inv : Shuffle → Globals → Prop,
   ∀ shuffle : Shuffle,
     (∀ g : Globals, ∃ g' : Globals,
-     EStateM.run (initcard (Vector.ofFn (fun i : Fin 52 => UInt8.ofNat (cardToNat (shuffle.perm i))))) g = .ok unit g'
-     ∧ inv shuffle g')
+     EStateM.run (initcard shuffle.vector) g = .ok unit g' ∧ inv shuffle g')
     ∧
     (∀ g : Globals, inv shuffle g →
      ∀ s : State, isReachable (init shuffle.perm) s →
      ∃ g' : Globals, ∃ res : UInt8,
-        EStateM.run (solve (pilesKingsFromState s)) g = .ok res g'
-        ∧ inv shuffle g'
+        EStateM.run (solve (pilesKingsFromState s)) g = .ok res g' ∧ inv shuffle g'
         ∧ ((res = UInt8.ofNat NOMOVE ∧ ¬ isSolvable s) ∨ (res = UInt8.ofNat SUCCESS ∧ isSolvable s))) := by
   sorry
