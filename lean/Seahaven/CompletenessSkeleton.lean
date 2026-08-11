@@ -143,6 +143,41 @@ theorem CompAllOrNothing.transfer {v comp : UInt16} (h : CompAllOrNothing v comp
     {i j : Fin 16} (hj : BitSet v j) (hcj : BitSet comp j) (hci : BitSet comp i) :
     BitSet v i := h j i hcj hj hci
 
+/-! ## What one iteration does to the accumulator
+
+Both loop invariants the completeness side threads — "a bit already there stays there"
+and `CompAllOrNothing` — depend on the body only through this: the iteration either
+leaves the accumulator alone (the pile is empty, the mask adds nothing new) or ORs in
+one `movableComp`.  Reading that off the code once (`recBody_complete_step`) serves
+both. -/
+
+/-- The accumulator's step: unchanged, or grown by one `movableComp`. -/
+def AccumStep (comp v v' : UInt16) : Prop :=
+  v' = v ∨ ∃ m : UInt16, v' = v ||| movableComp m comp
+
+/-- `movableComp`-spelled `CompAllOrNothing.step`: the code's widening is the `ite`
+that lemma is stated with (`movableComp_eq` reconciles the `Bool` guard with the
+`Prop` one). -/
+theorem CompAllOrNothing.step' {v comp : UInt16} (h : CompAllOrNothing v comp) (m : UInt16) :
+    CompAllOrNothing (v ||| movableComp m comp) comp := by
+  rw [← movableComp_eq]
+  exact h.step m
+
+/-- **The accumulator never loses a bit.** -/
+theorem AccumStep.grows {comp v v' : UInt16} (h : AccumStep comp v v') {k : Fin 16}
+    (hk : BitSet v k) : BitSet v' k := by
+  rcases h with rfl | ⟨m, rfl⟩
+  · exact hk
+  · exact (BitSet_or _ _ k).2 (Or.inl hk)
+
+/-- **And it keeps `CompAllOrNothing`.**  Either nothing happened, or the contribution
+was widened to contain the whole component if it met it at all. -/
+theorem AccumStep.allOrNothing {comp v v' : UInt16} (h : AccumStep comp v v')
+    (hv : CompAllOrNothing v comp) : CompAllOrNothing v' comp := by
+  rcases h with rfl | ⟨m, rfl⟩
+  · exact hv
+  · exact hv.step' m
+
 /-! ## The contribution reaches the accumulator
 
 Two one-liners that say the loop never *loses* a bit once an iteration has produced it:
@@ -199,16 +234,21 @@ def HashmapComplete (g : Globals) : Prop :=
 /-! ## The induction hypothesis, completeness side
 
 Mirror of `RecCheckSound.ChildSpec`: what the recursive call is known to satisfy,
-guarded by the measure `move_merged` makes drop.  `HashmapComplete` is self-maintaining
-(`CompletenessSkeleton`'s opening remark), so unlike the soundness version this one
-never has to be entangled with its dual. -/
+guarded by the measure `move_merged` makes drop.
 
-def ChildSpecComplete (p : SolverPosType) : Prop :=
+The memo invariant is a parameter `H`, exactly as on the soundness side: the loop
+never inspects a slot, it only hands `H` to the recursive call and hands back what
+the call returns.  `H := HashmapComplete` gives the standalone completeness
+recursion — the invariant is self-maintaining, so that version never has to be
+entangled with its dual — and `H := HashmapCorrect` gives the two-sided recursion of
+`RecCheckSpec`, where a *single* induction over the depth serves both halves. -/
+
+def ChildSpecComplete (H : Globals → Prop) (p : SolverPosType) : Prop :=
   ∀ (child : SolverPosType) (g₁ g₂ : Globals) (w : UInt16),
     SolverSpec.DepthSum child < SolverSpec.DepthSum p → WellFormedLayout g₁ →
-    IsCanonicalPos g₁ child → HashmapComplete g₁ →
+    IsCanonicalPos g₁ child → H g₁ →
     EStateM.run (solverRecCheckSolvable child) g₁ = .ok w g₂ →
-    (CompleteBits g₁ child w ∧ LocalMask child w) ∧ HashmapComplete g₂ ∧
+    (CompleteBits g₁ child w ∧ LocalMask child w) ∧ H g₂ ∧
       ∃ hm : Vector UInt16 BIG_HASH_SIZE, g₂ = { g₁ with hashmap := hm }
 
 /-! ## The statements to discharge
@@ -265,19 +305,35 @@ theorem recCheckSolvableSpec_of (hsound : RecCheckSolvableSound)
   obtain ⟨hm, rfl⟩ := hframe
   exact ⟨⟨recCheck_spec_of hsv hcv, hlv⟩, hashmapCorrect_of hs' hc', rfl⟩
 
-/-! ## The semantic hypotheses the recursion will be built against
+/-! ## No semantic obligation is listed here
 
 The soundness development was written against `SubsetSound` / `ComponentSound` /
-`MoveSimulated` and only later discharged them.  The same facts are needed in
-the opposite direction; naming them here lets the recursion assembly proceed while
-the physical arguments are still being written.
+`MoveSimulated` and only later discharged them.  Completeness needs **no** counterpart
+of the first two, and it is worth recording why, since both mirror images look
+plausible and both are wrong.
 
-The tables themselves are already characterized *bidirectionally* — `subsetAt_spec_pos`
-is an `↔`, `KingVacates` is an `↔` by definition and the code's `forcedKings` is proved
-to satisfy it, and `component_run_eq` pins the component mask bit-by-bit — so what
-these ask for is only the physical half.
+The tables are already characterized *bidirectionally* — `subsetAt_spec_pos` is an `↔`,
+`KingVacates` is an `↔` by definition and the code's `forcedKings` is proved to satisfy
+it, `component_run_eq` pins the component mask bit-by-bit — and the `←` directions are
+pure arithmetic.  What `SubsetSound` and `ComponentSound` add is the *physical* half,
+and completeness does not consume the tables in a direction that needs it.
 
-**No component obligation is listed.**  The mirror image of `ComponentSound` — two
+**No `subsetTable` obligation.** *(refuted shortcut, recorded so it is not tried a third
+time.)*  The obvious mirror — "if a configuration reachable from `s` lies in a local set
+`T`, then `s`'s own configuration lies in `T`'s expansion" — is **false**.  By
+`subsetAt_spec_pos` the expansion covers `c` exactly when some bit `i` of `T` has
+`MaskSub (globalCfg ci i) c`, and reachability supplies no such `MaskSub`: at
+`freePiles = 1` the block holds four configurations, one per piled suit, and a state
+with one empty column and two suits' freed runs in the cells reaches two of them by a
+single piling move each — yet neither covers the other (`subsetAt (0 + 1)` does not
+cover `globalCfg (closureInfos.get 1) 1`).  Two configurations reachable from one state
+say nothing about `MaskSub`; that relation is what the *component* mask records.
+
+What the recursion actually has is stronger and needs no new obligation: the critical
+iteration hands over the `MaskSub` witness itself (`CriticalIteration.CriticalBit`), so
+the block step is `subsetAt_spec_pos.2` and nothing more.
+
+**No component obligation** either.  The mirror image of `ComponentSound` — two
 configurations *reachable from one state* lie in the same component mask — is not what
 the recursion needs, and abstract reachability does not supply it: it hands over no
 feasible one-suit-smaller configuration for the second of the two.  What the recursion
@@ -285,17 +341,19 @@ actually has is two *different* states, the caller's and the critical one, joine
 winning play's prefix, and the play's own empty-column state is the witness.  That is
 `ComponentComplete.cfg_eq_or_component_bits`, proved outright — via "every configuration
 with a feasible subset that leaves a column spare is in the component"
-(`inComponent_of_hasSpareSubset` + `component_bit_of_inComponent`). -/
+(`inComponent_of_hasSpareSubset` + `component_bit_of_inComponent`).
 
-/-- **(1) `subsetTable` completeness.**  If a configuration reachable from `s` lies
-in a local set `T`, then `s`'s own configuration lies in `T`'s expansion.  The
-converse of `SubsetSound`, and the step that lets the parent query the child at its
-own configuration. -/
-def SubsetComplete : Prop :=
-  ∀ (g : Globals) (p : SolverPosType) (s : State) (T : UInt16) (c : Fin 16) (i : Nat),
-    LocalMask p T → WellFormedLayout g → SolverInvMerged g p →
-    i < (closureInfoOf p).numBits.toNat →
-    BitSet T ⟨min i 15, by omega⟩ →
-    KingConfigReachable g p s (globalCfg (closureInfoOf p) i) →
-    KingConfigReachable g p s c →
-    BitSet (subsetAt ((closureInfoOf p).offset.toNat + T.toNat)) c
+So `RecCheckSpec.RecLoopComplete` assembles out of proved pieces only:
+
+1. `MaximalCfg.exists_block_cfg_maskSub` — a block index `j` above the caller's
+   configuration `k`;
+2. `critical_loop_bitSet` — a block index `i` above the critical state's `k_t`, with
+   `BitSet v ⟨min i 15⟩`, and `CompAllOrNothing v comp` alongside;
+3. `cfg_eq_or_component_bits` — either `k = k_t`, and `i` already covers `k`, or both
+   bits lie in `comp` and `CompAllOrNothing.transfer` moves the bit from `i` to `j`
+   (the guard cases are `block_index_eq_of_freePiles_four` and
+   `cfg_eq_of_freePiles_zero`, where `computeComponentKingBits` returns `0`);
+4. `subsetAt_spec_pos.2` on the surviving index.
+
+What is left is the plumbing that produces the critical state from the caller's —
+`CriticalMove.exists_critical_state` — not a new fact about the tables. -/

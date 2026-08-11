@@ -706,13 +706,24 @@ def PrologueRuns : Prop :=
         KingInfoCorrect p ki) ∧
     (∃ comp : UInt8, EStateM.run (computeComponentKingBits p) g = .ok comp g)
 
+/-! ### The memo invariant is a parameter
+
+Everything from here to the pile loop treats the memo invariant as an opaque token:
+the body hands it to the recursive call and hands back whatever the call returns, and
+the loop threads it.  Nothing inspects a slot.  So the memo slot is a parameter
+`H : Globals → Prop`, and the same lemmas serve the soundness recursion
+(`H := HashmapSound`, below) and the two-sided one (`H := HashmapCorrect`, in
+`RecCheckSpec`).  Only the *bit* half of the child's answer — `SoundBits` here — is
+direction-specific. -/
+
 /-- What the recursive call is known to satisfy — the induction hypothesis, guarded
-by the measure `move_merged` makes drop. -/
-def ChildSpec (p : SolverPosType) : Prop :=
+by the measure `move_merged` makes drop.  `H` is the memo invariant the recursion
+carries; see the note above. -/
+def ChildSpec (H : Globals → Prop) (p : SolverPosType) : Prop :=
   ∀ (child : SolverPosType) (g₁ g₂ : Globals) (w : UInt16),
     SolverSpec.DepthSum child < SolverSpec.DepthSum p → WellFormedLayout g₁ → IsCanonicalPos g₁ child →
-    HashmapSound g₁ → EStateM.run (solverRecCheckSolvable child) g₁ = .ok w g₂ →
-    (SoundBits g₁ child w ∧ LocalMask child w) ∧ HashmapSound g₂ ∧
+    H g₁ → EStateM.run (solverRecCheckSolvable child) g₁ = .ok w g₂ →
+    (SoundBits g₁ child w ∧ LocalMask child w) ∧ H g₂ ∧
       ∃ hm : Vector UInt16 BIG_HASH_SIZE, g₂ = { g₁ with hashmap := hm }
 
 /-- **Reading the loop body off the code.**  `Contributes` is `RecLoopSound`'s record
@@ -721,36 +732,37 @@ table, which is what lets the entry globals be recovered at the end.  Proved as
 `recBodyStep` at the end of this file, on the back of the five run lemmas listed in
 `RecLoopSound` plus the `getDest_spec` → `MoveValid`/`DestValid` bridge that lets
 `move_merged` apply. -/
-def RecBodyStep : Prop :=
+def RecBodyStep (H : Globals → Prop) : Prop :=
   ∀ (p : SolverPosType) (ki : KingInfo) (comp : UInt8) (allkings : UInt16)
     (g₁ g₂ : Globals) (pile : Nat) (w : UInt16) (r : ForInStep UInt16),
-    pile < 10 → WellFormedLayout g₁ → IsCanonicalPos g₁ p → HashmapSound g₁ →
-    PossibleKingsLocal p ki → ChildSpec p →
+    pile < 10 → WellFormedLayout g₁ → IsCanonicalPos g₁ p → H g₁ →
+    PossibleKingsLocal p ki → ChildSpec H p →
     recBody solverRecCheckSolvable p (closureInfoOf p) ki comp.toUInt16 allkings pile w g₁
       = .ok r g₂ →
-    Contributes p ki comp w g₁ r.value g₂ ∧ HashmapSound g₂ ∧
+    Contributes p ki comp w g₁ r.value g₂ ∧ H g₂ ∧
       ∃ hm : Vector UInt16 BIG_HASH_SIZE, g₂ = { g₁ with hashmap := hm }
 
 /-! ## The pile loop, with the memo invariant and the frame carried along
 
-`recLoop_body_sound` carries `LoopInv`; the recursion additionally needs
-`HashmapSound` and "only the memo table changed" threaded through the same loop, so
+`recLoop_body_sound` carries `LoopInv`; the recursion additionally needs the memo
+invariant `H` and "only the memo table changed" threaded through the same loop, so
 the three travel together in one `forIn_inv`. -/
 
-theorem recLoop_all (hSS : SubsetSound) (hMS : MoveSimulated) (hRB : RecBodyStep)
+theorem recLoop_all {H : Globals → Prop} (hSS : SubsetSound) (hMS : MoveSimulated)
+    (hRB : RecBodyStep H)
     {g : Globals} {p : SolverPosType} {ki : KingInfo} {comp : UInt8} {allkings : UInt16}
-    (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p) (hms : HashmapSound g)
-    (hkiloc : PossibleKingsLocal p ki) (hkic : KingInfoCorrect p ki) (hchild : ChildSpec p)
+    (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p) (hms : H g)
+    (hkiloc : PossibleKingsLocal p ki) (hkic : KingInfoCorrect p ki) (hchild : ChildSpec H p)
     (hcomprun : EStateM.run (computeComponentKingBits p) g = .ok comp g)
     {v : UInt16} {gl : Globals}
     (hloop : forIn (List.range 10) (0 : UInt16)
       (recBody solverRecCheckSolvable p (closureInfoOf p) ki comp.toUInt16 allkings) g
       = .ok v gl) :
-    SoundBits gl p v ∧ LocalMask p v ∧ HashmapSound gl ∧
+    SoundBits gl p v ∧ LocalMask p v ∧ H gl ∧
       ∃ hm : Vector UInt16 BIG_HASH_SIZE, gl = { g with hashmap := hm } := by
   have hcomploc : LocalMask p comp.toUInt16 := localMask_component hcomprun
   have key := forIn_inv
-    (fun (w : UInt16) (g₁ : Globals) => LoopInv p comp w g₁ ∧ HashmapSound g₁ ∧
+    (fun (w : UInt16) (g₁ : Globals) => LoopInv p comp w g₁ ∧ H g₁ ∧
       ∃ hm : Vector UInt16 BIG_HASH_SIZE, g₁ = { g with hashmap := hm })
     (recBody solverRecCheckSolvable p (closureInfoOf p) ki comp.toUInt16 allkings)
     (List.range 10)
@@ -784,7 +796,7 @@ The recursion is the `busyAces`-drain recipe: a `Nat` bounding `DepthSum p` in t
 branches are the `hash == 0` leaf, the memo hit, and the pile loop followed by the
 memo write. -/
 theorem recCheck_sound (hSS : SubsetSound) (hMS : MoveSimulated)
-    (hPro : PrologueRuns) (hRB : RecBodyStep) : RecCheckSolvableSound := by
+    (hPro : PrologueRuns) (hRB : RecBodyStep HashmapSound) : RecCheckSolvableSound := by
   suffices H : ∀ n : Nat, ∀ (g g' : Globals) (p : SolverPosType) (v : UInt16),
       SolverSpec.DepthSum p < n → WFGlobals g → IsCanonicalPos g p →
       EStateM.run (solverRecCheckSolvable p) g = .ok v g' →
@@ -811,7 +823,7 @@ theorem recCheck_sound (hSS : SubsetSound) (hMS : MoveSimulated)
         obtain ⟨⟨ki, hki, hkiloc, hkic⟩, ⟨comp, hcomp⟩⟩ := hPro g p hwfg.layout hcan
         obtain ⟨gl, hloop, rfl⟩ :=
           recCheck_run_loop_inv g g' p ki comp v hfp hz hfree hki hcomp hrun
-        have hchild : ChildSpec p := fun child g₁ g₂ w hlt hwf₁ hcan₁ hms₁ hrun₁ =>
+        have hchild : ChildSpec HashmapSound p := fun child g₁ g₂ w hlt hwf₁ hcan₁ hms₁ hrun₁ =>
           ih g₁ g₂ child w (by omega) ⟨hwf₁, hms₁⟩ hcan₁ hrun₁
         obtain ⟨hsound, hlocal, hms', hm, rfl⟩ :=
           recLoop_all hSS hMS hRB hwfg.layout hcan hwfg.memo hkiloc hkic hchild hcomp hloop
@@ -1165,8 +1177,8 @@ theorem prologueRuns : PrologueRuns := fun g p hwf hcan => by
 /-- **Soundness of `solverRecCheckSolvable`, with the prologue discharged.**  The
 body step is discharged too, at the end of this file; `recCheck_sound_of_semantics`
 is the version with both in place. -/
-theorem recCheck_sound_of_body (hSS : SubsetSound) (hMS : MoveSimulated) (hRB : RecBodyStep) :
-    RecCheckSolvableSound :=
+theorem recCheck_sound_of_body (hSS : SubsetSound) (hMS : MoveSimulated)
+    (hRB : RecBodyStep HashmapSound) : RecCheckSolvableSound :=
   recCheck_sound hSS hMS prologueRuns hRB
 
 /-! ## From `solverGetDestination` to `move_merged`'s preconditions
@@ -1521,7 +1533,7 @@ theorem component_indep {p : SolverPosType} {comp : UInt8} {s t : Globals}
     simp only [pure, EStateM.pure] at h ⊢
     exact congrArg (fun x => EStateM.Result.ok x t) (EStateM.Result.ok.inj h).1
 
-theorem recBodyStep : RecBodyStep := by
+theorem recBodyStep (H : Globals → Prop) : RecBodyStep H := by
   intro p ki comp allkings g₁ g₂ pile w r hpile hwf hcan hms hkiloc hchild hrun
   have hidx : (UInt32.ofNat pile).toNat < 10 := by
     rw [ofNat_pile_toNat hpile]; exact hpile
@@ -1636,4 +1648,4 @@ discharged.**  What remains are only the two *semantic* hypotheses: `SubsetSound
 move simulates a real move). -/
 theorem recCheck_sound_of_semantics (hSS : SubsetSound) (hMS : MoveSimulated) :
     RecCheckSolvableSound :=
-  recCheck_sound hSS hMS prologueRuns recBodyStep
+  recCheck_sound hSS hMS prologueRuns (recBodyStep HashmapSound)

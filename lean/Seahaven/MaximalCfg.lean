@@ -18,9 +18,11 @@ superset of `k`'s piled set is stored.
 Affordability comes along for free: `freeCellsOf_mono` says piling more only increases
 the cell budget, so `d` affords whatever `k` afforded.
 
-This is the arithmetic half of `SubsetComplete`.  The other half — that the *state*
-can actually be brought into configuration `d`, by moving king runs from the cells onto
-empty columns — is the physical direction, and is not needed for the counting here.
+This is the covering step the completeness recursion consumes (step 1 of the assembly
+sketched at the end of `CompletenessSkeleton`).  Note it is pure counting: the physical
+direction — that the *state* can actually be brought into configuration `d`, by moving
+king runs from the cells onto empty columns — is `SubsetSound`'s business, and
+completeness never needs it.
 -/
 
 /-! ## Piled suits versus mask popcount -/

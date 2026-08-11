@@ -42,12 +42,12 @@ theorem BitSet_not (x : UInt16) (k : Fin 16) : BitSet (~~~x) k ↔ ¬ BitSet x k
 `i` is the block configuration `solverGetMovable` names, `k` the configuration the
 critical state `t₀` is in; the caller closes the remaining gap between `k` and its own
 query with `cfg_eq_or_component_bits` and `CompAllOrNothing.transfer`. -/
-theorem critical_iteration_bitSet
+theorem critical_iteration_bitSet {H : Globals → Prop}
     {g g' : Globals} {p : SolverPosType} {ki : KingInfo} {comp allkings vacc : UInt16}
     {r : ForInStep UInt16} {pile : Nat} {t₀ t₁ : State} {m : Move}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
     (hkiloc : PossibleKingsLocal p ki) (hkic : KingInfoCorrect p ki)
-    (hhm : HashmapComplete g) (hcsp : ChildSpecComplete p)
+    (hhm : H g) (hcsp : ChildSpecComplete H p)
     (hpile : pile < 10)
     (hdpk : DepthPlusKings g t₀ p)
     (hlen : (t₀.tableau ⟨pile, hpile⟩).length = (p.pileDepth.get ⟨pile, hpile⟩).toNat)
@@ -215,19 +215,21 @@ theorem tail_run_done {A allkings : UInt16} {g g' : Globals} {r : ForInStep UInt
     obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj h
     exact ⟨rfl, rfl, fun c hc => by simp at hc⟩
 
-/-- **One iteration, read for completeness.**  It keeps every bit the accumulator had, a
-`break` can only return `allkings`, and the globals gain nothing but a memo write. -/
-theorem recBody_complete_step
+/-- **One iteration, read for completeness.**  The accumulator is either untouched or
+grown by one `movableComp` (`AccumStep`, which is what both completeness loop invariants
+run on), a `break` can only return `allkings`, and the globals gain nothing but a memo
+write. -/
+theorem recBody_complete_step {H : Globals → Prop}
     {p : SolverPosType} {ki : KingInfo} {comp allkings : UInt16}
     {pile : Nat} {v : UInt16} {g g' : Globals} {r : ForInStep UInt16}
     (hpile : pile < 10) (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
-    (hkiloc : PossibleKingsLocal p ki) (hhm : HashmapComplete g)
-    (hcsp : ChildSpecComplete p)
+    (hkiloc : PossibleKingsLocal p ki) (hhm : H g)
+    (hcsp : ChildSpecComplete H p)
     (hrun : recBody solverRecCheckSolvable p (closureInfoOf p) ki comp allkings pile v g
       = .ok r g') :
-    (∀ k : Fin 16, BitSet v k → BitSet r.value k) ∧
+    AccumStep comp v r.value ∧
     (∀ c : UInt16, r = ForInStep.done c → c = allkings) ∧
-    HashmapComplete g' ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm } := by
+    H g' ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm } := by
   have hidx : (UInt32.ofNat pile).toNat < 10 := by
     rw [ofNat_pile_toNat hpile]; exact hpile
   rw [recBody, bind_ok (vector_getE_apply p.pileDepth (UInt32.ofNat pile) g hidx)] at hrun
@@ -235,7 +237,7 @@ theorem recBody_complete_step
   · rw [if_pos hdz] at hrun
     replace hrun : EStateM.Result.ok (ForInStep.yield v) g = .ok r g' := hrun
     obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj hrun
-    exact ⟨fun _ h => h, fun c hc => by simp at hc, hhm, g.hashmap, rfl⟩
+    exact ⟨Or.inl rfl, fun c hc => by simp at hc, hhm, g.hashmap, rfl⟩
   · rw [if_neg hdz,
       bind_ok (show (pure PUnit.unit : EStateM Error Globals PUnit) g = .ok PUnit.unit g from rfl)]
       at hrun
@@ -304,11 +306,13 @@ theorem recBody_complete_step
           rw [hsum]; omega
         rw [bind_ok (vector_getE_apply subsetTable _ _ h100)] at hrun
         obtain ⟨hrval, rfl, hdone⟩ := tail_run_done hrun
-        exact ⟨fun k hk => by rw [hrval]; exact (BitSet_or _ _ k).2 (Or.inl hk), hdone, hm₃, hm, rfl⟩
+        refine ⟨?_, hdone, hm₃, hm, rfl⟩
+        rw [hrval, movableComp_eq]
+        exact Or.inr ⟨_, rfl⟩
     · rw [if_neg hnew] at hrun
       replace hrun : EStateM.Result.ok (ForInStep.yield v) g = .ok r g' := hrun
       obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj hrun
-      exact ⟨fun _ h => h, fun c hc => by simp at hc, hhm, g.hashmap, rfl⟩
+      exact ⟨Or.inl rfl, fun c hc => by simp at hc, hhm, g.hashmap, rfl⟩
 
 /-! ## The loop skeleton
 
@@ -420,12 +424,12 @@ def CriticalBit (g : Globals) (t₀ : State) (p : SolverPosType) (v : UInt16) : 
 /-- **The pile loop sets the critical bit.**  `pile` is the source pile of the critical
 move; the loop reaches it unless it breaks first, and a break returns `allkings`, which
 misses no realizable configuration. -/
-theorem critical_loop_bitSet
+theorem critical_loop_bitSet {H : Globals → Prop}
     {g g' : Globals} {p : SolverPosType} {ki : KingInfo} {comp allkings vfin : UInt16}
     {pile : Nat} {t₀ t₁ : State} {m : Move}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
     (hkiloc : PossibleKingsLocal p ki) (hkic : KingInfoCorrect p ki)
-    (hhm : HashmapComplete g) (hcsp : ChildSpecComplete p)
+    (hhm : H g) (hcsp : ChildSpecComplete H p)
     (hallk : allkings = (ki.possibleKings.get ⟨0, by omega⟩).toUInt16)
     (hpile : pile < 10) (hdpk : DepthPlusKings g t₀ p)
     (hlen : (t₀.tableau ⟨pile, hpile⟩).length = (p.pileDepth.get ⟨pile, hpile⟩).toNat)
@@ -435,16 +439,16 @@ theorem critical_loop_bitSet
     (hap : applyMove t₀ m = some t₁) (hsolv : Solvable t₁)
     (hrun : forIn (List.range 10) (0 : UInt16)
       (recBody solverRecCheckSolvable p (closureInfoOf p) ki comp allkings) g = .ok vfin g') :
-    CriticalBit g t₀ p vfin ∧ HashmapComplete g' ∧
+    CriticalBit g t₀ p vfin ∧ CompAllOrNothing vfin comp ∧ H g' ∧
       ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm } := by
   have hb : SolverInvBase g p := hcan.toSolverInvBase
-  -- the frame invariant, and what it restores at every iteration's globals
-  set R : UInt16 → Globals → Prop := fun _ gg =>
-    HashmapComplete gg ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, gg = { g with hashmap := hm }
+  -- what travels with the accumulator: `CompAllOrNothing`, the memo invariant, the frame
+  set R : UInt16 → Globals → Prop := fun b gg =>
+    CompAllOrNothing b comp ∧ H gg ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, gg = { g with hashmap := hm }
     with hRdef
   have hctx : ∀ (b : UInt16) (gg : Globals), R b gg →
-      WellFormedLayout gg ∧ IsCanonicalPos gg p ∧ HashmapComplete gg := by
-    rintro b gg ⟨hhm', hm, rfl⟩
+      WellFormedLayout gg ∧ IsCanonicalPos gg p ∧ H gg := by
+    rintro b gg ⟨-, hhm', hm, rfl⟩
     exact ⟨hwf.set_hashmap hm, hcan.set_hashmap hm, hhm'⟩
   -- the `break`'s configuration, computed once at the entry globals
   have hcfg0 : DepthPlusKingsCfg g t₀ p (cfgOf t₀ p) := hdpk.toCfg
@@ -455,30 +459,31 @@ theorem critical_loop_bitSet
   have hstep : ∀ (x : Nat), x ∈ List.range 10 → ∀ (b : UInt16) (gg : Globals)
       (r : ForInStep UInt16) (gg' : Globals), R b gg →
       recBody solverRecCheckSolvable p (closureInfoOf p) ki comp allkings x b gg = .ok r gg' →
-      (∀ k : Fin 16, BitSet b k → BitSet r.value k) ∧
+      AccumStep comp b r.value ∧
         (∀ c : UInt16, r = ForInStep.done c → c = allkings) ∧ R r.value gg' := by
     intro x hx b gg r gg' hr hbx
     obtain ⟨hwf', hcan', hhm'⟩ := hctx b gg hr
-    obtain ⟨hgrow, hdone, hhm'', hm', hgg'⟩ :=
+    obtain ⟨hacc, hdone, hhm'', hm', hgg'⟩ :=
       recBody_complete_step (List.mem_range.1 hx) hwf' hcan' hkiloc hhm' hcsp hbx
-    refine ⟨hgrow, hdone, hhm'', ?_⟩
-    obtain ⟨-, hm, rfl⟩ := hr
+    refine ⟨hacc, hdone, hacc.allOrNothing hr.1, hhm'', ?_⟩
+    obtain ⟨-, -, hm, rfl⟩ := hr
     exact ⟨hm', by rw [hgg']⟩
   refine forIn_reach R (CriticalBit g t₀ p)
     (recBody solverRecCheckSolvable p (closureInfoOf p) ki comp allkings) (List.range 10) pile
     (List.mem_range.2 hpile)
     (fun x hx b gg r gg' hr hbx => (hstep x hx b gg r gg' hr hbx).2.2)
     (fun x hx b gg r gg' hr hp hbx => ?_) (fun x hx b gg c gg' hr hbx => ?_)
-    (fun b gg r gg' hr hbx => ?_) 0 g vfin g' ⟨hhm, g.hashmap, rfl⟩ hrun
+    (fun b gg r gg' hr hbx => ?_) 0 g vfin g'
+    ⟨CompAllOrNothing.zero comp, hhm, g.hashmap, rfl⟩ hrun
   · -- a later iteration keeps the bit
     obtain ⟨i, k, hi, hk, hms, hbit⟩ := hp
-    exact ⟨i, k, hi, hk, hms, (hstep x hx b gg r gg' hr hbx).1 _ hbit⟩
+    exact ⟨i, k, hi, hk, hms, (hstep x hx b gg r gg' hr hbx).1.grows hbit⟩
   · -- the `break` returns `allkings`
     rw [(hstep x hx b gg (ForInStep.done c) gg' hr hbx).2.1 c rfl]
     exact ⟨i₀, cfgOf t₀ p, hi₀, hcfg0, hsub₀, hallbit⟩
   · -- the critical iteration produces it
     obtain ⟨hwf', hcan', hhm'⟩ := hctx b gg hr
-    obtain ⟨-, hm, rfl⟩ := hr
+    obtain ⟨-, -, hm, rfl⟩ := hr
     obtain ⟨i, k, hi, hk, hms, hbit⟩ :=
       critical_iteration_bitSet hwf' hcan' hkiloc hkic hhm' hcsp hpile
         ((DepthPlusKings.hashmap_iff hm).2 hdpk) hlen hda hsrc hdst hap hsolv hbx

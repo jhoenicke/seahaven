@@ -77,4 +77,6 @@ import Seahaven.CriticalChild
 import Seahaven.MovableBit
 import Seahaven.SubsetTransport
 import Seahaven.CriticalIteration
+import Seahaven.RecCheckSpec
+import Seahaven.RecCheckComplete
 import Seahaven.SolverCorrectness
