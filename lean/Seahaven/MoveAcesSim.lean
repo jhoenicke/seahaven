@@ -138,17 +138,17 @@ theorem SimulatesNorm.ofCleanupPile {g : Globals} {v : State} {q0 : SolverPosTyp
     have hfl1 : (SolverSpec.fluteNorm pile hpile q0).pileFlute.get ⟨pile.toNat, hpile⟩ = 1 := by
       show (q0.pileFlute.set pile.toNat 1 hpile)[pile.toNat]'hpile = 1
       exact Vector.getElem_set_self hpile
-    have hBflute1 : ∀ (j : Fin 10),
+    have hBflute : ∀ (j : Fin 10),
         0 < ((SolverSpec.fluteNorm pile hpile q0).pileDepth.get j).toNat →
         ∀ hidxj : ((SolverSpec.fluteNorm pile hpile q0).pileDepth.get j).toNat - 1 < 5,
         (g.pos2card.get j).get ⟨_, hidxj⟩ = B →
-        (SolverSpec.fluteNorm pile hpile q0).pileFlute.get j = 1 := by
+        ((SolverSpec.fluteNorm pile hpile q0).pileFlute.get j).toNat
+          ≤ ((SolverSpec.fluteNorm pile hpile q0).pileFlute.get ⟨pile.toNat, hpile⟩).toNat := by
       intro j _ hidxj hBj
       have hinj := hwf.pos2card_inj j ⟨pile.toNat, hpile⟩
         ⟨((SolverSpec.fluteNorm pile hpile q0).pileDepth.get j).toNat - 1, hidxj⟩
         ⟨(q0.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1, hidxN⟩ (by rw [hBj, hB'])
-      rw [hinj.1]
-      exact hfl1
+      rw [hinj.1, hfl1]
     -- the extension's per-card facts, and the foundation comparison
     have hfree : ∀ l, 1 ≤ l → l ≤ f →
         isFreeCard g (SolverSpec.fluteNorm pile hpile q0) (B - UInt8.ofNat l) :=
@@ -165,8 +165,9 @@ theorem SimulatesNorm.ofCleanupPile {g : Globals} {v : State} {q0 : SolverPosTyp
       exact h
     obtain ⟨v', k', FK, hsim⟩ :=
       SimulatesNorm.ofCleanupRun (p := SolverSpec.fluteNorm pile hpile q0)
-        (ph := pileHashes[pile.toNat]'hpile) hwf hb hk hpile hs4
-        hidxN hd1N hfl1 hB' hmN hchain hfN hfree haces hBflute1
+        (ph := pileHashes[pile.toNat]'hpile) hwf hb.toLocal hk hpile hs4
+        hidxN hd1N (by rw [hfl1]; exact Nat.le_add_left 1 f) hB' hmN hchain hfN hfree haces
+        hBflute
     -- and the solver's own result is that `cleanupRunResult`
     have hres : cleanupRunResult pile hpile B (pileHashes[pile.toNat]'hpile) hs4
         (q0.pileDepth[pile.toNat]'hpile) m f q0 = (fk, p') := by

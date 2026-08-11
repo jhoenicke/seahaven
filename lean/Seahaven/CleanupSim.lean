@@ -573,7 +573,7 @@ theorem StateMatchesSolverPos.not_covered {g : Globals} {s : State} {p : SolverP
 `m`-th flute card above the pile's boundary for some `1 ≤ m < pileFlute`, or a card
 of a solver-empty pile's king run (whose length pins `kings` for that suit). -/
 theorem StateMatchesSolverPos.column_cases {g : Globals} {s : State} {p : SolverPosType}
-    (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
+    (hwf : WellFormedLayout g) (hb : SolverInvLocal g p) (h : StateMatchesSolverPos g s p)
     (j : Fin 10) {d : Card} (hmem : d ∈ s.tableau j) :
     (¬ isFreeCard g p (encodeCard d)) ∨
       (∃ (m : Nat) (hidx : (p.pileDepth.get j).toNat - 1 < 5),
@@ -635,7 +635,7 @@ theorem StateMatchesSolverPos.column_cases {g : Globals} {s : State} {p : Solver
       have hslot : encodeCard d = (g.pos2card.get j).get
           ⟨(s.tableau j).length - 1 - idx, by omega⟩ := Option.some.inj hkb
       rw [hslot]
-      exact depth_card_not_free hwf hb j ⟨(s.tableau j).length - 1 - idx, by omega⟩
+      exact depth_card_not_free_wf hwf j ⟨(s.tableau j).length - 1 - idx, by omega⟩
         (by simpa using hk)
     · -- flute card, `m = L - depth - idx` above the boundary
       right; left
@@ -670,21 +670,22 @@ theorem StateMatchesSolverPos.column_cases {g : Globals} {s : State} {p : Solver
 /-- **The freed predecessors the extension loop walks are in cells.**
 
 `B` is the pile's boundary (not free), `B - 1 … B - f` are the free cards the loop
-accepted, all above the suit's foundation top, and `hBflute1` says the pile whose
-boundary is `B` has a trivial flute — which is exactly the state cleanup is called
-in.  Then the card at `B - k` is in a cell: it is somewhere, it is not on a
-foundation, and each of the three ways of being in a column is excluded. -/
+accepted, all above the suit's foundation top, and `hBflute` bounds the run the pile
+whose boundary is `B` already carries — its own flute, `m₀`.  Then the card at `B - k`
+is in a cell for every `k` past that run: it is somewhere, it is not on a foundation,
+and each of the three ways of being in a column is excluded — the `m = k` case being
+exactly "it is one of the cards the pile already carries", which `m₀ ≤ k` rules out. -/
 theorem StateMatchesSolverPos.extension_in_cell {g : Globals} {s : State} {p : SolverPosType}
-    (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
+    (hwf : WellFormedLayout g) (hb : SolverInvLocal g p) (h : StateMatchesSolverPos g s p)
     {B : UInt8} (hBreal : IsRealCard B) (hBnotfree : ¬ isFreeCard g p B)
-    (hBflute1 : ∀ (j : Fin 10), 0 < (p.pileDepth.get j).toNat →
+    {m₀ : Nat} (hBflute : ∀ (j : Fin 10), 0 < (p.pileDepth.get j).toNat →
         ∀ hidx : (p.pileDepth.get j).toNat - 1 < 5,
-      (g.pos2card.get j).get ⟨_, hidx⟩ = B → p.pileFlute.get j = 1)
+      (g.pos2card.get j).get ⟨_, hidx⟩ = B → (p.pileFlute.get j).toNat ≤ m₀)
     {f : Nat} (hf : f + 1 ≤ (VALUE B).toNat)
     (hfree : ∀ l, 1 ≤ l → l ≤ f → isFreeCard g p (B - UInt8.ofNat l))
     (haces : ∀ l, 1 ≤ l → l ≤ f → ∀ hs : (SUIT B).toNat < 4,
       p.aces.get ⟨(SUIT B).toNat, hs⟩ < B - UInt8.ofNat l)
-    {k : Nat} (hk1 : 1 ≤ k) (hkf : k ≤ f)
+    {k : Nat} (hk1 : 1 ≤ k) (hkm : m₀ ≤ k) (hkf : k ≤ f)
     {d : Card} (hd : encodeCard d = B - UInt8.ofNat k) :
     ∃ i : Fin 4, s.cells i = some d := by
   have hVB := VALUE_toNat B
@@ -724,7 +725,7 @@ theorem StateMatchesSolverPos.extension_in_cell {g : Globals} {s : State} {p : S
       have hdjn : (p.pileDepth.get j).toNat > 0 := by simpa using hdj
       have hBjreal : IsRealCard ((g.pos2card.get j).get ⟨_, hidx⟩) := hwf.pos2card_real j _
       have hBjnotfree : ¬ isFreeCard g p ((g.pos2card.get j).get ⟨_, hidx⟩) :=
-        boundary_not_free hwf hb j hdjn
+        boundary_not_free_local hwf hb j hdjn
       have hflv : (p.pileFlute.get j).toNat
           ≤ (VALUE ((g.pos2card.get j).get ⟨_, hidx⟩)).toNat := hb.flute_le_value hwf j hdjn
       have hVBj := VALUE_toNat ((g.pos2card.get j).get ⟨_, hidx⟩)
@@ -745,9 +746,9 @@ theorem StateMatchesSolverPos.extension_in_cell {g : Globals} {s : State} {p : S
           rw [UInt8.toNat_sub_of_le _ _ hle2, hof]
           omega
         exact hBjnotfree (hBjeq ▸ hfree (k - m) (by omega) (by omega))
-      · -- `B_j = B`, so pile `j` is the one being cleaned and its flute is trivial
+      · -- `B_j = B`: pile `j` is the one being cleaned, and `k` is past the run it carries
         have hBjB : (g.pos2card.get j).get ⟨_, hidx⟩ = B := UInt8.toNat_inj.mp (by omega)
-        rw [hBflute1 j hdj hidx hBjB, show ((1 : UInt8).toNat = 1) from rfl] at hm2
+        have := hBflute j hdj hidx hBjB
         omega
       · -- `B` would be one of `j`'s flute interiors, hence free
         have hof : (UInt8.ofNat (m - k)).toNat = m - k := by rw [UInt8.toNat_ofNat']; omega
@@ -964,15 +965,22 @@ theorem exists_extension_cards {B : UInt8} (hB : IsRealCard B) (f : Nat)
 The target position is given by field equations — `cleanupRunResult`'s, read off by
 `cleanupRunResult_fields_ordinary`. -/
 
-/-- **A whole non-lone-king `SolverCleanupPile` is simulated by `f` cell→pile
-moves.**  `m` is the merge count and `f` the freed-predecessor count; the
-hypotheses on them are what the two loop guards say. -/
+/-- **A whole non-lone-king `SolverCleanupPile` is simulated by cell→pile moves.**  `m`
+is the merge count and `f` the freed-predecessor count; the hypotheses on them are what
+the two loop guards say.
+
+The state's column may already carry part of the extension: `m₀ = pileFlute[pile]` is how
+much of it (the boundary card plus `m₀ - 1` of the freed predecessors), so only the
+remaining `f + 1 - m₀` cards are fetched out of the cells.  The `m₀ = 1` case — the pile
+carries nothing but its dealt cards — is what the solver's own cleanup entry point is at;
+`ConvertMatch`'s entry state is the general one. -/
 theorem StateMatchesSolverPos.cleanupPileSim {g : Globals} {s : State} {p q : SolverPosType}
-    (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
+    (hwf : WellFormedLayout g) (hb : SolverInvLocal g p) (h : StateMatchesSolverPos g s p)
     {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {m f : Nat}
     (hidx : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
-    (hfl1 : p.pileFlute.get ⟨pile.toNat, hpile⟩ = 1)
+    -- the run the column already carries is part of the extension
+    (hflf : (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat ≤ f + 1)
     (hB : (g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨_, hidx⟩ = B)
     -- the merge loop ran `m` times
     (hm : m < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
@@ -986,9 +994,10 @@ theorem StateMatchesSolverPos.cleanupPileSim {g : Globals} {s : State} {p q : So
     (hfree : ∀ l, 1 ≤ l → l ≤ f → isFreeCard g p (B - UInt8.ofNat l))
     (haces : ∀ l, 1 ≤ l → l ≤ f → ∀ hs : (SUIT B).toNat < 4,
       p.aces.get ⟨(SUIT B).toNat, hs⟩ < B - UInt8.ofNat l)
-    (hBflute1 : ∀ (j : Fin 10), 0 < (p.pileDepth.get j).toNat →
+    (hBflute : ∀ (j : Fin 10), 0 < (p.pileDepth.get j).toNat →
       ∀ hidxj : (p.pileDepth.get j).toNat - 1 < 5,
-      (g.pos2card.get j).get ⟨_, hidxj⟩ = B → p.pileFlute.get j = 1)
+      (g.pos2card.get j).get ⟨_, hidxj⟩ = B →
+      (p.pileFlute.get j).toNat ≤ (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat)
     -- the resulting position
     (hqd : (q.pileDepth.get ⟨pile.toNat, hpile⟩).toNat
       = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - m)
@@ -999,19 +1008,24 @@ theorem StateMatchesSolverPos.cleanupPileSim {g : Globals} {s : State} {p q : So
     ∃ v : State, CPReach s v ∧ (∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ →
       v.tableau i = s.tableau i) ∧ StateMatchesSolverPos g v q := by
   set a : Fin 10 := ⟨pile.toNat, hpile⟩ with hadef
+  set m₀ : Nat := (p.pileFlute.get a).toNat with hm₀def
+  have hm₀1 : 1 ≤ m₀ := hb.flute_pos a
   have hBreal : IsRealCard B := by rw [← hB]; exact hwf.pos2card_real a _
-  -- the column is exactly the dealt cards, exposing `B`
+  have hBV1 : 1 ≤ (VALUE B).toNat := hBreal.2.1
+  have hBV13 : (VALUE B).toNat ≤ 13 := hBreal.2.2
+  -- the column's head is `B - (m₀ - 1)`: the boundary, less the run already carried
   have hd : 0 < (p.pileDepth.get a).toNat := by omega
   obtain ⟨e, hhead, hes, hev⟩ := h.head_code a hd hidx
   rw [hB] at hes hev
-  rw [hfl1, show ((1 : UInt8).toNat = 1) from rfl] at hev
-  have hecode : encodeCard e = B := by
+  obtain ⟨hB'real, hB'suit, hB'val⟩ := sub_code_facts hBreal (k := m₀ - 1) (by omega)
+  have hecode : encodeCard e = B - UInt8.ofNat (m₀ - 1) := by
     apply UInt8.toNat_inj.mp
     have h1 := SUIT_toNat (encodeCard e)
     have h2 := VALUE_toNat (encodeCard e)
-    have h3 := SUIT_toNat B
-    have h4 := VALUE_toNat B
-    have h5 := congrArg UInt8.toNat hes
+    have h3 := SUIT_toNat (B - UInt8.ofNat (m₀ - 1))
+    have h4 := VALUE_toNat (B - UInt8.ofNat (m₀ - 1))
+    have h5 := congrArg UInt8.toNat (hes.trans hB'suit.symm)
+    have h6 := hB'val
     omega
   obtain ⟨rest, hcol⟩ : ∃ rest, s.tableau a = e :: rest := by
     cases hc : s.tableau a with
@@ -1020,23 +1034,46 @@ theorem StateMatchesSolverPos.cleanupPileSim {g : Globals} {s : State} {p q : So
       rw [hc] at hhead
       simp only [List.head?_cons, Option.some.injEq] at hhead
       exact ⟨xs, by rw [hhead]⟩
-  -- the returned predecessors, and where they are
-  obtain ⟨ds, hdslen, hdsnd, hdscode, hdsrun⟩ := exists_extension_cards hBreal f hf
+  -- the predecessors still to fetch: `B - f … B - m₀`, i.e. the extension of `B - (m₀-1)`
+  obtain ⟨ds, hdslen, hdsnd, hdscode0, hdsrun⟩ :=
+    exists_extension_cards hB'real (f - (m₀ - 1)) (by omega)
+  have hBle : ∀ k, k ≤ B.toNat → (UInt8.ofNat k) ≤ B := by
+    intro k hk
+    rw [UInt8.le_iff_toNat_le, UInt8.toNat_ofNat']
+    omega
+  have hBVle : (VALUE B).toNat ≤ B.toNat := by have := VALUE_toNat B; omega
+  have hB'nat : (B - UInt8.ofNat (m₀ - 1)).toNat = B.toNat - (m₀ - 1) := by
+    rw [UInt8.toNat_sub_of_le _ _ (hBle _ (by omega)), UInt8.toNat_ofNat']
+    omega
+  -- their codes, read against `B`
+  have hdscode : ∀ (i : Nat) (hi : i < ds.length),
+      encodeCard (ds[i]'hi) = B - UInt8.ofNat (f - i) := by
+    intro i hi
+    rw [hdscode0 i hi]
+    apply UInt8.toNat_inj.mp
+    rw [hdslen] at hi
+    have h1 : (UInt8.ofNat (f - (m₀ - 1) - i)) ≤ B - UInt8.ofNat (m₀ - 1) := by
+      rw [UInt8.le_iff_toNat_le, UInt8.toNat_ofNat', hB'nat]
+      omega
+    rw [UInt8.toNat_sub_of_le _ _ h1, UInt8.toNat_sub_of_le _ _ (hBle (f - i) (by omega)),
+      UInt8.toNat_ofNat', UInt8.toNat_ofNat', hB'nat]
+    omega
   have hdscell : ∀ d ∈ ds, ∃ i : Fin 4, s.cells i = some d := by
     intro d hd'
     obtain ⟨i, hi, hieq⟩ := List.getElem_of_mem hd'
-    refine h.extension_in_cell hwf hb hBreal ?_ hBflute1 hf hfree haces
-      (k := f - i) (by omega) (by omega) ?_
+    rw [hdslen] at hi
+    refine h.extension_in_cell hwf hb hBreal ?_ hBflute hf hfree haces
+      (k := f - i) (by omega) (by omega) (by omega) ?_
     · rw [← hB]
-      exact boundary_not_free hwf hb a (by simpa using hd)
+      exact boundary_not_free_local hwf hb a (by simpa using hd)
     · rw [← hieq]
-      exact hdscode i hi
+      exact hdscode i (by rw [hdslen]; omega)
   obtain ⟨cells, hcnd, hhold⟩ := holdsCards_of_mem_cells ds hdsnd hdscell
   -- (1) the merge: same state, `depth ↓ m`, `flute ↑ m`
   set p₁ : SolverPosType := { p with
     pileDepth := p.pileDepth.set pile.toNat
       (UInt8.ofNat ((p.pileDepth.get a).toNat - m)) hpile,
-    pileFlute := p.pileFlute.set pile.toNat (UInt8.ofNat (1 + m)) hpile } with hp₁
+    pileFlute := p.pileFlute.set pile.toNat (UInt8.ofNat (m₀ + m)) hpile } with hp₁
   have hd5 : (p.pileDepth.get a).toNat < 6 := by have := h.depth_lt6 a; simpa using this
   have hp₁d : (p₁.pileDepth.get a).toNat = (p.pileDepth.get a).toNat - m := by
     show ((p.pileDepth.set pile.toNat _ hpile)[pile.toNat]'hpile).toNat = _
@@ -1044,9 +1081,12 @@ theorem StateMatchesSolverPos.cleanupPileSim {g : Globals} {s : State} {p q : So
     simp only [UInt8.toNat_ofNat']
     have hd5' : (p.pileDepth.get a).toNat < 6 := hd5
     omega
-  have hp₁f : (p₁.pileFlute.get a).toNat = 1 + m := by
+  have hp₁f : (p₁.pileFlute.get a).toNat = m₀ + m := by
     show ((p.pileFlute.set pile.toNat _ hpile)[pile.toNat]'hpile).toNat = _
     rw [Vector.getElem_set_self, UInt8.toNat_ofNat']
+    have hmf : m₀ + m ≤ 13 + 5 := by
+      have := hBreal.2.2
+      omega
     omega
   have hp₁dne : ∀ i : Fin 10, i ≠ a → p₁.pileDepth.get i = p.pileDepth.get i := by
     intro i hi
@@ -1056,12 +1096,11 @@ theorem StateMatchesSolverPos.cleanupPileSim {g : Globals} {s : State} {p q : So
     intro i hi
     show (p.pileFlute.set pile.toNat _ hpile)[i.val] = p.pileFlute[i.val]
     exact Vector.getElem_set_ne hpile i.isLt (fun hc => hi (Fin.ext hc.symm))
-  have hfl1n : (p.pileFlute.get a).toNat = 1 := by rw [hfl1]; rfl
   have hmatch₁ : StateMatchesSolverPos g s p₁ := by
     refine h.cleanupMerge hwf a (by omega) (by omega) ?_ (by omega) hp₁dne hp₁fne rfl rfl
     intro j hj1 hj2 hjb hjc
     exact hchain j (by omega) hj2 hjb hjc
-  -- (2) the extension: `f` cell→pile moves
+  -- (2) the extension: `f + 1 - m₀` cell→pile moves
   have hdepthEq : q.pileDepth = p₁.pileDepth := by
     refine SolverSpec.vector_ext_get _ _ (fun i => ?_)
     by_cases hia : i = a
@@ -1073,7 +1112,7 @@ theorem StateMatchesSolverPos.cleanupPileSim {g : Globals} {s : State} {p q : So
     · rw [hqdne i hia, hp₁dne i hia]
   obtain ⟨v, hreach, hframe, hmatch₂⟩ := hmatch₁.cleanupExtend_cp a hcol
     (by rw [hp₁d]; omega) hcnd hhold (hdsrun e hecode) hdepthEq
-    (by rw [hp₁f, hdslen]; exact hqf)
+    (by rw [hp₁f, hdslen]; omega)
     (fun i hi => by rw [hqfne i hi, hp₁fne i hi])
     (by rw [hqaces]) (by rw [hqkings])
   exact ⟨v, hreach, hframe, hmatch₂⟩
@@ -1101,7 +1140,7 @@ It would be the wrong thing to assume in general — a suit may perfectly well h
 top cards freed onto an empty column while a lower card of it is still some pile's
 boundary — and it is only ever *used* in the lone-king branch, where it is free. -/
 theorem StateMatchesSolverPos.noshare_of_king {g : Globals} {s : State} {p : SolverPosType}
-    (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
+    (hwf : WellFormedLayout g) (hb : SolverInvLocal g p) (h : StateMatchesSolverPos g s p)
     {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {m : Nat}
     (hidx : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5)
     (hB : (g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨_, hidx⟩ = B)
@@ -1184,11 +1223,11 @@ theorem StateMatchesSolverPos.noshare_of_king {g : Globals} {s : State} {p : Sol
 cell→pile moves of the extension.  `hkingval` is the branch's own test
 (`VALUE (B + m) = 13`), and `hqk_self` is its `kings` write. -/
 theorem StateMatchesSolverPos.cleanupPileSimKing {g : Globals} {s : State}
-    {p q : SolverPosType} (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
+    {p q : SolverPosType} (hwf : WellFormedLayout g) (hb : SolverInvLocal g p)
     (h : StateMatchesSolverPos g s p)
     {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {m f : Nat}
     (hidx : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5)
-    (hfl1 : p.pileFlute.get ⟨pile.toNat, hpile⟩ = 1)
+    (hflf : (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat ≤ f + 1)
     (hB : (g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨_, hidx⟩ = B)
     -- the merge left exactly one dealt card, and it is a king
     (hm : m + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
@@ -1203,9 +1242,10 @@ theorem StateMatchesSolverPos.cleanupPileSimKing {g : Globals} {s : State}
     (hfree : ∀ l, 1 ≤ l → l ≤ f → isFreeCard g p (B - UInt8.ofNat l))
     (haces : ∀ l, 1 ≤ l → l ≤ f → ∀ hs : (SUIT B).toNat < 4,
       p.aces.get ⟨(SUIT B).toNat, hs⟩ < B - UInt8.ofNat l)
-    (hBflute1 : ∀ (j : Fin 10), 0 < (p.pileDepth.get j).toNat →
+    (hBflute : ∀ (j : Fin 10), 0 < (p.pileDepth.get j).toNat →
       ∀ hidxj : (p.pileDepth.get j).toNat - 1 < 5,
-      (g.pos2card.get j).get ⟨_, hidxj⟩ = B → p.pileFlute.get j = 1)
+      (g.pos2card.get j).get ⟨_, hidxj⟩ = B →
+      (p.pileFlute.get j).toNat ≤ (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat)
     -- the vacated position
     (hqd : (q.pileDepth.get ⟨pile.toNat, hpile⟩).toNat = 0)
     (hqdne : ∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ → q.pileDepth.get i = p.pileDepth.get i)
@@ -1263,7 +1303,7 @@ theorem StateMatchesSolverPos.cleanupPileSimKing {g : Globals} {s : State}
     omega
   -- the frontier is the king itself, since the king is still resident
   have hknotfree : ¬ isFreeCard g p ((g.pos2card.get a).get ⟨0, hzero5⟩) :=
-    depth_card_not_free hwf hb a ⟨0, hzero5⟩
+    depth_card_not_free_wf hwf a ⟨0, hzero5⟩
       (by show (0 : Nat) < (p.pileDepth.get a).toNat
           have := hd1; omega)
   have hksuit : SUIT ((g.pos2card.get a).get ⟨0, hzero5⟩) = ((SUIT B).toNat).toUInt8 := by
@@ -1300,8 +1340,8 @@ theorem StateMatchesSolverPos.cleanupPileSimKing {g : Globals} {s : State}
     intro i hi
     show (p.pileFlute.set pile.toNat _ hpile)[i.val] = p.pileFlute[i.val]
     exact Vector.getElem_set_ne hpile i.isLt (fun hc => hi (Fin.ext hc.symm))
-  obtain ⟨v, hreach, hframe, hmatch₂⟩ := h.cleanupPileSim hwf hb hpile hidx hd1 hfl1 hB
-    (by rw [← hadef]; omega) hchain hf hfree haces hBflute1 (q := p₂)
+  obtain ⟨v, hreach, hframe, hmatch₂⟩ := h.cleanupPileSim hwf hb hpile hidx hd1 hflf hB
+    (by rw [← hadef]; omega) hchain hf hfree haces hBflute (q := p₂)
     (by rw [← hadef]; omega) hp₂f
     hp₂dne hp₂fne rfl rfl
   -- the column the vacate empties has `1 + m + f` cards, and its deepest card is
@@ -1423,13 +1463,13 @@ The position is the solver's own `cleanupRunResult`, so composing this with
 `hnoshare` is the king-configuration side condition: no *other* solver-empty pile
 carries `B`'s suit, so only the vacated pile's frontier moves. -/
 theorem StateMatchesSolverPos.cleanupRunResult_sim {g : Globals} {s : State}
-    {p : SolverPosType} (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
+    {p : SolverPosType} (hwf : WellFormedLayout g) (hb : SolverInvLocal g p)
     (h : StateMatchesSolverPos g s p)
     {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {ph : UInt32} {m f : Nat}
     (hs4' : (SUIT B).toUInt32.toNat < 4)
     (hidx : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
-    (hfl1 : p.pileFlute.get ⟨pile.toNat, hpile⟩ = 1)
+    (hflf : (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat ≤ f + 1)
     (hB : (g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨_, hidx⟩ = B)
     (hm : m < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hchain : ∀ j, (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - m ≤ j →
@@ -1441,9 +1481,10 @@ theorem StateMatchesSolverPos.cleanupRunResult_sim {g : Globals} {s : State}
     (hfree : ∀ l, 1 ≤ l → l ≤ f → isFreeCard g p (B - UInt8.ofNat l))
     (haces : ∀ l, 1 ≤ l → l ≤ f → ∀ hs : (SUIT B).toNat < 4,
       p.aces.get ⟨(SUIT B).toNat, hs⟩ < B - UInt8.ofNat l)
-    (hBflute1 : ∀ (j : Fin 10), 0 < (p.pileDepth.get j).toNat →
+    (hBflute : ∀ (j : Fin 10), 0 < (p.pileDepth.get j).toNat →
       ∀ hidxj : (p.pileDepth.get j).toNat - 1 < 5,
-      (g.pos2card.get j).get ⟨_, hidxj⟩ = B → p.pileFlute.get j = 1) :
+      (g.pos2card.get j).get ⟨_, hidxj⟩ = B →
+      (p.pileFlute.get j).toNat ≤ (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat) :
     ∃ v : State, CPReach s v ∧
       (∀ i : Fin 10, i ≠ ⟨pile.toNat, hpile⟩ → v.tableau i = s.tableau i) ∧
       StateMatchesSolverPos g v
@@ -1560,8 +1601,8 @@ theorem StateMatchesSolverPos.cleanupRunResult_sim {g : Globals} {s : State}
       rw [UInt8.toNat_toUInt32] at hc
       exact h.noshare_of_king hwf hb hpile hidx hB hdepth1 hchain hkingval i hi hdi d hd hc.symm
     obtain ⟨v, hreach, hframe, hmatch, hexport⟩ :=
-      h.cleanupPileSimKing hwf hb hpile hidx hfl1 hB hdepth1 hchain hkingval hf hfree
-        haces hBflute1 hd0 hdne hfne (by rw [hqa]) hkself hkne
+      h.cleanupPileSimKing hwf hb hpile hidx hflf hB hdepth1 hchain hkingval hf hfree
+        haces hBflute hd0 hdne hfne (by rw [hqa]) hkself hkne
     exact ⟨v, hreach, hframe, hmatch, fun _ => hexport⟩
   · -- the ordinary branch
     obtain ⟨hqd, hqf, hqa, hqk⟩ := cleanupRunResult_fields_ordinary pile hpile B ph hs4'
@@ -1597,8 +1638,8 @@ theorem StateMatchesSolverPos.cleanupRunResult_sim {g : Globals} {s : State}
       rw [hqf]
       show (p.pileFlute.set pile.toNat _ hpile)[i.val] = p.pileFlute[i.val]
       exact Vector.getElem_set_ne hpile i.isLt (fun hc => hi (Fin.ext hc.symm))
-    obtain ⟨v, hreach, hframe, hmatch⟩ := h.cleanupPileSim hwf hb hpile hidx (by omega) hfl1 hB
-      (by omega) hchain hf hfree haces hBflute1 hdself hfself hdne hfne (by rw [hqa])
+    obtain ⟨v, hreach, hframe, hmatch⟩ := h.cleanupPileSim hwf hb hpile hidx (by omega) hflf hB
+      (by omega) hchain hf hfree haces hBflute hdself hfself hdne hfne (by rw [hqa])
       (by rw [hqk])
     exact ⟨v, hreach, hframe, hmatch, fun hc => absurd hc hk⟩
 

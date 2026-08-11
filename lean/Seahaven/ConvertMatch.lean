@@ -264,6 +264,22 @@ structure CvEntry (g : Globals) (pk : Vector UInt8 11) (s : State) (game' : Solv
       about its flutes: at a pile with a boundary they are forced (`flute_match`), and at
       a solver-empty pile they are never read — see `StateMatchesKingConfig.reflute`. -/
   cfg : StateMatchesKingConfig g s game' k
+  /-- **A suit the configuration piles does not have its king in a cell.**
+
+      This is what keeps loop 2's king-run completion inside the normalizing moves.  The
+      completion drops the suit's freed run onto its pile, and a drop onto an *empty*
+      column — which is what a king in a cell would call for — is invertible
+      (`applyMove_cell_pile_inv`) but **not** a `NormStep`: `CPStep` demands
+      `tableau q ≠ []`.  With the king out of the cells it is either already on the pile
+      (so every drop lands on a non-empty column) or on a foundation / still a resident,
+      and then `cvKingVal = 13` and there is nothing to drop at all.
+
+      Stated negatively on purpose: no move loop 2 makes ever puts a card *into* a cell, so
+      this survives the whole phase for free.  And for the query's own encoding it is
+      immediate — `kingBit` fires exactly for a column that *is* a king run, so the king is
+      sitting in that column. -/
+  kingNotInCell : ∀ su : Suit, ¬ CfgBitSet k su →
+    ∀ i : Fin 4, s.cells i ≠ some ⟨su, Rank.king⟩
 
 /-! ## Obligation A: the prologue's writes are realized by moves
 

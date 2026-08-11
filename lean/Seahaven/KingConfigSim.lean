@@ -623,13 +623,13 @@ column's deepest card is the boundary suit's king.  Gluing the two gives a
 matching simulation takes. -/
 
 theorem SimulatesNorm.ofCleanupRun {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
-    (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
+    (hwf : WellFormedLayout g) (hb : SolverInvLocal g p)
     (hk : StateMatchesKingConfig g s p k)
     {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {ph : UInt32} {m f : Nat}
     (hs4' : (SUIT B).toUInt32.toNat < 4)
     (hidx : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
-    (hfl1 : p.pileFlute.get ⟨pile.toNat, hpile⟩ = 1)
+    (hflf : (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat ≤ f + 1)
     (hB : (g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨_, hidx⟩ = B)
     (hm : m < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hchain : ∀ j, (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - m ≤ j →
@@ -641,9 +641,10 @@ theorem SimulatesNorm.ofCleanupRun {g : Globals} {s : State} {p : SolverPosType}
     (hfree : ∀ l, 1 ≤ l → l ≤ f → isFreeCard g p (B - UInt8.ofNat l))
     (haces : ∀ l, 1 ≤ l → l ≤ f → ∀ hs : (SUIT B).toNat < 4,
       p.aces.get ⟨(SUIT B).toNat, hs⟩ < B - UInt8.ofNat l)
-    (hBflute1 : ∀ (j : Fin 10), 0 < (p.pileDepth.get j).toNat →
+    (hBflute : ∀ (j : Fin 10), 0 < (p.pileDepth.get j).toNat →
       ∀ hidxj : (p.pileDepth.get j).toNat - 1 < 5,
-      (g.pos2card.get j).get ⟨_, hidxj⟩ = B → p.pileFlute.get j = 1) :
+      (g.pos2card.get j).get ⟨_, hidxj⟩ = B →
+      (p.pileFlute.get j).toNat ≤ (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat) :
     ∃ (v : State) (k' : Fin 16) (FK : Finset Suit),
       SimulatesNorm g s p k v
         (cleanupRunResult pile hpile B ph hs4'
@@ -652,8 +653,8 @@ theorem SimulatesNorm.ofCleanupRun {g : Globals} {s : State} {p : SolverPosType}
         (cleanupRunResult pile hpile B ph hs4'
           (p.pileDepth[pile.toNat]'hpile) m f p).1 := by
   obtain ⟨v, hreach, hframe, hmatch, hexport⟩ :=
-    hk.toMatches.cleanupRunResult_sim hwf hb hpile hs4' hidx hd1 hfl1 hB hm hchain hf hfree
-      haces hBflute1
+    hk.toMatches.cleanupRunResult_sim hwf hb hpile hs4' hidx hd1 hflf hB hm hchain hf hfree
+      haces hBflute
   have hd5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat ≤ 5 :=
     hb.pileDepth_bound ⟨pile.toNat, hpile⟩
   have hmN : m < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat := hm

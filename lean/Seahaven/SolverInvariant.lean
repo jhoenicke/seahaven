@@ -312,6 +312,80 @@ theorem SolverInvBase.king_frontier {g p}
       isFreeCard g p c :=
     (h.suitClean s).king_frontier
 
+/-! ## The local layer
+
+`SolverInvBase`'s per-pile and per-suit conditions on their own, without the `hash` and
+`usedSpace` formulas.  Everything the *cleanup simulation* reads lives here, and the
+split matters for one reason: a **relaxed reading** of a position — one whose flutes are
+the runs a state physically carries rather than the solver's own, shorter ones —
+satisfies exactly these and *not* `usedSpace_def`, whose right-hand side charges the
+extra run cards to the cells. -/
+
+/-- The pile-local and suit-local part of `SolverInvBase`. -/
+structure SolverInvLocal (g : Globals) (p : SolverPosType) : Prop where
+  pileBase : ∀ i : Fin 10, PileBase g p i
+  suitClean : ∀ s : Fin 4, SuitClean g p s (fun i => (pileBase i).pileDepth_bound)
+
+theorem SolverInvBase.toLocal {g : Globals} {p : SolverPosType} (h : SolverInvBase g p) :
+    SolverInvLocal g p := ⟨h.pileBase, h.suitClean⟩
+
+theorem SolverInvLocal.pileDepth_bound {g : Globals} {p : SolverPosType}
+    (h : SolverInvLocal g p) (i : Fin 10) : (p.pileDepth.get i).toNat ≤ 5 :=
+  (h.pileBase i).pileDepth_bound
+
+theorem SolverInvLocal.pileDepth_nonneg {g : Globals} {p : SolverPosType}
+    (h : SolverInvLocal g p) (i : Fin 10) : 0 ≤ p.pileDepth.get i :=
+  (h.pileBase i).pileDepth_nonneg
+
+theorem SolverInvLocal.flute_pos {g : Globals} {p : SolverPosType}
+    (h : SolverInvLocal g p) (i : Fin 10) : 1 ≤ (p.pileFlute.get i).toNat :=
+  (h.pileBase i).flute_pos
+
+theorem SolverInvLocal.flute_empty {g : Globals} {p : SolverPosType}
+    (h : SolverInvLocal g p) (i : Fin 10) :
+    p.pileDepth.get i = 0 → p.pileFlute.get i = 1 :=
+  (h.pileBase i).flute_empty
+
+theorem SolverInvLocal.flute_cards_free {g : Globals} {p : SolverPosType}
+    (h : SolverInvLocal g p) (i : Fin 10) (j : UInt8) :
+    (p.pileDepth.get i).toNat > 0 →
+    0 < j.toNat → j.toNat < (p.pileFlute.get i).toNat →
+    isFreeCard g p
+      ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNat - 1,
+          by have := h.pileDepth_bound i; omega⟩ - j) :=
+  (h.pileBase i).flute_cards_free j
+
+theorem SolverInvLocal.aces_kings_valid {g p}
+    (h : SolverInvLocal g p) (s : Fin 4) :
+    SUIT (p.aces.get s) = s.val.toUInt8 ∧
+    (VALUE (p.aces.get s)).toNat ≤ 13 ∧
+    SUIT (p.kings.get s) = s.val.toUInt8 ∧
+    (VALUE (p.kings.get s)).toNat ≤ 13 ∧
+    p.aces.get s ≤ p.kings.get s :=
+    (h.suitClean s).aces_kings_valid
+
+theorem SolverInvLocal.foundation_cards_free {g p}
+    (h : SolverInvLocal g p) (s : Fin 4) :
+    ∀ c : UInt8,
+    SUIT c = s.val.toUInt8 →
+    1 ≤ (VALUE c).toNat →
+    (VALUE c).toNat ≤ (VALUE (p.aces.get s)).toNat →
+    isFreeCard g p c :=
+    (h.suitClean s).foundation_cards_free
+
+theorem SolverInvLocal.king_frontier {g p}
+    (h : SolverInvLocal g p) (s : Fin 4) :
+    ((p.kings.get s = p.aces.get s ∧
+        ((VALUE (p.aces.get s)).toNat = 13 ∨
+          p.busyAces &&& ((1 : UInt8) <<< s.val.toUInt8) ≠ 0)) ∨
+      (p.aces.get s < p.kings.get s ∧ ¬ isFreeCard g p (p.kings.get s))) ∧
+    ∀ c : UInt8,
+      SUIT c = s.val.toUInt8 →
+      (VALUE c).toNat > (VALUE (p.kings.get s)).toNat →
+      (VALUE c).toNat ≤ 13 →
+      isFreeCard g p c :=
+    (h.suitClean s).king_frontier
+
 /-- **Middle layer of the tower.**  Extends `SolverInvBase` with the invariants
     from `PileMerged` pile-by-pile: (2) `merge_complete`,
     (3b) `flute_maximal`, and (6) `busyAces_complete` (rephrased per pile),
@@ -507,8 +581,8 @@ theorem int8_nonneg_of_suit {x : UInt8} {s : Fin 4}
     (wraparound-safe: `aces` is nonnegative via `aces_kings_valid`/`int8_nonneg_of_suit`,
     and `boundary` is `< 64` via `WellFormedLayout`/`IsRealCard`, so every UInt8/UInt8
     cast involved stays comfortably below the 128 sign threshold). -/
-theorem SolverInvBase.flute_not_aces {g : Globals} {p : SolverPosType}
-    (h : SolverInvBase g p) (hwf : WellFormedLayout g) (i : Fin 10) (j : UInt8) :
+theorem SolverInvLocal.flute_not_aces {g : Globals} {p : SolverPosType}
+    (h : SolverInvLocal g p) (hwf : WellFormedLayout g) (i : Fin 10) (j : UInt8) :
     (p.pileDepth.get i).toNat > 0 →
     0 < j.toNat → j.toNat < (p.pileFlute.get i).toNat →
     ∀ hs : (SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNat - 1,
@@ -605,13 +679,33 @@ theorem PileBase.flute_le_value {g : Globals} {p : SolverPosType} {i : Fin 10}
     `suit*16 + value`, so subtracting the boundary's own value lands exactly on
     `suit*16`) — but `aces_kings_valid` says `aces[suit]` HAS suit `suit`,
     contradiction (a suit-`s` card can't sit below `s`'s own block). -/
+theorem SolverInvLocal.flute_le_value {g : Globals} {p : SolverPosType}
+    (hbase : SolverInvLocal g p) (hwf : WellFormedLayout g) (i : Fin 10)
+    (hdi : (p.pileDepth.get i).toNat > 0) :
+    (p.pileFlute.get i).toNat ≤
+      (VALUE ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNat - 1,
+          by have := hbase.pileDepth_bound i; omega⟩)).toNat :=
+    (hbase.pileBase i).flute_le_value hwf (fun s => (hbase.aces_kings_valid s).1) hdi
+
+theorem SolverInvBase.flute_not_aces {g : Globals} {p : SolverPosType}
+    (h : SolverInvBase g p) (hwf : WellFormedLayout g) (i : Fin 10) (j : UInt8) :
+    (p.pileDepth.get i).toNat > 0 →
+    0 < j.toNat → j.toNat < (p.pileFlute.get i).toNat →
+    ∀ hs : (SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNat - 1,
+        by have := h.pileDepth_bound i; omega⟩)).toNat < 4,
+    p.aces.get ⟨(SUIT ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNat - 1,
+        by have := h.pileDepth_bound i; omega⟩)).toNat, hs⟩ <
+    ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNat - 1,
+        by have := h.pileDepth_bound i; omega⟩ - j) :=
+  h.toLocal.flute_not_aces hwf i j
+
 theorem SolverInvBase.flute_le_value {g : Globals} {p : SolverPosType}
     (hbase : SolverInvBase g p) (hwf : WellFormedLayout g) (i : Fin 10)
     (hdi : (p.pileDepth.get i).toNat > 0) :
     (p.pileFlute.get i).toNat ≤
       (VALUE ((g.pos2card.get i).get ⟨(p.pileDepth.get i).toNat - 1,
           by have := hbase.pileDepth_bound i; omega⟩)).toNat :=
-    (hbase.pileBase i).flute_le_value hwf (fun s => (hbase.aces_kings_valid s).1) hdi
+  hbase.toLocal.flute_le_value hwf i hdi
 
 /-- Every pile of a canonical position is clean. -/
 theorem IsCanonicalPos.pileClean {g : Globals} {p : SolverPosType}
@@ -702,8 +796,8 @@ theorem WellFormedLayout.pos2card_inj {g : Globals} (hwf : WellFormedLayout g)
     `round_trip_inv`: the boundary card's own recorded `(cardPile, cardDepth)` is
     exactly `(i, d-1)`, one less than the pile's current depth `d`, so
     `isFreeCard`'s `origDepth ≥ currentDepth` test fails. -/
-theorem depth_card_not_free {g : Globals} {p : SolverPosType} (hwf : WellFormedLayout g)
-    (_h : SolverInvBase g p) (i : Fin 10) (d : Fin 5)
+theorem depth_card_not_free_wf {g : Globals} {p : SolverPosType} (hwf : WellFormedLayout g)
+    (i : Fin 10) (d : Fin 5)
     (hd : d.val < (p.pileDepth.get i).toNat) :
     ¬ isFreeCard g p ((g.pos2card.get i).get d) := by
   set c := (g.pos2card.get i).get d with hcdef
@@ -728,12 +822,30 @@ theorem depth_card_not_free {g : Globals} {p : SolverPosType} (hwf : WellFormedL
   show ¬ (cardDepth g c).toNat ≥ (p.pileDepth.get i).toNat
   omega
 
+/-- The layout is all this needs; the invariant argument of the original spelling was
+already unused. -/
+theorem depth_card_not_free {g : Globals} {p : SolverPosType} (hwf : WellFormedLayout g)
+    (_h : SolverInvBase g p) (i : Fin 10) (d : Fin 5)
+    (hd : d.val < (p.pileDepth.get i).toNat) :
+    ¬ isFreeCard g p ((g.pos2card.get i).get d) :=
+  depth_card_not_free_wf hwf i d hd
+
 theorem boundary_not_free {g : Globals} {p : SolverPosType} (hwf : WellFormedLayout g)
     (h : SolverInvBase g p) (i : Fin 10)
     (hdi : (p.pileDepth.get i).toNat > 0) :
     ¬ isFreeCard g p ((g.pos2card.get i).get
         ⟨(p.pileDepth.get i).toNat - 1, by have := h.pileDepth_bound i; omega⟩) :=
   depth_card_not_free hwf h i ⟨(p.pileDepth.get i).toNat - 1,
+    by have := h.pileDepth_bound i; omega⟩
+    (show (p.pileDepth.get i).toNat - 1 < (p.pileDepth.get i).toNat by omega)
+
+/-- `boundary_not_free`, at the local layer. -/
+theorem boundary_not_free_local {g : Globals} {p : SolverPosType} (hwf : WellFormedLayout g)
+    (h : SolverInvLocal g p) (i : Fin 10)
+    (hdi : (p.pileDepth.get i).toNat > 0) :
+    ¬ isFreeCard g p ((g.pos2card.get i).get
+        ⟨(p.pileDepth.get i).toNat - 1, by have := h.pileDepth_bound i; omega⟩) :=
+  depth_card_not_free_wf hwf i ⟨(p.pileDepth.get i).toNat - 1,
     by have := h.pileDepth_bound i; omega⟩
     (show (p.pileDepth.get i).toNat - 1 < (p.pileDepth.get i).toNat by omega)
 

@@ -286,6 +286,27 @@ theorem one_le_countColumn_of_mem {xs : List Card} {c : Card} (h : c ∈ xs) :
     · simp [countCard]
     · have := ih hm; omega
 
+theorem le_sum_ofFn {n : Nat} (f : Fin n → Nat) (i : Fin n) : f i ≤ (List.ofFn f).sum := by
+  rw [List.sum_ofFn]
+  exact Finset.single_le_sum (f := f) (fun j _ => Nat.zero_le _) (Finset.mem_univ i)
+
+/-- A card in a column is in no cell. -/
+theorem not_mem_cell_of_mem_column {u : State} (hcount : ∀ c : Card, countState u c = 1)
+    {c : Card} {j : Fin 10} (hmem : c ∈ u.tableau j) (i : Fin 4) : u.cells i ≠ some c := by
+  intro hcell
+  have h1 : 1 ≤ countColumn (u.tableau j) c := one_le_countColumn_of_mem hmem
+  have h2 : countColumn (u.tableau j) c ≤ countTableau u.tableau c :=
+    le_sum_ofFn (fun k : Fin 10 => countColumn (u.tableau k) c) j
+  have h3 : 1 ≤ countCells u.cells c := by
+    have h4 : countCard (u.cells i) c ≤ countCells u.cells c :=
+      le_sum_ofFn (fun k : Fin 4 => countCard (u.cells k) c) i
+    rw [hcell] at h4
+    have h5 : countCard (some c) c = 1 := by simp [countCard]
+    omega
+  have h : countFoundation u.foundations c + countCells u.cells c + countTableau u.tableau c = 1 :=
+    hcount c
+  omega
+
 theorem add_le_sum_ofFn {n : Nat} (f : Fin n → Nat) {i j : Fin n} (hij : i ≠ j) :
     f i + f j ≤ (List.ofFn f).sum := by
   rw [List.sum_ofFn]
@@ -304,7 +325,7 @@ theorem column_eq_of_mem {s : State} (hcount : ∀ c : Card, countState s c = 1)
 
 /-! ## Columns the encoding calls empty -/
 
-private theorem getLast?_getElem {col : Column} {c : Card} (h : col.getLast? = some c) :
+theorem getLast?_getElem {col : Column} {c : Card} (h : col.getLast? = some c) :
     ∃ hL : 0 < col.length, col[col.length - 1]'(by omega) = c := by
   have hL : 0 < col.length := by
     cases col with
@@ -314,19 +335,19 @@ private theorem getLast?_getElem {col : Column} {c : Card} (h : col.getLast? = s
   rw [List.getLast?_eq_getElem?, List.getElem?_eq_getElem (by omega)] at h
   exact Option.some.inj h
 
-private theorem head?_getElem {col : Column} {c : Card} (h : col.head? = some c) :
+theorem head?_getElem {col : Column} {c : Card} (h : col.head? = some c) :
     ∃ hL : 0 < col.length, col[0]'hL = c := by
   cases col with
   | nil => simp at h
   | cons x xs => exact ⟨by simp, by simpa using h⟩
 
-private theorem reverse_getElem_zero {col : Column} {c : Card} (h : col.getLast? = some c)
+theorem reverse_getElem_zero {col : Column} {c : Card} (h : col.getLast? = some c)
     (h0 : 0 < col.reverse.length) : col.reverse[0]'h0 = c := by
   obtain ⟨hL, hcc⟩ := getLast?_getElem h
   rw [getElem_reverse_col h0 (by omega)]
   exact hcc
 
-private theorem reverse_getElem_last {col : Column} {c : Card} (h : col.head? = some c)
+theorem reverse_getElem_last {col : Column} {c : Card} (h : col.head? = some c)
     (h1 : col.length - 1 < col.reverse.length) : col.reverse[col.length - 1]'h1 = c := by
   obtain ⟨hL, hcc⟩ := head?_getElem h
   rw [getElem_reverse_col h1 (by omega), ← hcc]
@@ -611,7 +632,6 @@ theorem exists_cvEntry {g : Globals} (hwf : WellFormedLayout g) {s : State}
       CvEntry g (pilesKingsFromState s) s game'
         (kingCfgOf (pilesKingsFromState s) h10) := by
   classical
-  refine ⟨stateGame s, rfl, ?_⟩
   set k := kingCfgOf (pilesKingsFromState s) h10 with hkdef
   have hcount := hlayout.cards_count
   have hval := cvDepths_toNat hwf hlayout
@@ -665,59 +685,74 @@ theorem exists_cvEntry {g : Globals} (hwf : WellFormedLayout g) {s : State}
   have hassign : ∀ su : Suit, ¬ CfgBitSet k su ↔ ∃ i : Fin 10, IsKingPile s su i := by
     intro su
     rw [hkdef, cfgBitSet_kingCfgOf, pilesKings_get10, kingBitmap_testBit_suit]
-  refine matchesKingConfig_cvFluteOf hcount hd6 hdm hking (stateGame_aces s) ?_ ?_
-  · -- **the configuration is realized**: each piled suit gets the column carrying its run
-    refine ⟨fun su => if h : ∃ i : Fin 10, IsKingPile s su i then some h.choose else none,
-      ?_, ?_, ?_⟩
-    · intro su i hsi
-      dsimp only at hsi
-      by_cases hex : ∃ j : Fin 10, IsKingPile s su j
-      · rw [dif_pos hex] at hsi
-        have hieq : hex.choose = i := Option.some.inj hsi
-        obtain ⟨hrf, c, hc, hcsu⟩ := hex.choose_spec
-        rw [hieq] at hrf hc
-        have h0 : ((stateGame s).pileDepth.get i).toNat = 0 := by
-          have h2 := hval i
-          rw [hrf] at h2
-          show ((cvDepths (pilesKingsFromState s)).get i).toNat = 0
-          simpa using h2
-        obtain ⟨d, hd, hdsu, hdking⟩ := hown i h0 c hc
-        exact ⟨h0, Or.inl ⟨d, hd, by rw [hdsu, hcsu], hdking⟩⟩
-      · rw [dif_neg hex] at hsi
-        exact absurd hsi (by simp)
-    · intro su su' i hsi hsi'
-      dsimp only at hsi hsi'
-      by_cases hex : ∃ j : Fin 10, IsKingPile s su j
-      · by_cases hex' : ∃ j : Fin 10, IsKingPile s su' j
+  refine ⟨stateGame s, rfl, ?_, ?_⟩
+  · refine matchesKingConfig_cvFluteOf hcount hd6 hdm hking (stateGame_aces s) ?_ ?_
+    · -- **the configuration is realized**: each piled suit gets the column carrying its run
+      refine ⟨fun su => if h : ∃ i : Fin 10, IsKingPile s su i then some h.choose else none,
+        ?_, ?_, ?_⟩
+      · intro su i hsi
+        dsimp only at hsi
+        by_cases hex : ∃ j : Fin 10, IsKingPile s su j
         · rw [dif_pos hex] at hsi
-          rw [dif_pos hex'] at hsi'
-          obtain ⟨-, c, hc, hcsu⟩ := hex.choose_spec
-          obtain ⟨-, c', hc', hcsu'⟩ := hex'.choose_spec
-          rw [show hex.choose = i from Option.some.inj hsi] at hc
-          rw [show hex'.choose = i from Option.some.inj hsi'] at hc'
-          rw [← hcsu, ← hcsu', show c = c' from Option.some.inj (hc.symm.trans hc')]
-        · rw [dif_neg hex'] at hsi'
-          exact absurd hsi' (by simp)
-      · rw [dif_neg hex] at hsi
-        exact absurd hsi (by simp)
-    · intro su
-      dsimp only
-      by_cases hex : ∃ j : Fin 10, IsKingPile s su j
-      · rw [dif_pos hex]
-        simp only [Option.isSome_some, true_iff]
-        exact (hassign su).2 hex
-      · rw [dif_neg hex]
-        exact ⟨fun h => absurd h (by simp), fun h => absurd ((hassign su).1 h) hex⟩
-  · -- **no other pile carries an unpiled suit**
-    intro su hsu i h0 d hd hdsu
-    have hd' : (s.tableau i).getLast? = some d := hd
-    have hL : 0 < (s.tableau i).length := by
-      cases hcol : s.tableau i with
-      | nil => rw [hcol] at hd'; simp at hd'
-      | cons x xs => simp
-    obtain ⟨c, hc⟩ := exists_head?_of_pos hL
-    have hcsu : c.suit = su := by
-      rw [suit_eq_of_pileMatches_zero (hdm i) h0 hc hd', hdsu]
-    exact ((hassign su).2 ⟨i, hnil i h0, c, hc, hcsu⟩) hsu
+          have hieq : hex.choose = i := Option.some.inj hsi
+          obtain ⟨hrf, c, hc, hcsu⟩ := hex.choose_spec
+          rw [hieq] at hrf hc
+          have h0 : ((stateGame s).pileDepth.get i).toNat = 0 := by
+            have h2 := hval i
+            rw [hrf] at h2
+            show ((cvDepths (pilesKingsFromState s)).get i).toNat = 0
+            simpa using h2
+          obtain ⟨d, hd, hdsu, hdking⟩ := hown i h0 c hc
+          exact ⟨h0, Or.inl ⟨d, hd, by rw [hdsu, hcsu], hdking⟩⟩
+        · rw [dif_neg hex] at hsi
+          exact absurd hsi (by simp)
+      · intro su su' i hsi hsi'
+        dsimp only at hsi hsi'
+        by_cases hex : ∃ j : Fin 10, IsKingPile s su j
+        · by_cases hex' : ∃ j : Fin 10, IsKingPile s su' j
+          · rw [dif_pos hex] at hsi
+            rw [dif_pos hex'] at hsi'
+            obtain ⟨-, c, hc, hcsu⟩ := hex.choose_spec
+            obtain ⟨-, c', hc', hcsu'⟩ := hex'.choose_spec
+            rw [show hex.choose = i from Option.some.inj hsi] at hc
+            rw [show hex'.choose = i from Option.some.inj hsi'] at hc'
+            rw [← hcsu, ← hcsu', show c = c' from Option.some.inj (hc.symm.trans hc')]
+          · rw [dif_neg hex'] at hsi'
+            exact absurd hsi' (by simp)
+        · rw [dif_neg hex] at hsi
+          exact absurd hsi (by simp)
+      · intro su
+        dsimp only
+        by_cases hex : ∃ j : Fin 10, IsKingPile s su j
+        · rw [dif_pos hex]
+          simp only [Option.isSome_some, true_iff]
+          exact (hassign su).2 hex
+        · rw [dif_neg hex]
+          exact ⟨fun h => absurd h (by simp), fun h => absurd ((hassign su).1 h) hex⟩
+    · -- **no other pile carries an unpiled suit**
+      intro su hsu i h0 d hd hdsu
+      have hd' : (s.tableau i).getLast? = some d := hd
+      have hL : 0 < (s.tableau i).length := by
+        cases hcol : s.tableau i with
+        | nil => rw [hcol] at hd'; simp at hd'
+        | cons x xs => simp
+      obtain ⟨c, hc⟩ := exists_head?_of_pos hL
+      have hcsu : c.suit = su := by
+        rw [suit_eq_of_pileMatches_zero (hdm i) h0 hc hd', hdsu]
+      exact ((hassign su).2 ⟨i, hnil i h0, c, hc, hcsu⟩) hsu
+
+  · -- **a piled suit's king is not in a cell**: it is sitting in that suit's column
+    intro su hsu cell
+    obtain ⟨q, hrf, c, hc, hcsu⟩ := (hassign su).1 hsu
+    have h0 : ((stateGame s).pileDepth.get q).toNat = 0 := by
+      have h2 := hval q
+      rw [hrf] at h2
+      show ((cvDepths (pilesKingsFromState s)).get q).toNat = 0
+      simpa using h2
+    obtain ⟨d, hd, hdsu, hdking⟩ := hown q h0 c hc
+    have hdk : d = (⟨su, Rank.king⟩ : Card) := Card.ext (by rw [hdsu, hcsu]) hdking
+    refine not_mem_cell_of_mem_column hcount (j := q) ?_ cell
+    rw [← hdk]
+    exact mem_of_getLast? hd
 
 end SolverSpec

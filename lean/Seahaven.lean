@@ -82,5 +82,8 @@ import Seahaven.RecCheckComplete
 import Seahaven.SolveCorrect
 import Seahaven.ConvertMatch
 import Seahaven.ReachableMatch
+import Seahaven.CleanupLax
+import Seahaven.FoundationMax
+import Seahaven.KingPileMax
 import Seahaven.SolverCorrectness
 import Seahaven.SolverIsCorrect

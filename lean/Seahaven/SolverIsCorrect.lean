@@ -1,6 +1,8 @@
 import Seahaven.SolveCorrect
 import Seahaven.ConvertMatch
 import Seahaven.ReachableMatch
+import Seahaven.CleanupLax
+import Seahaven.KingPileMax
 import Seahaven.DealMatches
 import Seahaven.SolverCorrectness
 
@@ -317,10 +319,10 @@ theorem reachableEntry : ReachableEntry := fun sh g hinv s hreach =>
 /-- **Obligation 2, assembled.**  `solve_correct_lax` answers about the state the
 caller handed in, so nothing has to be normalized before the query. -/
 theorem reachableAnswer_of (hvd : ReachableValidDepths) (hA : CvPrologueSim)
-    (hB : CvCleanupSim) (hE : ReachableEntry) : ReachableAnswer := by
+    (hE : ReachableEntry) : ReachableAnswer := by
   intro sh g hinv s hreach r g' hrun
   obtain ⟨game', hentry⟩ := hE sh g hinv s hreach
-  obtain ⟨-, hcase⟩ := solve_correct_lax hA hB hinv.1 hinv.2.1 (hvd sh s hreach)
+  obtain ⟨-, hcase⟩ := solve_correct_lax hA cvCleanupSim hinv.1 hinv.2.1 (hvd sh s hreach)
     (pilesKings_get10_lt16 s) hentry hrun
   rcases hcase with ⟨hr, hns⟩ | ⟨hr, hs⟩
   · exact ⟨fun h => absurd (h.symm.trans hr) (by decide), fun h => absurd h hns⟩
@@ -345,18 +347,26 @@ theorem solver_is_correct_of (hvd : ReachableValidDepths) (hans : ReachableAnswe
     · refine Or.inl ⟨h, fun hsol => ?_⟩
       exact absurd (h.symm.trans (hiff.2 hsol)) (by decide)
 
-/-- **The solver is correct**, in the four-obligation form: the encoding is legal
+/-- **The solver is correct**, in the three-obligation form: the encoding is legal
 (`ReachableValidDepths`), a reachable state matches it (`ReachableEntry`), and convert's
-two loops are simulated (`CvPrologueSim`, `CvCleanupSim`). -/
+loop 2 is simulated (`CvPrologueSim`). -/
 theorem solver_is_correct_of' (hvd : ReachableValidDepths) (hA : CvPrologueSim)
-    (hB : CvCleanupSim) (hE : ReachableEntry) : Correctness :=
-  solver_is_correct_of hvd (reachableAnswer_of hvd hA hB hE)
+    (hE : ReachableEntry) : Correctness :=
+  solver_is_correct_of hvd (reachableAnswer_of hvd hA hE)
 
-/-- **The solver is correct**, given only convert's two simulation obligations: the
-encoding is legal and a reachable state matches it (`ReachableMatch`), so all that is
-left of `Correctness` is that convert's loop-2 writes and its cleanup calls are realized
-by normalizing moves. -/
-theorem solver_is_correct_of_sims (hA : CvPrologueSim) (hB : CvCleanupSim) : Correctness :=
-  solver_is_correct_of' reachableValidDepths hA hB reachableEntry
+/-- **The solver is correct**, given only convert's loop-2 simulation.  The encoding is
+legal and a reachable state matches it (`ReachableMatch`), and the cleanup loop is
+simulated (`CleanupLax`), so all that is left of `Correctness` is that loop 2's writes —
+the maximal foundation and the completed king piles — are realized by normalizing
+moves. -/
+theorem solver_is_correct_of_prologue (hA : CvPrologueSim) : Correctness :=
+  solver_is_correct_of' reachableValidDepths hA reachableEntry
+
+/-- **The solver is correct.**  Loop 2's simulation is `KingPileMax.cvPrologueSim`: the
+maximal foundations are reached by foundation plays (`FoundationMax`) and the king piles by
+cell-to-pile drops, so every position convert writes is reachable from the queried state by
+solvability-preserving moves. -/
+theorem solver_is_correct : Correctness :=
+  solver_is_correct_of_prologue cvPrologueSim
 
 end SolverSpec

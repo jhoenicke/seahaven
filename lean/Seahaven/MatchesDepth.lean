@@ -341,6 +341,74 @@ theorem aces_lt_of_mem_column {u : State} {p : SolverPosType}
 
 /-! ## `flute_match` is forced -/
 
+/-- **How far above its boundary a column can reach.**  If the card `t` steps below the
+boundary `B` is the suit's foundation top or is not free, then the column carries fewer
+than `t` cards above `B`: the card sitting at that height would be free
+(`free_of_index_ge`) and, sitting in a column, not on its foundation
+(`aces_lt_of_mem_column`).
+
+The walk `SolverCleanupPile` performs stops at exactly such a card, which is what bounds
+the run a state may carry at the pile being cleaned; instantiated at `t = pileFlute`,
+with `flute_maximal` supplying `hstop`, it is `flute_le_of_depth`. -/
+theorem column_reach_lt {g : Globals} {u : State} {p : SolverPosType}
+    (hwf : WellFormedLayout g)
+    (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
+    (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
+    (hcount : ∀ c : Card, countState u c = 1)
+    (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
+    (i : Fin 10) (hdpos : 0 < (p.pileDepth.get i).toNat)
+    {B : UInt8} (hidx : (p.pileDepth.get i).toNat - 1 < 5)
+    (hB : (g.pos2card.get i).get ⟨_, hidx⟩ = B)
+    {t : Nat} (ht1 : 1 ≤ t) (htv : t ≤ (VALUE B).toNat)
+    (hstop : (∃ hs : (SUIT B).toNat < 4, p.aces.get ⟨(SUIT B).toNat, hs⟩ = B - UInt8.ofNat t)
+      ∨ ¬ isFreeCard g p (B - UInt8.ofNat t)) :
+    (u.tableau i).length - (p.pileDepth.get i).toNat < t := by
+  have hBreal : IsRealCard B := by rw [← hB]; exact hwf.pos2card_real i _
+  have hB13 : (VALUE B).toNat ≤ 13 := hBreal.2.2
+  have hB1 : 1 ≤ (VALUE B).toNat := hBreal.2.1
+  have hSB := SUIT_toNat B
+  have hVB := VALUE_toNat B
+  have hs4 : (SUIT B).toNat < 4 := hBreal.1
+  have htof : (UInt8.ofNat t).toNat = t := by rw [UInt8.toNat_ofNat']; omega
+  have hnval : (⟨(p.pileDepth.get i).toNat, hd6 i⟩ : Fin 6).val
+      = (p.pileDepth.get i).toNat := rfl
+  by_contra hge
+  -- the card the column carries `t - 1` above the boundary
+  have hrl : (p.pileDepth.get i).toNat + (t - 1) < (u.tableau i).reverse.length := by
+    simp only [List.length_reverse]; omega
+  obtain ⟨hs, hv⟩ := (hdm i).above_code hdpos
+    (r := (p.pileDepth.get i).toNat + (t - 1)) (Nat.le_add_right _ _) hrl
+  rw [hB] at hs hv
+  have hyfree := free_of_index_ge hwf hd6 hdm hcount i (by omega) hrl rfl
+  have hSy := SUIT_toNat (encodeCard ((u.tableau i).reverse[(p.pileDepth.get i).toNat
+    + (t - 1)]'hrl))
+  have hVy := VALUE_toNat (encodeCard ((u.tableau i).reverse[(p.pileDepth.get i).toNat
+    + (t - 1)]'hrl))
+  have hsn := congrArg UInt8.toNat hs
+  have hle : (UInt8.ofNat t) ≤ B := by rw [UInt8.le_iff_toNat_le]; omega
+  have hycode : encodeCard ((u.tableau i).reverse[(p.pileDepth.get i).toNat
+      + (t - 1)]'hrl) = B - UInt8.ofNat t := by
+    apply UInt8.toNat_inj.mp
+    rw [UInt8.toNat_sub_of_le _ _ hle]
+    omega
+  rcases hstop with ⟨hs4', hacesEq⟩ | hnf
+  · -- `aces` would be a card sitting in the column
+    have hmem : (u.tableau i).reverse[(p.pileDepth.get i).toNat + (t - 1)]'hrl ∈ u.tableau i :=
+      List.mem_reverse.mp (List.getElem_mem ..)
+    have hlt' := aces_lt_of_mem_column haces hcount hmem
+    have hfin : (⟨(SUIT B).toNat, hs4'⟩ : Fin 4)
+        = finOfSuit ((u.tableau i).reverse[(p.pileDepth.get i).toNat + (t - 1)]'hrl).suit := by
+      refine Fin.ext ?_
+      show (SUIT B).toNat = suitToNat _
+      have := encodeCard_SUIT ((u.tableau i).reverse[(p.pileDepth.get i).toNat + (t - 1)]'hrl)
+      rw [this, UInt8.toNat_ofNat'] at hsn
+      have := suitToNat_lt ((u.tableau i).reverse[(p.pileDepth.get i).toNat + (t - 1)]'hrl).suit
+      omega
+    rw [hfin, ← hycode] at hacesEq
+    rw [hacesEq, UInt8.lt_iff_toNat_lt] at hlt'
+    omega
+  · exact hnf (hycode ▸ hyfree)
+
 /-- **The physical run never exceeds the recorded flute.**  A card above the
 boundary is free (`free_of_index_ge`) and, sitting in a column, is not on its
 foundation — while `flute_maximal` says `boundary - pileFlute` is one or the other.
@@ -356,69 +424,27 @@ theorem flute_le_of_depth {g : Globals} {u : State} {p : SolverPosType}
     (hdpos : 0 < (p.pileDepth.get i).toNat) :
     (u.tableau i).length + 1 ≤ (p.pileDepth.get i).toNat + (p.pileFlute.get i).toNat := by
   have hnL : (p.pileDepth.get i).toNat ≤ (u.tableau i).length := (hdm i).1
-  have hnval : (⟨(p.pileDepth.get i).toNat, hd6 i⟩ : Fin 6).val
-      = (p.pileDepth.get i).toNat := rfl
   have hidx5 : (p.pileDepth.get i).toNat - 1 < 5 := by have := hd6 i; omega
   set B := (g.pos2card.get i).get (⟨(p.pileDepth.get i).toNat - 1, hidx5⟩ : Fin 5) with hBdef
   have hBreal : IsRealCard B := hwf.pos2card_real i _
-  have hB13 : (VALUE B).toNat ≤ 13 := hBreal.2.2
-  have hB1 : 1 ≤ (VALUE B).toNat := hBreal.2.1
-  have hSB := SUIT_toNat B
-  have hVB := VALUE_toNat B
   have hfpos : 1 ≤ (p.pileFlute.get i).toNat := hb.flute_pos i
   have hfle : (p.pileFlute.get i).toNat ≤ (VALUE B).toNat := by
     have := (hb.pileBase i).flute_le_value hwf (fun s => (hb.aces_kings_valid s).1) hdpos
     rw [← hBdef] at this
     exact this
-  have hs4 : (SUIT B).toNat < 4 := hBreal.1
-  -- the column cannot reach past `B - pileFlute`
-  have hlt : (u.tableau i).length - (p.pileDepth.get i).toNat < (p.pileFlute.get i).toNat := by
-    by_contra hge
-    have hrl : (p.pileDepth.get i).toNat + ((p.pileFlute.get i).toNat - 1)
-        < (u.tableau i).reverse.length := by
-      simp only [List.length_reverse]; omega
-    obtain ⟨hs, hv⟩ := (hdm i).above_code hdpos
-      (r := (p.pileDepth.get i).toNat + ((p.pileFlute.get i).toNat - 1))
-      (Nat.le_add_right _ _) hrl
-    rw [← hBdef] at hs hv
-    have hyfree := free_of_index_ge hwf hd6 hdm hcount i (by omega) hrl rfl
-    have hSy := SUIT_toNat (encodeCard ((u.tableau i).reverse[(p.pileDepth.get i).toNat
-      + ((p.pileFlute.get i).toNat - 1)]'hrl))
-    have hVy := VALUE_toNat (encodeCard ((u.tableau i).reverse[(p.pileDepth.get i).toNat
-      + ((p.pileFlute.get i).toNat - 1)]'hrl))
-    have hsn := congrArg UInt8.toNat hs
-    have hle : p.pileFlute.get i ≤ B := by rw [UInt8.le_iff_toNat_le]; omega
-    have hycode : encodeCard ((u.tableau i).reverse[(p.pileDepth.get i).toNat
-        + ((p.pileFlute.get i).toNat - 1)]'hrl) = B - p.pileFlute.get i := by
-      apply UInt8.toNat_inj.mp
-      rw [UInt8.toNat_sub_of_le _ _ hle]
-      omega
-    rcases hpm.flute_maximal with hz | hmax
+  have htof : UInt8.ofNat (p.pileFlute.get i).toNat = p.pileFlute.get i := by
+    apply UInt8.toNat_inj.mp
+    rw [UInt8.toNat_ofNat']
+    have := hBreal.2.2
+    omega
+  have hlt := column_reach_lt hwf hd6 hdm hcount haces i hdpos hidx5 hBdef.symm hfpos hfle ?_
+  · omega
+  · rcases hpm.flute_maximal with hz | hmax
     · rw [hz] at hdpos; simp at hdpos
     · dsimp only at hmax
       rw [← hBdef] at hmax
-      rcases hmax with ⟨hs4', hacesEq⟩ | hnf
-      · -- `aces` would be a card sitting in the column
-        have hmem : (u.tableau i).reverse[(p.pileDepth.get i).toNat
-            + ((p.pileFlute.get i).toNat - 1)]'hrl ∈ u.tableau i :=
-          List.mem_reverse.mp (List.getElem_mem ..)
-        have hlt' := aces_lt_of_mem_column haces hcount hmem
-        have hfin : (⟨(SUIT B).toNat, hs4'⟩ : Fin 4)
-            = finOfSuit ((u.tableau i).reverse[(p.pileDepth.get i).toNat
-              + ((p.pileFlute.get i).toNat - 1)]'hrl).suit := by
-          refine Fin.ext ?_
-          show (SUIT B).toNat = suitToNat _
-          have := encodeCard_SUIT ((u.tableau i).reverse[(p.pileDepth.get i).toNat
-            + ((p.pileFlute.get i).toNat - 1)]'hrl)
-          rw [this, UInt8.toNat_ofNat'] at hsn
-          have := suitToNat_lt ((u.tableau i).reverse[(p.pileDepth.get i).toNat
-            + ((p.pileFlute.get i).toNat - 1)]'hrl).suit
-          omega
-        rw [hfin, ← hycode] at hacesEq
-        rw [hacesEq, UInt8.lt_iff_toNat_lt] at hlt'
-        omega
-      · exact hnf (hycode ▸ hyfree)
-  omega
+      rw [htof]
+      exact hmax
 
 theorem flute_match_of_depth {g : Globals} {u : State} {p : SolverPosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)

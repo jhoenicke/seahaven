@@ -302,13 +302,15 @@ theorem reach_pile_run (su : Suit) (V : Nat) :
       (∀ m, V < m → m < V + 1 + n → ∃ c : Fin 4, s.cells c = some (cardOf su m)) →
       ∃ t : State, Reach s t ∧ Reach t s ∧ t.tableau j = kingRun su (V + 1) ∧
         (∀ q, q ≠ j → t.tableau q = s.tableau q) ∧ t.foundations = s.foundations ∧
-        (∀ c : Fin 4, t.cells c = s.cells c ∨ t.cells c = none) := by
+        (∀ c : Fin 4, t.cells c = s.cells c ∨ t.cells c = none) ∧
+        (V + 1 + n ≤ 13 → CPReach s t) := by
   intro n
   induction n with
   | zero =>
     intro s j _ hcol _
     exact ⟨s, Relation.ReflTransGen.refl, Relation.ReflTransGen.refl,
-      by simpa using hcol, fun _ _ => rfl, rfl, fun _ => Or.inl rfl⟩
+      by simpa using hcol, fun _ _ => rfl, rfl, fun _ => Or.inl rfl,
+      fun _ => Relation.ReflTransGen.refl⟩
   | succ n ih =>
     intro s j hle hcol hcells
     -- the highest card still in a cell goes next
@@ -349,9 +351,10 @@ theorem reach_pile_run (su : Suit) (V : Nat) :
       rw [hs1]
       simp only [updateColumn_cells, updateCell_cells, update, if_neg hne]
       exact hc'
-    obtain ⟨t, hreach, hback, htj, htq, htf, hcellsub⟩ := ih s1 j (by omega) hcolnew hcellsnew
+    obtain ⟨t, hreach, hback, htj, htq, htf, hcellsub, hcp⟩ :=
+      ih s1 j (by omega) hcolnew hcellsnew
     refine ⟨t, Relation.ReflTransGen.head ⟨_, hstep⟩ hreach,
-      hback.tail ⟨_, applyMove_cell_pile_inv hstep⟩, htj, ?_, ?_, ?_⟩
+      hback.tail ⟨_, applyMove_cell_pile_inv hstep⟩, htj, ?_, ?_, ?_, ?_⟩
     · intro q hq
       rw [htq q hq, hs1]
       simp [updateColumn, update, Ne.symm hq]
@@ -364,6 +367,15 @@ theorem reach_pile_run (su : Suit) (V : Nat) :
         · exact Or.inr (by simp [hcc])
         · exact Or.inl (by simp [hcc])
       · exact Or.inr h
+    · -- every drop lands on a non-empty column, so the run is normalizing
+      intro hguard
+      refine Relation.ReflTransGen.head ⟨c, j, ?_, hstep⟩ (hcp (by omega))
+      rw [hcol]
+      intro hnil
+      have := kingRun_length su (V + 1 + (n + 1))
+      rw [hnil] at this
+      simp only [List.length_nil] at this
+      omega
 
 /-! ## Where the freed run of an unpiled suit is
 
