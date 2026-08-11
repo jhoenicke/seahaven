@@ -22,7 +22,7 @@ open Lean Lean.Order
 /-- The lowest set bit of `UInt8.ofNat n` lies strictly below position 4
     whenever its low nibble is nonzero — a finite check over all 256 `UInt8`
     values, run via `native_decide` (already an accepted idiom in this
-    codebase, see `BitmapProofs.lean`/`LayoutProofs.lean`). -/
+    codebase, see `LayoutProofs.lean`). -/
 private theorem ctz_lt_four_of_low_nibble_nat :
     ∀ n : Nat, n < 256 → (UInt8.ofNat n) &&& 0x0F ≠ 0 → ctz (UInt8.ofNat n) < 4 := by
   native_decide

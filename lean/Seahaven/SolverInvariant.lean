@@ -865,8 +865,8 @@ theorem free_card_ne_boundary {g : Globals} {p : SolverPosType}
 /-- **A pile's flute cannot reach down to or past a not-free card that sits
     below its boundary.**  If `C` is not free and `C < Bj` (pile `j`'s
     boundary), then every card in pile `j`'s flute footprint — boundary and
-    interior alike — is strictly above `C`.  (Static counterpart of
-    `SolverSpec.freed_below_other_boundary`, which needs the freed loop's
+    interior alike — is strictly above `C`.  (Static counterpart of the
+    freed-loop absorption-range argument, which needs the freed loop's
     live guard; here the blocker `C` is already known not-free, so no run
     history is needed — only `flute_cards_free`.)  Reaching to or below `C`
     would, by the flute's contiguous descent, claim `C` itself as an interior
@@ -1124,16 +1124,11 @@ private theorem uint8_eq_finVal_toUInt8 {c : UInt8} {n : Fin 4} (h : c.toNat = n
   have := n.isLt
   omega
 
-/-- Trivial now: `UInt8.toInt` *is* the `toNat` cast. -/
-private theorem uint8_toInt8_toInt_of_lt128 {c : UInt8} (_h : c.toNat < 128) :
-    c.toInt = (c.toNat : Int) := rfl
-
 /-- Same-suit small `UInt8` cards: `VALUE` order matches `UInt8` order (via `toInt8`). -/
-private theorem card_le_of_value_le {c d : UInt8} (hc64 : c.toNat < 64) (hd64 : d.toNat < 64)
+private theorem card_le_of_value_le {c d : UInt8} (_hc64 : c.toNat < 64) (_hd64 : d.toNat < 64)
     (hcd : SUIT c = SUIT d) (hv : (VALUE c).toNat ≤ (VALUE d).toNat) :
     c ≤ d := by
-  rw [UInt8.le_iff_toInt_le, uint8_toInt8_toInt_of_lt128 (show c.toNat < 128 by omega),
-    uint8_toInt8_toInt_of_lt128 (show d.toNat < 128 by omega)]
+  rw [UInt8.le_iff_toInt_le, UInt8.toInt_eq, UInt8.toInt_eq]
   have hcv := VALUE_toNat c
   have hdv := VALUE_toNat d
   have hcs := SUIT_toNat c

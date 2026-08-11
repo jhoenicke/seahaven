@@ -1,9 +1,7 @@
 -- This module serves as the root of the `Seahaven` library.
 -- Import modules here that should be built as part of the library.
-import Seahaven.Basic
 import Seahaven.Solver
 import Seahaven.UInt8Lemmas
-import Seahaven.BitmapProofs
 import Seahaven.CountProofs
 import Seahaven.FoundationMoves
 import Seahaven.Normalize
@@ -29,9 +27,6 @@ import Seahaven.SolverSpecSolverCleanupPile
 import Seahaven.SolverSpecMoveAces
 import Seahaven.SolverSpecMove
 import Seahaven.SolverSpecDrain
-import Seahaven.SolverSpecSolverConvert
-import Seahaven.SolverSpecFreedBoundary
-import Seahaven.SolverSpec
 import Seahaven.MoveSim
 import Seahaven.UsedSpaceBound
 import Seahaven.ComputeKingSpaces

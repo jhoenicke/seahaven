@@ -1,12 +1,12 @@
 import Seahaven.Solver
 import Seahaven.UInt8Lemmas
-import Seahaven.EStateMTail
 
 /-!
 # Specs proved directly against the real solver (no fuel model)
 
-On Lean 4.31 the real solver's `while` loops are no longer opaque (see
-`Seahaven.EStateMTail`), so we can state and prove specifications directly about
+On Lean 4.31 the real solver's `while` loops are no longer opaque (see the
+`MonadTail` instances in `Seahaven.EStateMOrder`), so we can state and prove
+specifications directly about
 `_root_.SolverCleanupPile` etc., instead of going through the `SolverModel` fuel
 twin and a (fragile, fuel-dependent) `model = real` equality.
 

@@ -34,19 +34,6 @@ def MoveAcesSim (g : Globals) (s : State) (p : SolverPosType) (k : Fin 16)
 
 /-! ## The sync step -/
 
-/-- Writing the same slot twice keeps only the second write. -/
-private theorem vector_set_set {n : Nat} (v : Vector UInt8 n) (k : Nat) (hk hk' : k < n)
-    (x y : UInt8) : (v.set k x hk).set k y hk' = v.set k y hk' := by
-  refine SolverSpec.vector_ext_get _ _ (fun i => ?_)
-  by_cases hi : i.val = k
-  · subst hi
-    show ((v.set i.val x hk).set i.val y hk')[i.val]'i.isLt = (v.set i.val y hk')[i.val]'i.isLt
-    rw [Vector.getElem_set_self, Vector.getElem_set_self]
-  · show ((v.set k x hk).set k y hk')[i.val]'i.isLt = (v.set k y hk')[i.val]'i.isLt
-    rw [Vector.getElem_set_ne hk' i.isLt (fun hc => hi hc.symm),
-      Vector.getElem_set_ne hk i.isLt (fun hc => hi hc.symm),
-      Vector.getElem_set_ne hk' i.isLt (fun hc => hi hc.symm)]
-
 /-- **Transporting a matching along field equations.**  `StateMatchesSolverPos` reads
 only the four fields below, so a position that agrees on them matches the same states —
 `freePiles`/`usedSpace`/`hash`/`busyAces` are pure solver bookkeeping. -/
@@ -71,7 +58,7 @@ private theorem cleanupRunResult_fluteNorm (pile : UInt32) (hpile : pile.toNat <
     cleanupRunResult pile hpile B ph hs4 d32 m f (SolverSpec.fluteNorm pile hpile p)
       = cleanupRunResult pile hpile B ph hs4 d32 m f p := by
   simp only [cleanupRunResult, SolverSpec.fluteNorm]
-  split_ifs <;> simp only [vector_set_set]
+  split_ifs <;> simp only [SolverSpec.vector_set_set]
 
 /-- **A whole `SolverRemoveFlute` call is simulated**, from the composed
 `fluteNorm ∘ removeFlutePre` point the cleanup is entered at — the same state

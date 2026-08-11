@@ -41,10 +41,6 @@ theorem maskSub_iff_piledSet_subset (d c : Fin 16) :
 
 /-! ## Every configuration of the right size is in the block -/
 
-theorem card_piledSet_add_popCount' (k : Fin 16) :
-    (piledSet k).card + popCount4 (grlex2bits.get k).toNat = 4 :=
-  card_piled_add_popCount k
-
 /-- **A configuration with `min f 4` suits piled is one of block `f`'s.**  The
 converse reading of `closureInfo_block`: the block *is* the set of grlex indices
 of that popcount, so such a configuration has a local index. -/
@@ -52,7 +48,7 @@ theorem exists_localIdx (f : Fin 11) (c : Fin 16) (hcard : (piledSet c).card = m
     ∃ il : Nat, il < (closureInfos.get f).numBits.toNat ∧
       globalCfg (closureInfos.get f) il = c := by
   have hpc : popCount4 (grlex2bits.get c).toNat = 4 - min f.val 4 := by
-    have h := card_piledSet_add_popCount' c
+    have h := card_piledSet_add_popCount c
     have h4 : min f.val 4 ≤ 4 := by omega
     omega
   have hrange := (closureInfo_block f c).2 hpc

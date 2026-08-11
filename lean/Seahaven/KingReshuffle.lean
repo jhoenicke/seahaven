@@ -481,7 +481,8 @@ The cardinality hypothesis above is free for two configurations of one
 `closureInfos` block: the block *is* the set of grlex indices whose piled set has
 the block's size (`closureInfo_block`). -/
 
-private theorem card_piledSet_add_popCount (k : Fin 16) :
+/-- The piled suits and the mask's set bits partition the four suits. -/
+theorem card_piledSet_add_popCount (k : Fin 16) :
     (piledSet k).card + popCount4 (grlex2bits.get k).toNat = 4 := by revert k; decide
 
 /-- Every configuration of `p`'s block piles `numPiledKings p` suits. -/

@@ -141,5 +141,6 @@ themselves realized by solvability-preserving moves from the queried state.
 records.  `SolverIsCorrect.lean` assembles all of this into
 `solver_is_correct`.
 
-A more detailed (historical) account of the proof plan and its milestones is
+A more detailed account of the proof architecture — the matching predicates,
+the king-configuration machinery, and the load-bearing design decisions — is
 in [`Seahaven/VerificationPlan.md`](Seahaven/VerificationPlan.md).

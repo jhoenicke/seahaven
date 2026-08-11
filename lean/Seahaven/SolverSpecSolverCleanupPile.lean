@@ -22,7 +22,7 @@ open Lean Lean.Order
     invariant with one more pile merged.
 
     Stated against the **real** `_root_.SolverCleanupPile` (its `while` loops are no
-    longer opaque on Lean 4.31 — see `Seahaven.EStateMTail`); the `SolverModel` fuel
+    longer opaque on Lean 4.31 — see `Seahaven.EStateMOrder`); the `SolverModel` fuel
     twin is no longer needed.
 
     The loop invariant `MergedUpTo` has been refined so this is now true: its
@@ -30,18 +30,10 @@ open Lean Lean.Order
     counts only already-processed piles), coinciding with the global `freePiles_def`
     at `k = 10`.
 
-    **TODO (statement gap):** as stated this is *unprovable* — the `usedSpace_def`
-    clause of `SolverInvBase` is only true of pile `k`'s *flute-normalized*
-    position (the freed loop re-frees the old flute interiors; a stale
-    `pileFlute[k]` would double-count them in the formula).  Restate `MergedUpTo`'s
-    base clause about `{ p with pileFlute[k] := 1 }`, following
-    `cleanupPile_baseNF`'s precondition convention.  (The lone-king `kings` update
-    is no longer an obstacle: `aces_kings_valid` allows the value-0 sentinel.)
-
-    Proof status: the **base case** (pile `k` already empty — no loops run) is proved
-    below; the **loop-bearing case** (`pileDepth[k] > 0`) is `sorry` — its exact run
-    is now available as `cleanupPile_nonempty_eq` (see `cleanupPile_baseNF` for the
-    clause-discharge plan). -/
+    Proof status: complete.  The **base case** (pile `k` already empty — no loops
+    run) is proved directly below; the **loop-bearing case** (`pileDepth[k] > 0`)
+    goes through `cleanupPile_nonempty_eq` (the exact symbolic run) following
+    `cleanupPile_baseNF`'s clause discharge. -/
 theorem solverCleanupPile_step (g : Globals) (p : SolverPosType) (k : Nat) (hk : k < 10)
     (hwf : WellFormedLayout g) (hpre : MergedUpTo g p k) :
     ∃ fk p', EStateM.run (_root_.SolverCleanupPile (UInt32.ofNat k)) (g, p) = .ok fk (g, p') ∧

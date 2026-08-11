@@ -750,9 +750,9 @@ set_option maxHeartbeats 4000000 in
     freed-loop exit gives `aces[s] ≤ kings'[s]` directly, and the `busyAces` bit
     set in that case pends the foundation drain that restores `VALUE ≥ 1`.
 
-    Proof status: the empty-pile case is complete; the loop-bearing case rests on
-    `cleanupPile_nonempty_eq` (the exact symbolic run, fully proved) and its
-    clause-by-clause discharge is `sorry` (documented inline). -/
+    Proof status: complete.  The empty-pile case is direct; the loop-bearing case
+    runs `cleanupPile_nonempty_eq` (the exact symbolic run) and discharges its
+    clauses one by one. -/
 theorem cleanupPile_base (pile : UInt32) (g : Globals) (p : SolverPosType)
     (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)

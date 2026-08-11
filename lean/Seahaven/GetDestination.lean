@@ -1,4 +1,3 @@
-import Seahaven.EStateMTail
 import Seahaven.SolverInvariant
 
 /-!

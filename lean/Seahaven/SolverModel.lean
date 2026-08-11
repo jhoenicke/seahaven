@@ -102,8 +102,8 @@ def SolverCleanupPile (pile : UInt32) : EStateM Error (Globals × SolverPosType)
   return forcedKings
 
 -- `CleanupPileEquals` (model = real) was dropped: on Lean 4.31 the real solver's
--- `while` loops are no longer opaque (see `Seahaven.EStateMTail`), so specs are proved
--- directly against `_root_.SolverCleanupPile` (see `Seahaven.SolverSpec`) rather than
+-- `while` loops are no longer opaque (see `Seahaven.EStateMOrder`), so specs are proved
+-- directly against `_root_.SolverCleanupPile` (see the `SolverSpec*` files) rather than
 -- via this fuel model.  (An unconditional model=real equality would also be false as
 -- written: the model's `freedLoop 60` caps the freed-flute loop, which the real
 -- unbounded `while` can run up to ~65 times.)

@@ -255,18 +255,6 @@ theorem cvRelax_flute_le_succ {g : Globals} {v : State} {q0 : SolverPosType}
 running it on the relaxed reading gives the relaxed reading of running it on the solver's
 own position. -/
 
-private theorem vector_set_set {n : Nat} (v : Vector UInt8 n) (k : Nat) (hk hk' : k < n)
-    (x y : UInt8) : (v.set k x hk).set k y hk' = v.set k y hk' := by
-  refine vector_ext_get _ _ (fun i => ?_)
-  by_cases hi : i.val = k
-  · subst hi
-    show ((v.set i.val x hk).set i.val y hk')[i.val]'i.isLt = (v.set i.val y hk')[i.val]'i.isLt
-    rw [Vector.getElem_set_self, Vector.getElem_set_self]
-  · show ((v.set k x hk).set k y hk')[i.val]'i.isLt = (v.set k y hk')[i.val]'i.isLt
-    rw [Vector.getElem_set_ne hk' i.isLt (fun hc => hi hc.symm),
-      Vector.getElem_set_ne hk i.isLt (fun hc => hi hc.symm),
-      Vector.getElem_set_ne hk' i.isLt (fun hc => hi hc.symm)]
-
 /-- **The exit position of a simulated phase may be re-read.**  `SimulatesNorm` mentions
 it only through the matching, which reads the four fields below. -/
 theorem SimulatesNorm.ofExitFields {g : Globals} {s v : State} {p q q' : SolverPosType}

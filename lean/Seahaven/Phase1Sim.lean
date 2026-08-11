@@ -323,7 +323,7 @@ theorem moveSimulated : MoveSimulated := moveSimulated_of_phase1 phase1Simulated
 /-- **`solverRecCheckSolvable` is sound, unconditionally.**  Both semantic
 hypotheses are theorems now: `subsetSound` (`KingMoveSim`, via the king-piling
 step) and `moveSimulated` just above.  What is left between this and end-to-end
-`SolveSound` is the `solve` wrapper — `solverConvert_canonical`, the Rules-side
-normalization, and `WellFormedLayout` for the initial deal. -/
+`SolveSound` is the `solve` wrapper — the convert canonicalization, the
+Rules-side normalization, and `WellFormedLayout` for the initial deal. -/
 theorem recCheckSolvableSound : RecCheckSolvableSound :=
   recCheck_sound_of_semantics subsetSound moveSimulated

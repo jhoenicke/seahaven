@@ -9,20 +9,11 @@ Each theorem says: run the corresponding `SolverModel` function on a state
 satisfying a precondition, and it succeeds (`.ok`, no `Error` thrown), leaving
 `globals` unchanged and producing a `SolverPosType` satisfying the postcondition.
 
-All proofs are `sorry` at this stage — they are Stage 2+ work (unfold the fuel
-recursion, do induction, discharge the arithmetic).  The value here is the
-*shape*: exactly which layer of the tower each function establishes.
-
-Several preconditions (`CleanupPre`, `MoveValid`) are still approximate and
-flagged `TODO refine` — the exact conditions will be pinned down against the
-recursion during the proofs (as anticipated in `VerificationPlan.md`).
-
-This file (`SolverSpec.lean`'s former preamble) collects the auxiliary
-preconditions/definitions and helper lemmas shared across the per-function
-spec files below (`SolverSpecKingMove`, `SolverSpecPreCleanupPile`,
-`SolverSpecCleanupPile`, `SolverSpecRemoveFlute`, `SolverSpecSolverCleanupPile`,
-`SolverSpecMoveAces`, `SolverSpecMove`, `SolverSpecDrain`,
-`SolverSpecSolverConvert`, `SolverSpecFreedBoundary`).
+This file collects the auxiliary preconditions/definitions and helper lemmas
+shared across the per-function spec files (`SolverSpecKingMove`,
+`SolverSpecPreCleanupPile`, `SolverSpecCleanupPile`, `SolverSpecRemoveFlute`,
+`SolverSpecSolverCleanupPile`, `SolverSpecMoveAces`, `SolverSpecMove`,
+`SolverSpecDrain`).
 -/
 
 namespace SolverSpec
@@ -287,6 +278,19 @@ theorem vector_ext_get {α : Type} {n : Nat} (v w : Vector α n)
   intro i hi
   exact h ⟨i, hi⟩
 
+/-- Writing the same slot twice keeps only the second write. -/
+theorem vector_set_set {n : Nat} (v : Vector UInt8 n) (k : Nat) (hk hk' : k < n)
+    (x y : UInt8) : (v.set k x hk).set k y hk' = v.set k y hk' := by
+  refine vector_ext_get _ _ (fun i => ?_)
+  by_cases hi : i.val = k
+  · subst hi
+    show ((v.set i.val x hk).set i.val y hk')[i.val]'i.isLt = (v.set i.val y hk')[i.val]'i.isLt
+    rw [Vector.getElem_set_self, Vector.getElem_set_self]
+  · show ((v.set k x hk).set k y hk')[i.val]'i.isLt = (v.set k y hk')[i.val]'i.isLt
+    rw [Vector.getElem_set_ne hk' i.isLt (fun hc => hi hc.symm),
+      Vector.getElem_set_ne hk i.isLt (fun hc => hi hc.symm),
+      Vector.getElem_set_ne hk' i.isLt (fun hc => hi hc.symm)]
+
 /-- Index bound for the merge guard's internal `pos2card` read (`depth − 2`),
     reusable at every step of the merge-realness chain below. -/
 private theorem merge_step_idx_bound {x : UInt8} (hgt : 1 < x) (hle : x.toNat ≤ 5) :
@@ -505,7 +509,7 @@ theorem merge_pos_chain (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10)
 /-- If a card's `card2depth` entry is at least its own pile's current live
     depth (read via `card2pile`), the card is free.  General shape of the
     `isFreeCard`-unfolding used to read freeness off a `freedGuard`/`mergeGuard`
-    fact (mirrors the inline argument in `freed_below_other_boundary`). -/
+    fact. -/
 theorem isFree_of_card2depth_ge (g : Globals) (game : SolverPosType)
     (hwf : WellFormedLayout g) (c : UInt8) (hc64 : c.toNat < 64)
     (h : (g.card2depth[c.toNat]'hc64).toNat ≥
