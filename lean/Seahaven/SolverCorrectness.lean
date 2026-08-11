@@ -51,7 +51,8 @@ only if any pileDepth is greater than 5).
 def Correctness : Prop :=
   ∃ inv0 : Globals → Prop,
   ∃ inv1 : Shuffle → Globals → Prop,
-  ∀ shuffle : Shuffle, ∀ g : Globals,
+  inv0 emptyGlobals
+  ∧ ∀ shuffle : Shuffle, ∀ g : Globals,
     (inv1 shuffle g → inv0 g)
   ∧ (inv0 g →
      ∃ g' : Globals,

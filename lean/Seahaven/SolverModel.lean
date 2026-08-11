@@ -292,31 +292,14 @@ def SolverConvertFromPilesKings (pilesking : Vector UInt8 11) :
     real solver terminate). -/
 def sampleShuffle : Vector UInt8 52 := Vector.ofFn (fun i => UInt8.ofNat (i.val + 1))
 
-/-- A `Globals` skeleton (real deal is filled in by `initcard`). -/
-def initialGlobals : Globals := {
-  pos2card  := mkVector 10 (mkVector 5 0)
-  card2pile := mkVector 64 0
-  card2depth := mkVector 64 0
-  hashmap   := mkVector BIG_HASH_SIZE 0
-  gameStack := mkVector MAX_MOVES {
-    hash := 0, pileDepth := mkVector 10 0, pileFlute := mkVector 10 0,
-    aces := mkVector 4 0, kings := mkVector 4 0, usedSpace := 0, freePiles := 0, busyAces := 0 }
-  hit := 0
-  miss := 0
-}
-
-private def emptyPos : SolverPosType := {
-  hash := 0, pileDepth := mkVector 10 0, pileFlute := mkVector 10 0,
-  aces := mkVector 4 0, kings := mkVector 4 0, usedSpace := 0, freePiles := 0, busyAces := 0 }
-
 /-- Run a convert function on the identity deal with the given pile depths and
     return the `Repr` string of `(forcedKings, resulting game)`. -/
 def runConvert (conv : Vector UInt8 11 → EStateM Error (Globals × SolverPosType) UInt16)
     (pk : Vector UInt8 11) : String :=
-  match EStateM.run (initcard sampleShuffle) initialGlobals with
+  match EStateM.run (initcard sampleShuffle) emptyGlobals with
   | .error e _ => s!"initcard error: {repr e}"
   | .ok _ g =>
-    match EStateM.run (conv pk) (g, emptyPos) with
+    match EStateM.run (conv pk) (g, emptySolverPosType) with
     | .error e _ => s!"convert error: {repr e}"
     | .ok fk (_, game) => s!"{fk} {repr game}"
 

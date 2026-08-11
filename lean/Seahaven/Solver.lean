@@ -88,10 +88,19 @@ structure Globals where
   card2pile : Vector UInt8 64
   card2depth : Vector UInt8 64
   hashmap : Vector UInt16 BIG_HASH_SIZE
-  gameStack : Vector SolverPosType MAX_MOVES
   hit : UInt32
   miss : UInt32
 deriving Repr
+
+def emptyGlobals : Globals :=
+  {
+    pos2card := mkVector 10 (mkVector 5 0)
+    card2pile := mkVector 64 0
+    card2depth := mkVector 64 0
+    hashmap := mkVector BIG_HASH_SIZE 0
+    hit := 0
+    miss := 0
+  }
 
 -- Witnesses for `EStateMOrder`'s flat-order bottom (see `Nonempty Error` above).
 deriving instance Inhabited for SolverPosType
