@@ -236,43 +236,58 @@ Everything above is assembly.  What is left is the query itself: that
 is about `s`.  Stated as a named `Prop` — house style (`SolvableBits`) for an
 obligation not yet discharged — so that nothing in this file is `sorry`d. -/
 
-/-- **What a query on a reachable state does.**  The frame (`HashmapCorrect` plus
-"only the memo table changed") is what carries `Inv1` across; the disjunction is the
-answer.
+/-- **Obligation 1: the encoding is legal.**  `pilesKingsFromState` reports
+`|removeFlute (tableau i)|` as pile `i`'s depth, and the solver's tables only run to
+depth `5`.  True because a move either pushes onto a column — extending its top run,
+so `removeFlute` is unchanged — or pops from it, and `removeFlute` never grows; the
+dealt columns start at five.  (The `pk[10] < 16` half is `pilesKings_get10_lt16`.) -/
+def ReachableValidDepths : Prop :=
+  ∀ (sh : Shuffle) (s : State), isReachable (_root_.init sh.perm) s →
+    ValidDepths (pilesKingsFromState s)
 
-Three things go into it, none of which is in the tree yet:
+/-- **Obligation 2: the answer is about `s`.**  Everything else a query needs — that
+it returns at all (`solve_runs`), that it returns one of the two codes and writes
+nothing but the memo table (`solve_frame`) — is now proved, so this is the whole
+remaining content of `Correctness`.
 
-1. **totality** — `solve` is `partial_fixpoint` and every existing theorem about it
-   is conditional on a successful run (`recCheck_run_loop_inv`, `recLoop_all`, …).
-   Needs the `DepthSum` induction of `recCheck_spec` run in the *constructing*
-   direction, with a "this step runs" lemma per array read and for `SolverMove`.
-2. **the `Rules`-side bridge** — that `pilesKingsFromState s` is a legal encoding of
-   a reachable `s` (depths `≤ 5`; `kingBitmap < 16`) and that `s` normalizes, by
-   solvability-preserving moves, to a state matching the position convert computes
-   for it, at the configuration `kingBitmap s` names.
-3. **the canonical two-sided interface** — `solve_correct` matches against
-   `convertPre`, whose flutes are all `1`, so it only speaks about states with no
-   run on any pile; a normalized state has runs.  The reading that matches the
-   position convert *returns* exists for soundness (`solve_sound_canonical`) but
-   its completeness half additionally needs `BitSet fk (kingCfgOf pk h)` — that
-   every king convert vacated is one the queried configuration piles. -/
-def SolveQuery : Prop :=
+Two things go into it, neither in the tree yet:
+
+* **the `Rules`-side normalization** — `s` reduces, by solvability-preserving moves,
+  to a state matching the position convert computes for it, at the configuration
+  `kingBitmap s` names.  `CPNormMatch.exists_match_of_depthMatch` is the entry
+  point; the missing input is the foundation maximization that `convertPre`'s
+  `aces = cvAceVal` demands.
+* **the canonical two-sided interface** — `solve_correct` matches against
+  `convertPre`, whose flutes are all `1`, hence `|tableau i| = pk[i]`: it speaks
+  only about states with no run on any pile, and a normalized state has runs.  The
+  reading that matches the position convert *returns* exists for soundness
+  (`solve_sound_canonical`); its completeness half additionally needs
+  `BitSet fk (kingCfgOf pk h)` — that every king convert vacated is one the queried
+  configuration piles. -/
+def ReachableAnswer : Prop :=
   ∀ (sh : Shuffle) (g : Globals), Inv1 sh g →
     ∀ s : State, isReachable (_root_.init sh.perm) s →
-      ∃ (g' : Globals) (res : UInt8),
-        EStateM.run (_root_.solve (pilesKingsFromState s)) g = .ok res g' ∧
-        HashmapCorrect g' ∧ (∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm }) ∧
-        ((res = UInt8.ofNat NOMOVE ∧ ¬ isSolvable s) ∨
-          (res = UInt8.ofNat SUCCESS ∧ isSolvable s))
+      ∀ (r : UInt8) (g' : Globals),
+        EStateM.run (_root_.solve (pilesKingsFromState s)) g = .ok r g' →
+        (r = UInt8.ofNat SUCCESS ↔ isSolvable s)
 
 /-! ## The theorem -/
 
-/-- **The solver is correct**, given the query obligation. -/
-theorem solver_is_correct_of (hq : SolveQuery) : Correctness := by
+/-- **The solver is correct**, given the two query obligations. -/
+theorem solver_is_correct_of (hvd : ReachableValidDepths) (hans : ReachableAnswer) :
+    Correctness := by
   refine ⟨Inv0, Inv1, inv0_emptyGlobals, fun sh g => ⟨Inv1.toInv0, ?_, ?_⟩⟩
   · exact fun h => inv1_of_initcard sh h
   · intro hinv s hreach
-    obtain ⟨g', res, hrun, hcor', ⟨hm, rfl⟩, hans⟩ := hq sh g hinv s hreach
-    exact ⟨_, res, hrun, hinv.set_hashmap hm hcor', hans⟩
+    have hpk : ValidDepths (pilesKingsFromState s) := hvd sh s hreach
+    have hs10 := pilesKings_get10_lt16 s
+    obtain ⟨r, g', hrun⟩ := solve_runs hinv.1 hinv.2.1 hpk hs10
+    obtain ⟨hcode, hcor', hm, rfl⟩ := solve_frame hinv.1 hinv.2.1 hpk hs10 hrun
+    refine ⟨_, r, hrun, hinv.set_hashmap hm hcor', ?_⟩
+    have hiff := hans sh g hinv s hreach r _ hrun
+    rcases hcode with h | h
+    · exact Or.inr ⟨h, hiff.1 h⟩
+    · refine Or.inl ⟨h, fun hsol => ?_⟩
+      exact absurd (h.symm.trans (hiff.2 hsol)) (by decide)
 
 end SolverSpec

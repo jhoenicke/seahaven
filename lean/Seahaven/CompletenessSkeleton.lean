@@ -284,11 +284,18 @@ theorem hashmapCorrect_of {g : Globals} (hs : HashmapSound g) (hc : HashmapCompl
     · exact Or.inl h
     · exact Or.inr ⟨recCheck_spec_of hsb hcb, hlm⟩
 
-/-- **The two halves give `RecCheckSolvableSpec`.**  With `recCheck_sound_of_semantics`
-already discharging the soundness half, this is the shape of the endgame: everything
-that remains is `RecCheckSolvableComplete`. -/
+/-- **The two halves give the specification, at a run.**  Superseded by
+`RecCheckSpec.recCheck_spec`, which runs one merged induction instead — and which also
+proves the call *returns*, something neither half supplies (both are conditional on
+`hrun`).  So this assembles the `RecCheckSolvableSpec.apply` shape, not
+`RecCheckSolvableSpec` itself. -/
 theorem recCheckSolvableSpec_of (hsound : RecCheckSolvableSound)
-    (hcomplete : RecCheckSolvableComplete) : RecCheckSolvableSpec := by
+    (hcomplete : RecCheckSolvableComplete) :
+    ∀ (g g' : Globals) (p : SolverPosType) (v : UInt16),
+      WellFormedLayout g → IsCanonicalPos g p → HashmapCorrect g →
+      EStateM.run (solverRecCheckSolvable p) g = .ok v g' →
+      (SolvableBits g p v ∧ LocalMask p v) ∧ HashmapCorrect g' ∧
+        g'.pos2card = g.pos2card := by
   intro g g' p v hwf hcan hcorrect hrun
   have hs : HashmapSound g := by
     intro q hq w hget

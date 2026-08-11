@@ -1,4 +1,5 @@
 import Seahaven.CriticalIteration
+import Seahaven.RecCheckRuns
 
 /-!
 # `solverRecCheckSolvable` meets its two-sided specification
@@ -132,45 +133,65 @@ per step.  The single induction hypothesis serves both directions — projected 
 `ChildSpec` for `recLoop_all` and to `ChildSpecComplete` for `RecLoopComplete`. -/
 theorem recCheck_spec (hSS : SubsetSound) (hMS : MoveSimulated) (hRLC : RecLoopComplete) :
     RecCheckSolvableSpec := by
-  suffices Hind : ∀ n : Nat, ∀ (g g' : Globals) (p : SolverPosType) (v : UInt16),
+  suffices Hind : ∀ n : Nat, ∀ (g : Globals) (p : SolverPosType),
       SolverSpec.DepthSum p < n → WellFormedLayout g → IsCanonicalPos g p → HashmapCorrect g →
-      EStateM.run (solverRecCheckSolvable p) g = .ok v g' →
-      (SolvableBits g p v ∧ LocalMask p v) ∧ HashmapCorrect g' ∧
-        ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm } by
-    intro g g' p v hwf hcan hcor hrun
-    obtain ⟨hv, hcor', hm, rfl⟩ :=
-      Hind (SolverSpec.DepthSum p + 1) g g' p v (by omega) hwf hcan hcor hrun
-    exact ⟨hv, hcor', rfl⟩
+      ∃ (v : UInt16) (g' : Globals),
+        EStateM.run (solverRecCheckSolvable p) g = .ok v g' ∧
+        (SolvableBits g p v ∧ LocalMask p v) ∧ HashmapCorrect g' ∧
+          ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm } by
+    intro g p hwf hcan hcor
+    obtain ⟨v, g', hrun, hv, hcor', hm, rfl⟩ :=
+      Hind (SolverSpec.DepthSum p + 1) g p (by omega) hwf hcan hcor
+    exact ⟨v, _, hrun, hv, hcor', rfl⟩
   intro n
   induction n with
-  | zero => intro g g' p v hmeas; omega
+  | zero => intro g p hmeas; omega
   | succ n ih =>
-    intro g g' p v hmeas hwf hcan hcor hrun
+    intro g p hmeas hwf hcan hcor
     have hfp : p.freePiles.toNat ≤ 10 := by
       have h := freePiles_bound hcan.toSolverInvMerged
       have : p.freePiles.toInt = (p.freePiles.toNat : Int) := rfl
       omega
     by_cases hz : p.hash = 0
     · -- the leaf: already solved, and the block has one configuration
-      rw [recCheck_run_hash_zero g p hz] at hrun
-      obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj hrun
-      exact ⟨⟨recCheck_spec_of (soundBits_of_hash_zero hcan hz 1)
-        (completeBits_one_of_freePiles_ten (freePiles_eq_ten_of_hash_zero hcan hz)),
-        localMask_one p⟩, hcor, g.hashmap, rfl⟩
+      exact ⟨1, g, recCheck_run_hash_zero g p hz,
+        ⟨recCheck_spec_of (soundBits_of_hash_zero hcan hz 1)
+          (completeBits_one_of_freePiles_ten (freePiles_eq_ten_of_hash_zero hcan hz)),
+          localMask_one p⟩, hcor, g.hashmap, rfl⟩
     · by_cases hfree : slotRead g p.hash = UInt8.ofNat FREESLOT
       · -- the pile loop, then the memo write
         obtain ⟨⟨ki, hki, hkiloc, hkic⟩, ⟨comp, hcomp⟩⟩ := prologueRuns g p hwf hcan
-        obtain ⟨gl, hloop, rfl⟩ :=
-          recCheck_run_loop_inv g g' p ki comp v hfp hz hfree hki hcomp hrun
-        -- the induction hypothesis, once, projected to the two directions
+        -- the induction hypothesis, once, projected to the three readings
         have hchild : ChildSpec HashmapCorrect p := by
           intro child g₁ g₂ w hlt hwf₁ hcan₁ hcor₁ hrun₁
-          obtain ⟨⟨hsb, hlm⟩, hrest⟩ := ih g₁ g₂ child w (by omega) hwf₁ hcan₁ hcor₁ hrun₁
+          obtain ⟨w', g₃, hrun', ⟨hsb, hlm⟩, hrest⟩ := ih g₁ child (by omega) hwf₁ hcan₁ hcor₁
+          obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj (hrun'.symm.trans hrun₁)
           exact ⟨⟨fun s k hk hbit => (hsb s k hk).2 hbit, hlm⟩, hrest⟩
         have hchildc : ChildSpecComplete HashmapCorrect p := by
           intro child g₁ g₂ w hlt hwf₁ hcan₁ hcor₁ hrun₁
-          obtain ⟨⟨hsb, hlm⟩, hrest⟩ := ih g₁ g₂ child w (by omega) hwf₁ hcan₁ hcor₁ hrun₁
+          obtain ⟨w', g₃, hrun', ⟨hsb, hlm⟩, hrest⟩ := ih g₁ child (by omega) hwf₁ hcan₁ hcor₁
+          obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj (hrun'.symm.trans hrun₁)
           exact ⟨⟨fun s k hk hsol => (hsb s k hk).1 hsol, hlm⟩, hrest⟩
+        have hchildr : ChildRuns HashmapCorrect p := by
+          intro child g₁ hlt hwf₁ hcan₁ hcor₁
+          obtain ⟨w, g₂, hrun₁, ⟨-, hlm⟩, -⟩ := ih g₁ child (by omega) hwf₁ hcan₁ hcor₁
+          exact ⟨w, g₂, hrun₁, hlm⟩
+        -- **the loop runs**: every iteration runs (`recBodyRuns`) and re-establishes the
+        -- entry conditions of the next (`recBodyStep`'s frame)
+        obtain ⟨v, gl, hloop, -⟩ := forIn_exists
+          (fun (_ : UInt16) (g₁ : Globals) => WellFormedLayout g₁ ∧ IsCanonicalPos g₁ p ∧
+            HashmapCorrect g₁ ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, g₁ = { g with hashmap := hm })
+          (recBody solverRecCheckSolvable p (closureInfoOf p) ki comp.toUInt16
+            (ki.possibleKings.get 0).toUInt16) (List.range 10)
+          (fun a ha b g₁ hP => by
+            obtain ⟨hwf₁, hcan₁, hcor₁, hm₁, rfl⟩ := hP
+            obtain ⟨r, g₂, hb⟩ := recBodyRuns HashmapCorrect p ki comp _ _ a b
+              (by simpa using ha) hwf₁ hcan₁ hcor₁ hkiloc hchildr
+            obtain ⟨-, hcor₂, hm₂, rfl⟩ := recBodyStep HashmapCorrect p ki comp _ _ g₂ a b r
+              (by simpa using ha) hwf₁ hcan₁ hcor₁ hkiloc hchild hb
+            exact ⟨r, _, hb, hwf₁.set_hashmap hm₂, hcan₁.set_hashmap hm₂, hcor₂, hm₂, rfl⟩)
+          0 g ⟨hwf, hcan, hcor, g.hashmap, rfl⟩
+        refine ⟨v, _, recCheck_run_loop g gl p ki comp v hfp hz hfree hki hcomp hloop, ?_⟩
         -- the same loop run, read in both directions
         obtain ⟨hsound, hlocal, hcor', hm, rfl⟩ :=
           recLoop_all hSS hMS (recBodyStep HashmapCorrect) hwf hcan hcor hkiloc hkic hchild
@@ -184,8 +205,7 @@ theorem recCheck_spec (hSS : SubsetSound) (hMS : MoveSimulated) (hRLC : RecLoopC
             (hspec.set_hashmap hm) hlocal
         · exact ⟨_, rfl⟩
       · -- a memo hit: the two-sided invariant answers in one read
-        rw [recCheck_run_cached g p hfp hz hfree] at hrun
-        obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj hrun
+        refine ⟨(slotRead g p.hash).toUInt16, g, recCheck_run_cached g p hfp hz hfree, ?_⟩
         rcases hcor p hcan (slotRead g p.hash) (getSlot_run g p.hash) with hfs | ⟨hs, hl⟩
         · exact absurd hfs hfree
         · exact ⟨⟨hs, hl⟩, hcor, g.hashmap, rfl⟩

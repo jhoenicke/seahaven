@@ -354,10 +354,23 @@ come from the spec.  (Provable: `computeKingSpaces` sets only bits `< numBits`,
 `componentTable` entries fit their block — `componentTable_localBound` — the
 `hash == 0` leaf returns 1, and the memo path carries it via `HashmapCorrect`.) -/
 def RecCheckSolvableSpec : Prop :=
-  ∀ (g g' : Globals) (p : SolverPosType) (v : UInt16),
+  ∀ (g : Globals) (p : SolverPosType),
     WellFormedLayout g → IsCanonicalPos g p → HashmapCorrect g →
-    EStateM.run (solverRecCheckSolvable p) g = .ok v g' →
-    (SolvableBits g p v ∧ LocalMask p v) ∧ HashmapCorrect g' ∧ g'.pos2card = g.pos2card
+    ∃ (v : UInt16) (g' : Globals),
+      EStateM.run (solverRecCheckSolvable p) g = .ok v g' ∧
+      (SolvableBits g p v ∧ LocalMask p v) ∧ HashmapCorrect g' ∧ g'.pos2card = g.pos2card
+
+/-- **The specification, read at a run the caller already has.**  `EStateM` is
+deterministic, so the existential pins the caller's own `v` and `g'`.  This is the
+form every consumer used before totality was part of the statement. -/
+theorem RecCheckSolvableSpec.apply (h : RecCheckSolvableSpec) {g g' : Globals}
+    {p : SolverPosType} {v : UInt16}
+    (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p) (hcor : HashmapCorrect g)
+    (hrun : EStateM.run (solverRecCheckSolvable p) g = .ok v g') :
+    (SolvableBits g p v ∧ LocalMask p v) ∧ HashmapCorrect g' ∧ g'.pos2card = g.pos2card := by
+  obtain ⟨v', g'', hrun', hres⟩ := h g p hwf hcan hcor
+  obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj (hrun'.symm.trans hrun)
+  exact hres
 
 /-- What the whole `solve` entry point must satisfy: it answers `SUCCESS` exactly
 for solvable positions.  `pk` carries the pile depths and, in slot 10, the

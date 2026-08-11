@@ -115,7 +115,8 @@ theorem solveTail_spec_bits {g g' : Globals} {pk10 : Vector UInt8 11}
       rw [bind_error hrc] at hrun
       simp at hrun
     | ok cs g2 =>
-      obtain ⟨⟨hcsspec, hcsloc⟩, hcor2, -⟩ := recCheckSolvableSpec g g2 p cs hwf hcan hcor hrc
+      obtain ⟨⟨hcsspec, hcsloc⟩, hcor2, -⟩ :=
+        RecCheckSolvableSpec.apply recCheckSolvableSpec hwf hcan hcor hrc
       -- the frame: `solverRecCheckSolvable` writes nothing but the memo table
       obtain ⟨-, -, hframe⟩ :=
         recCheckSolvableSound g g2 p cs (wfGlobals_of_correct hwf hcor) hcan hrc
@@ -187,6 +188,85 @@ theorem solveTail_spec_bits {g g' : Globals} {pk10 : Vector UInt8 11}
           rw [← uint8_toUInt16_eq] at hbit
           exact bne_iff_ne.mpr hbit
 
+/-! ## `solve` runs
+
+`recCheckSolvableSpec` now carries totality, so the whole call does: the convert
+prologue runs (`convert_canonical`), and the tail's four table reads are all in range —
+`pk10[10]` because the vector has eleven entries, `bits2grlex` because `pk10[10] < 16`,
+`closureInfos` because `freePiles ≤ 10`, and `subsetTable` because the recursion's
+answer is a `LocalMask` and every block ends below `100`. -/
+
+theorem solveTail_runs {g : Globals} {pk10 : Vector UInt8 11} {p : SolverPosType}
+    {fk : UInt16}
+    (hwf : WellFormedLayout g) (hcor : HashmapCorrect g) (hcan : IsCanonicalPos g p)
+    (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16) :
+    ∃ (r : UInt8) (g' : Globals), solveTail pk10 fk p g = .ok r g' := by
+  rw [solveTail]
+  by_cases hz : (p.hash == 0) = true
+  · rw [if_pos hz]; exact ⟨_, _, rfl⟩
+  · rw [if_neg hz, bind_ok (show (pure PUnit.unit : EStateM Error Globals PUnit) g
+      = .ok PUnit.unit g from rfl)]
+    dsimp only
+    -- the `pk10[10]` read
+    have h10 : (10 : UInt32).toNat < 11 := by decide
+    have h10' : pk10.get ⟨(10 : UInt32).toNat, h10⟩ = pk10.get ⟨10, by omega⟩ := rfl
+    rw [bind_ok (vector_getE_apply pk10 10 g h10), h10']
+    -- the `bits2grlex` read
+    have hkb : ((pk10.get ⟨10, by omega⟩ ^^^ 0xf).toUInt32).toNat < 16 := by
+      rw [UInt8.toNat_toUInt32]; exact cv_xor_lt16 hs10
+    rw [bind_ok (vector_getE_apply bits2grlex _ g hkb)]
+    -- the `closureInfos` read
+    have hfple : p.freePiles.toNat ≤ 10 := freePiles_toNat_le hcan.toSolverInvMerged
+    have hfp : (p.freePiles.toUInt32).toNat < 11 := by rw [UInt8.toNat_toUInt32]; omega
+    have hvaleq : (p.freePiles.toUInt32).toNat = min p.freePiles.toNat 10 := by
+      rw [UInt8.toNat_toUInt32]; omega
+    have hciEq : closureInfos.get ⟨(p.freePiles.toUInt32).toNat, hfp⟩ = closureInfoOf p := by
+      unfold closureInfoOf
+      exact congrArg closureInfos.get (Fin.ext hvaleq)
+    rw [bind_ok (vector_getE_apply closureInfos _ g hfp), hciEq]
+    -- the recursive check: it returns, and its answer fits the block
+    obtain ⟨cs, g2, hrc, ⟨-, hcsloc⟩, -⟩ := recCheckSolvableSpec g p hwf hcan hcor
+    have hrc' : solverRecCheckSolvable p g = .ok cs g2 := hrc
+    rw [bind_ok hrc']
+    -- the `subsetTable` read
+    have hnb : (closureInfoOf p).numBits.toNat ≤ 6 := by
+      unfold closureInfoOf
+      have hh : ∀ f : Fin 11, (closureInfos.get f).numBits.toNat ≤ 6 := by decide
+      exact hh _
+    have hoff : (closureInfoOf p).offset.toNat + 2 ^ (closureInfoOf p).numBits.toNat ≤ 100 := by
+      unfold closureInfoOf
+      have hh : ∀ f : Fin 11,
+          (closureInfos.get f).offset.toNat + 2 ^ (closureInfos.get f).numBits.toNat ≤ 100 := by
+        decide
+      exact hh _
+    have hsolvloc : (cs &&& (fk >>> (closureInfoOf p).shiftValue.toUInt16)).toNat
+        < 2 ^ (closureInfoOf p).numBits.toNat := LocalMask.and_left _ hcsloc
+    have h64 : (2 : Nat) ^ (closureInfoOf p).numBits.toNat ≤ 64 :=
+      calc (2 : Nat) ^ (closureInfoOf p).numBits.toNat ≤ 2 ^ 6 :=
+            Nat.pow_le_pow_right (by omega) hnb
+        _ = 64 := by norm_num
+    have h100 : ((closureInfoOf p).offset.toUInt32
+        + (cs &&& fk >>> (closureInfoOf p).shiftValue.toUInt16).toUInt32).toNat < 100 := by
+      rw [UInt32.toNat_add, UInt8.toNat_toUInt32, UInt16.toNat_toUInt32]
+      omega
+    rw [bind_ok (vector_getE_apply subsetTable _ g2 h100)]
+    split <;> exact ⟨_, _, rfl⟩
+
+/-- **`solve` runs.**  The other half of what `Correctness` asks for: not only is the
+    answer right, there *is* an answer. -/
+theorem solve_runs {g : Globals} {pk10 : Vector UInt8 11}
+    (hwf : WellFormedLayout g) (hcor : HashmapCorrect g) (hpk : ValidDepths pk10)
+    (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16) :
+    ∃ (r : UInt8) (g' : Globals), EStateM.run (_root_.solve pk10) g = .ok r g' := by
+  obtain ⟨fk, p, hrunC, hcan⟩ := convert_canonical g emptySolverPosType pk10 hwf hpk
+  obtain ⟨r, g', htail⟩ := solveTail_runs (fk := fk) hwf hcor hcan hs10
+  refine ⟨r, g', ?_⟩
+  show _root_.solve pk10 g = .ok r g'
+  rw [solve_eq_explicit pk10]
+  simp only [bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get, hrunC,
+    set, EStateM.set]
+  exact htail
+
 /-! ## From the decision to the answer
 
 `solve` returns exactly one of two codes, so "answers `SUCCESS` iff solvable" and
@@ -235,6 +315,23 @@ theorem solveTail_correct {g g' : Globals} {pk10 : Vector UInt8 11} {s v : State
     · intro hsol
       exact kingStep_transport_complete p hcsloc hsim.vacates hsim.toSimulates.bitSet_fk
         hsim.toSimulates.maskSub ((hcsspec v k' hsim.cfg).1 (hsim.solvable_iff.1 hsol))
+
+/-- **What a `solve` call does to the globals, and which codes it can return** —
+    independently of any state it might be about.  This is what carries a global
+    invariant across a query. -/
+theorem solve_frame {g g' : Globals} {pk10 : Vector UInt8 11} {r : UInt8}
+    (hwf : WellFormedLayout g) (hcor : HashmapCorrect g) (hpk : ValidDepths pk10)
+    (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
+    (hrun : EStateM.run (_root_.solve pk10) g = .ok r g') :
+    (r = UInt8.ofNat SUCCESS ∨ r = UInt8.ofNat NOMOVE) ∧
+    HashmapCorrect g' ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm } := by
+  obtain ⟨fk, p, hrunC, hcan⟩ := convert_canonical g emptySolverPosType pk10 hwf hpk
+  have hrun' : _root_.solve pk10 g = .ok r g' := hrun
+  rw [solve_eq_explicit pk10] at hrun'
+  simp only [bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get, hrunC,
+    set, EStateM.set] at hrun'
+  obtain ⟨hcode, hfr, -⟩ := solveTail_spec_bits hwf hcor hcan hs10 hrun'
+  exact ⟨hcode, hfr⟩
 
 /-! ## `solve` is correct -/
 
