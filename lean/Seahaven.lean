@@ -80,5 +80,7 @@ import Seahaven.CriticalIteration
 import Seahaven.RecCheckSpec
 import Seahaven.RecCheckComplete
 import Seahaven.SolveCorrect
+import Seahaven.ConvertMatch
+import Seahaven.ReachableMatch
 import Seahaven.SolverCorrectness
 import Seahaven.SolverIsCorrect

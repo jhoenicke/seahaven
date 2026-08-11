@@ -1,4 +1,6 @@
 import Seahaven.SolveCorrect
+import Seahaven.ConvertMatch
+import Seahaven.ReachableMatch
 import Seahaven.DealMatches
 import Seahaven.SolverCorrectness
 
@@ -184,6 +186,22 @@ theorem matchesLayout_of_reach {g : Globals} {s t : State}
     obtain ⟨m, hm⟩ := hbc
     exact ih.applyMove hm
 
+/-- `StateMatchesLayout` reads only `pos2card`, so a memo-table write cannot break it. -/
+theorem StateMatchesLayout.set_hashmap {g : Globals} {hm : Vector UInt16 BIG_HASH_SIZE}
+    {s : State} (h : StateMatchesLayout { g with hashmap := hm } s) :
+    StateMatchesLayout g s :=
+  ⟨h.piles_match, h.cards_count⟩
+
+/-- **Every reachable state matches the layout `initcard` recorded.**  The dealt state
+does (`dealState_matchesLayout`), and `StateMatchesLayout.applyMove` carries it along the
+play. -/
+theorem matchesLayout_of_reachable {sh : Shuffle} {g : Globals} (hinv : Inv1 sh g)
+    {s : State} (hreach : isReachable (_root_.init sh.perm) s) : StateMatchesLayout g s := by
+  have hdeal : StateMatchesLayout g (dealState sh.vector) :=
+    StateMatchesLayout.set_hashmap (dealState_matchesLayout (shuffle_isDeal sh) hinv.2.2)
+  rw [dealState_shuffle sh] at hdeal
+  exact matchesLayout_of_reach hdeal (reach_of_isReachable hreach)
+
 /-! ### The king bitmap is a nibble
 
 `kingBit` sets at most one of the four low bits, so `pk[10] < 16` — the side
@@ -245,31 +263,68 @@ def ReachableValidDepths : Prop :=
   ∀ (sh : Shuffle) (s : State), isReachable (_root_.init sh.perm) s →
     ValidDepths (pilesKingsFromState s)
 
+/-- **Obligation 1, discharged** (`ReachableMatch`).  There is no `Globals` in the
+statement, so one is produced: `initcard` on the shuffle records the layout the state is
+being measured against. -/
+theorem reachableValidDepths : ReachableValidDepths := by
+  intro sh s hreach
+  obtain ⟨g, -, hinv⟩ := inv1_of_initcard sh inv0_emptyGlobals
+  exact validDepths_pilesKings hinv.1 (matchesLayout_of_reachable hinv hreach)
+
 /-- **Obligation 2: the answer is about `s`.**  Everything else a query needs — that
 it returns at all (`solve_runs`), that it returns one of the two codes and writes
 nothing but the memo table (`solve_frame`) — is now proved, so this is the whole
 remaining content of `Correctness`.
 
-Two things go into it, neither in the tree yet:
-
-* **the `Rules`-side normalization** — `s` reduces, by solvability-preserving moves,
-  to a state matching the position convert computes for it, at the configuration
-  `kingBitmap s` names.  `CPNormMatch.exists_match_of_depthMatch` is the entry
-  point; the missing input is the foundation maximization that `convertPre`'s
-  `aces = cvAceVal` demands.
-* **the canonical two-sided interface** — `solve_correct` matches against
-  `convertPre`, whose flutes are all `1`, hence `|tableau i| = pk[i]`: it speaks
-  only about states with no run on any pile, and a normalized state has runs.  The
-  reading that matches the position convert *returns* exists for soundness
-  (`solve_sound_canonical`); its completeness half additionally needs
-  `BitSet fk (kingCfgOf pk h)` — that every king convert vacated is one the queried
-  configuration piles. -/
+It is no longer a monolith: `ConvertMatch` splits it into three, and
+`reachableAnswer_of` below is the assembly.  What used to make it hard was that
+`solve_correct` matched the state against `convertPre g pk` — a position with all
+flutes at `1` and the *maximal* foundation, i.e. one no state of an ongoing game
+matches.  `solve_correct_lax` matches against a position with the queried depths and
+the state's *own* flutes and foundations (`CvEntry`), leaving convert's own loops to
+close the gap; what is left over are the two simulation obligations `CvPrologueSim`
+(loop 2) and `CvCleanupSim` (loop 3), and `ReachableEntry` below. -/
 def ReachableAnswer : Prop :=
   ∀ (sh : Shuffle) (g : Globals), Inv1 sh g →
     ∀ s : State, isReachable (_root_.init sh.perm) s →
       ∀ (r : UInt8) (g' : Globals),
         EStateM.run (_root_.solve (pilesKingsFromState s)) g = .ok r g' →
         (r = UInt8.ofNat SUCCESS ↔ isSolvable s)
+
+/-- **Obligation 2a: a reachable state matches its own encoding.**  The `Rules`-side
+half, and all that is left of Obligation 2 once the convert call is read at the
+entry state (`CvEntry`):
+
+* `pileDepth s i = |removeFlute (tableau i)|` is a legal boundary — the column is a
+  prefix of its dealt column with one same-suit descending run stacked on it, and
+  `removeFlute` strips exactly that run, so `PileMatches` holds at that depth;
+* the flutes are then the run lengths, and the foundations the state's own, so both
+  clauses hold by construction;
+* the configuration `kingBitmap s` names is realized: a column `removeFlute` empties
+  is a run bottoming out at a king (`nextCard king = none` is what lets the recursion
+  reach `[]`), which is exactly a king pile for the suit whose bit is set. -/
+def ReachableEntry : Prop :=
+  ∀ (sh : Shuffle) (g : Globals), Inv1 sh g →
+    ∀ s : State, isReachable (_root_.init sh.perm) s →
+      ∃ game' : SolverPosType,
+        CvEntry g (pilesKingsFromState s) s game'
+          (kingCfgOf (pilesKingsFromState s) (pilesKings_get10_lt16 s))
+
+/-- **Obligation 2a, discharged** (`ReachableMatch`). -/
+theorem reachableEntry : ReachableEntry := fun sh g hinv s hreach =>
+  exists_cvEntry hinv.1 (matchesLayout_of_reachable hinv hreach) (pilesKings_get10_lt16 s)
+
+/-- **Obligation 2, assembled.**  `solve_correct_lax` answers about the state the
+caller handed in, so nothing has to be normalized before the query. -/
+theorem reachableAnswer_of (hvd : ReachableValidDepths) (hA : CvPrologueSim)
+    (hB : CvCleanupSim) (hE : ReachableEntry) : ReachableAnswer := by
+  intro sh g hinv s hreach r g' hrun
+  obtain ⟨game', hentry⟩ := hE sh g hinv s hreach
+  obtain ⟨-, hcase⟩ := solve_correct_lax hA hB hinv.1 hinv.2.1 (hvd sh s hreach)
+    (pilesKings_get10_lt16 s) hentry hrun
+  rcases hcase with ⟨hr, hns⟩ | ⟨hr, hs⟩
+  · exact ⟨fun h => absurd (h.symm.trans hr) (by decide), fun h => absurd h hns⟩
+  · exact ⟨fun _ => hs, fun _ => hr⟩
 
 /-! ## The theorem -/
 
@@ -289,5 +344,19 @@ theorem solver_is_correct_of (hvd : ReachableValidDepths) (hans : ReachableAnswe
     · exact Or.inr ⟨h, hiff.1 h⟩
     · refine Or.inl ⟨h, fun hsol => ?_⟩
       exact absurd (h.symm.trans (hiff.2 hsol)) (by decide)
+
+/-- **The solver is correct**, in the four-obligation form: the encoding is legal
+(`ReachableValidDepths`), a reachable state matches it (`ReachableEntry`), and convert's
+two loops are simulated (`CvPrologueSim`, `CvCleanupSim`). -/
+theorem solver_is_correct_of' (hvd : ReachableValidDepths) (hA : CvPrologueSim)
+    (hB : CvCleanupSim) (hE : ReachableEntry) : Correctness :=
+  solver_is_correct_of hvd (reachableAnswer_of hvd hA hB hE)
+
+/-- **The solver is correct**, given only convert's two simulation obligations: the
+encoding is legal and a reachable state matches it (`ReachableMatch`), so all that is
+left of `Correctness` is that convert's loop-2 writes and its cleanup calls are realized
+by normalizing moves. -/
+theorem solver_is_correct_of_sims (hA : CvPrologueSim) (hB : CvCleanupSim) : Correctness :=
+  solver_is_correct_of' reachableValidDepths hA hB reachableEntry
 
 end SolverSpec
