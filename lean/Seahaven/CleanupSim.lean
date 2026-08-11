@@ -573,7 +573,7 @@ theorem StateMatchesSolverPos.not_covered {g : Globals} {s : State} {p : SolverP
 `m`-th flute card above the pile's boundary for some `1 ≤ m < pileFlute`, or a card
 of a solver-empty pile's king run (whose length pins `kings` for that suit). -/
 theorem StateMatchesSolverPos.column_cases {g : Globals} {s : State} {p : SolverPosType}
-    (hwf : WellFormedLayout g) (hb : SolverInvLocal g p) (h : StateMatchesSolverPos g s p)
+    (hwf : WellFormedLayout g) (h : StateMatchesSolverPos g s p)
     (j : Fin 10) {d : Card} (hmem : d ∈ s.tableau j) :
     (¬ isFreeCard g p (encodeCard d)) ∨
       (∃ (m : Nat) (hidx : (p.pileDepth.get j).toNat - 1 < 5),
@@ -710,7 +710,7 @@ theorem StateMatchesSolverPos.extension_in_cell {g : Globals} {s : State} {p : S
   · exact hcell
   · -- not in a column
     exfalso
-    rcases h.column_cases hwf hb j hmem with hnf | ⟨m, hidx, hm1, hm2, hcode⟩ | ⟨hd0, hkv⟩
+    rcases h.column_cases hwf j hmem with hnf | ⟨m, hidx, hm1, hm2, hcode⟩ | ⟨hd0, hkv⟩
     · -- resident: but the card is free
       exact hnf (hd ▸ hfree k hk1 hkf)
     · -- a flute card of pile `j`: compare `m` with `k`

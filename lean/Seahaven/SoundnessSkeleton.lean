@@ -1,5 +1,6 @@
 import Mathlib.Data.Nat.Bitwise
 import Seahaven.SolvableBits
+import Seahaven.OrConsistentTable
 
 /-!
 # Skeleton of the soundness proof for the body of `solverRecCheckSolvable`
@@ -45,34 +46,6 @@ the `SolvableBits` module docstring for the concrete counterexample.  The
 solvability specs are stated over `StateMatchesKingConfig` (with the `no_pile`
 clause) precisely to make that instantiation impossible.
 -/
-
-/-! ## `BitSet` algebra -/
-
-theorem nat_and_shiftLeft_ne_zero (n k : Nat) :
-    (n &&& (1 <<< k) ≠ 0) ↔ n.testBit k = true := by
-  rw [Nat.shiftLeft_eq, one_mul, Nat.and_two_pow]
-  cases h : n.testBit k <;> simp
-
-theorem uint16_mask_toNat (k : Fin 16) :
-    ((1 : UInt16) <<< (UInt16.ofNat k.val)).toNat = 1 <<< k.val := by
-  fin_cases k <;> decide
-
-theorem BitSet_toNat (w : UInt16) (k : Fin 16) : BitSet w k ↔ w.toNat.testBit k.val := by
-  unfold BitSet
-  rw [← nat_and_shiftLeft_ne_zero, ← uint16_mask_toNat k, ← UInt16.toNat_and]
-  constructor
-  · intro h hz; exact h (UInt16.toNat_inj.1 (by simpa using hz))
-  · intro h hz; exact h (by rw [hz]; rfl)
-
-theorem BitSet_or (x y : UInt16) (k : Fin 16) :
-    BitSet (x ||| y) k ↔ BitSet x k ∨ BitSet y k := by
-  simp [BitSet_toNat, UInt16.toNat_or, Nat.testBit_or]
-
-theorem BitSet_zero (k : Fin 16) : ¬ BitSet 0 k := by simp [BitSet_toNat]
-
-theorem BitSet_and (x y : UInt16) (k : Fin 16) :
-    BitSet (x &&& y) k ↔ BitSet x k ∧ BitSet y k := by
-  simp [BitSet_toNat, UInt16.toNat_and, Nat.testBit_and]
 
 /-! ## `forcedKings`, described through the vacated suits
 
@@ -125,25 +98,11 @@ theorem subsetAt_zero_block (f : Fin 11) :
     subsetAt (closureInfos.get f).offset.toNat = 0 := by
   fin_cases f <;> decide
 
-theorem subsetAt_or_98 : ∀ a b : Fin 2,
-    subsetAt (98 + (a.val ||| b.val)) = subsetAt (98 + a.val) ||| subsetAt (98 + b.val) := by
+theorem subsetAt_or_consistent_block :
+    ∀ f : Fin 11, or_consistent (closureInfos.get f).numBits.toNat
+      (fun a => subsetAt ((closureInfos.get f).offset.toNat + a)) := by
+  unfold or_consistent
   decide
-
-theorem subsetAt_or_96 : ∀ a b : Fin 2,
-    subsetAt (96 + (a.val ||| b.val)) = subsetAt (96 + a.val) ||| subsetAt (96 + b.val) := by
-  decide
-
-theorem subsetAt_or_0 : ∀ a b : Fin 16,
-    subsetAt (0 + (a.val ||| b.val)) = subsetAt (0 + a.val) ||| subsetAt (0 + b.val) := by
-  decide
-
-theorem subsetAt_or_80 : ∀ a b : Fin 16,
-    subsetAt (80 + (a.val ||| b.val)) = subsetAt (80 + a.val) ||| subsetAt (80 + b.val) := by
-  decide
-
-theorem subsetAt_or_16 : ∀ a b : Fin 64,
-    subsetAt (16 + (a.val ||| b.val)) = subsetAt (16 + a.val) ||| subsetAt (16 + b.val) := by
-  native_decide
 
 theorem subsetAt_or_block (f : Fin 11) (a b : Nat)
     (ha : a < 2 ^ (closureInfos.get f).numBits.toNat)
@@ -151,12 +110,7 @@ theorem subsetAt_or_block (f : Fin 11) (a b : Nat)
     subsetAt ((closureInfos.get f).offset.toNat + (a ||| b))
       = subsetAt ((closureInfos.get f).offset.toNat + a)
         ||| subsetAt ((closureInfos.get f).offset.toNat + b) := by
-  fin_cases f
-  · exact subsetAt_or_98 ⟨a, ha⟩ ⟨b, hb⟩
-  · exact subsetAt_or_0 ⟨a, ha⟩ ⟨b, hb⟩
-  · exact subsetAt_or_16 ⟨a, ha⟩ ⟨b, hb⟩
-  · exact subsetAt_or_80 ⟨a, ha⟩ ⟨b, hb⟩
-  all_goals exact subsetAt_or_96 ⟨a, ha⟩ ⟨b, hb⟩
+  exact or_consistent_distributes_or16 (subsetAt_or_consistent_block f) ⟨a,ha⟩ ⟨b, hb⟩
 
 theorem subsetAt_or_pos (p : SolverPosType) {a b : UInt16}
     (ha : LocalMask p a) (hb : LocalMask p b) :
@@ -436,31 +390,6 @@ def MaskSub (d c : Fin 16) : Prop :=
 
 instance (d c : Fin 16) : Decidable (MaskSub d c) := inferInstanceAs (Decidable (_ = _))
 
-theorem subsetAt_spec_98 : ∀ (T : Fin 2) (c : Fin 16),
-    BitSet (subsetAt (98 + T.val)) c ↔
-      ∃ i : Fin 1, T.val.testBit i.val = true ∧ MaskSub ⟨15 + i.val, by omega⟩ c := by
-  decide
-
-theorem subsetAt_spec_96 : ∀ (T : Fin 2) (c : Fin 16),
-    BitSet (subsetAt (96 + T.val)) c ↔
-      ∃ i : Fin 1, T.val.testBit i.val = true ∧ MaskSub ⟨0 + i.val, by omega⟩ c := by
-  decide
-
-theorem subsetAt_spec_0 : ∀ (T : Fin 16) (c : Fin 16),
-    BitSet (subsetAt (0 + T.val)) c ↔
-      ∃ i : Fin 4, T.val.testBit i.val = true ∧ MaskSub ⟨11 + i.val, by omega⟩ c := by
-  decide
-
-theorem subsetAt_spec_80 : ∀ (T : Fin 16) (c : Fin 16),
-    BitSet (subsetAt (80 + T.val)) c ↔
-      ∃ i : Fin 4, T.val.testBit i.val = true ∧ MaskSub ⟨1 + i.val, by omega⟩ c := by
-  decide
-
-theorem subsetAt_spec_16 : ∀ (T : Fin 64) (c : Fin 16),
-    BitSet (subsetAt (16 + T.val)) c ↔
-      ∃ i : Fin 6, T.val.testBit i.val = true ∧ MaskSub ⟨5 + i.val, by omega⟩ c := by
-  native_decide
-
 /-! ### Consequences
 
 Both are purely combinatorial once the characterization is in hand. -/
@@ -550,25 +479,31 @@ private theorem spec_exists_conv (sh n : Nat) (ci : ClosureInfo)
       Fin.ext (by rw [globalCfg_val ci i (by omega)])
     rw [← he]; exact hsub
 
+
 /-- **Uniform `subsetAt` characterization**: over every block, a configuration is
 covered iff some set bit of the local mask covers it. -/
+
+theorem closureInfo_bits_in_range :
+  ∀ f : Fin 11, ∀ i : Fin (closureInfos.get f).numBits.toNat,
+  (closureInfos.get f).shiftValue.toNat + i.val < 16 := by
+  decide
+
+theorem subsetAt_spec_singlebits :
+  ∀ f : Fin 11, ∀ i : Fin (closureInfos.get f).numBits.toNat,
+  ∀ c : Fin 16,
+  BitSet (subsetAt ((closureInfos.get f).offset.toNat + 2 ^ i.val)) c =
+  MaskSub ⟨(closureInfos.get f).shiftValue.toNat + i.val, closureInfo_bits_in_range f i⟩ c := by
+  decide
+
 theorem subsetAt_spec_block (f : Fin 11) (T : Nat)
     (hT : T < 2 ^ (closureInfos.get f).numBits.toNat) (c : Fin 16) :
     BitSet (subsetAt ((closureInfos.get f).offset.toNat + T)) c ↔
       ∃ i : Nat, i < (closureInfos.get f).numBits.toNat ∧ T.testBit i = true ∧
         MaskSub (globalCfg (closureInfos.get f) i) c := by
-  fin_cases f
-  · exact (subsetAt_spec_98 ⟨T, hT⟩ c).trans
-      (spec_exists_conv 15 1 _ (by decide) (by decide) (by omega) T c (fun i => by omega))
-  · exact (subsetAt_spec_0 ⟨T, hT⟩ c).trans
-      (spec_exists_conv 11 4 _ (by decide) (by decide) (by omega) T c (fun i => by omega))
-  · exact (subsetAt_spec_16 ⟨T, hT⟩ c).trans
-      (spec_exists_conv 5 6 _ (by decide) (by decide) (by omega) T c (fun i => by omega))
-  · exact (subsetAt_spec_80 ⟨T, hT⟩ c).trans
-      (spec_exists_conv 1 4 _ (by decide) (by decide) (by omega) T c (fun i => by omega))
-  all_goals
-    exact (subsetAt_spec_96 ⟨T, hT⟩ c).trans
-      (spec_exists_conv 0 1 _ (by decide) (by decide) (by omega) T c (fun i => by omega))
+  have h1 := or_consistent_spec (subsetAt_or_consistent_block f) ⟨T,hT⟩ c
+  simp only [subsetAt_spec_singlebits f] at h1
+  exact h1.trans (spec_exists_conv _ _ (closureInfos.get f) rfl rfl
+    (closureInfo_shift_add_numBits f) T c (closureInfo_bits_in_range f))
 
 theorem subsetAt_spec_pos (p : SolverPosType) {T : UInt16} (hT : LocalMask p T) (c : Fin 16) :
     BitSet (subsetAt ((closureInfoOf p).offset.toNat + T.toNat)) c ↔

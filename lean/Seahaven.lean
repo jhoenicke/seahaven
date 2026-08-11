@@ -10,6 +10,7 @@ import Seahaven.FoundationRun
 import Seahaven.LayoutProofs
 import Seahaven.MatchesPos
 import Seahaven.SolvableBits
+import Seahaven.OrConsistentTable
 import Seahaven.SoundnessSkeleton
 import Seahaven.RecStepSound
 import Seahaven.KingReshuffle

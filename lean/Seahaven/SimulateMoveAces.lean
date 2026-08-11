@@ -823,7 +823,7 @@ theorem StateMatchesSolverPos.no_played_in_column {g : Globals} {s : State} {p :
     have hd0 : (p.pileDepth.get j).toNat = 0 := by
       show (p.pileDepth.get j).toNat = 0
       omega
-    rcases h.column_cases hwf hb.toLocal j hxmem with hnf | ⟨m, -, hm1, hm2, -⟩ | ⟨-, hking⟩
+    rcases h.column_cases hwf j hxmem with hnf | ⟨m, -, hm1, hm2, -⟩ | ⟨-, hking⟩
     · exact hnf hxfree
     · -- an empty pile's flute is trivial
       have hfe : p.pileFlute.get j = 1 :=

@@ -1,4 +1,5 @@
 import Seahaven.MatchesPos
+import Mathlib.Data.Nat.Bitwise
 
 /-!
 # What the solver's king-configuration bitmasks mean
@@ -93,6 +94,34 @@ instance (w : UInt16) (k : Fin 16) : Decidable (BitSet w k) :=
 
 theorem bits2grlex_lt (b : Fin 16) : (bits2grlex.get b).toNat < 16 := by
   fin_cases b <;> decide
+
+/-! ## `BitSet` algebra -/
+
+theorem nat_and_shiftLeft_ne_zero (n k : Nat) :
+    (n &&& (1 <<< k) ≠ 0) ↔ n.testBit k = true := by
+  rw [Nat.shiftLeft_eq, one_mul, Nat.and_two_pow]
+  cases h : n.testBit k <;> simp
+
+theorem uint16_mask_toNat (k : Fin 16) :
+    ((1 : UInt16) <<< (UInt16.ofNat k.val)).toNat = 1 <<< k.val := by
+  fin_cases k <;> decide
+
+theorem BitSet_toNat (w : UInt16) (k : Fin 16) : BitSet w k ↔ w.toNat.testBit k.val := by
+  unfold BitSet
+  rw [← nat_and_shiftLeft_ne_zero, ← uint16_mask_toNat k, ← UInt16.toNat_and]
+  constructor
+  · intro h hz; exact h (UInt16.toNat_inj.1 (by simpa using hz))
+  · intro h hz; exact h (by rw [hz]; rfl)
+
+theorem BitSet_or (x y : UInt16) (k : Fin 16) :
+    BitSet (x ||| y) k ↔ BitSet x k ∨ BitSet y k := by
+  simp [BitSet_toNat, UInt16.toNat_or, Nat.testBit_or]
+
+theorem BitSet_zero (k : Fin 16) : ¬ BitSet 0 k := by simp [BitSet_toNat]
+
+theorem BitSet_and (x y : UInt16) (k : Fin 16) :
+    BitSet (x &&& y) k ↔ BitSet x k ∧ BitSet y k := by
+  simp [BitSet_toNat, UInt16.toNat_and, Nat.testBit_and]
 
 /-! ### Machine-checked cross-checks of the encoding
 
