@@ -81,3 +81,4 @@ import Seahaven.RecCheckSpec
 import Seahaven.RecCheckComplete
 import Seahaven.SolveCorrect
 import Seahaven.SolverCorrectness
+import Seahaven.SolverIsCorrect

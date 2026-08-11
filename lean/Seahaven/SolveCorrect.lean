@@ -47,6 +47,19 @@ namespace SolverSpec
 
 open Lean Lean.Order
 
+/-! ## The two-sided memo invariant implies the one-sided one
+
+Needed to reach `recCheckSolvableSound`, whose conclusion carries the *frame* — that
+the call touched nothing but the memo table — which `RecCheckSolvableSpec` does not
+export. -/
+
+theorem HashmapCorrect.toHashmapSound {g : Globals} (h : HashmapCorrect g) : HashmapSound g :=
+  fun p hcan v hv => (h p hcan v hv).imp id (fun hs => ⟨fun s k hk hbit => (hs.1 s k hk).2 hbit,
+    hs.2⟩)
+
+theorem wfGlobals_of_correct {g : Globals} (hwf : WellFormedLayout g)
+    (h : HashmapCorrect g) : WFGlobals g := ⟨hwf, HashmapCorrect.toHashmapSound h⟩
+
 /-! ## The tail, two-sided -/
 
 set_option maxHeartbeats 1000000 in
@@ -61,6 +74,7 @@ theorem solveTail_spec_bits {g g' : Globals} {pk10 : Vector UInt8 11}
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
     (hrun : solveTail pk10 fk p g = .ok r g') :
     (r = UInt8.ofNat SUCCESS ∨ r = UInt8.ofNat NOMOVE) ∧
+    (HashmapCorrect g' ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm }) ∧
     ((p.hash = 0 ∧ r = 0) ∨ ∃ cs : UInt16, LocalMask p cs ∧ SolvableBits g p cs ∧
       (r = 0 ↔ BitSet (subsetAt ((closureInfoOf p).offset.toNat
         + (cs &&& (fk >>> (closureInfoOf p).shiftValue.toUInt16)).toNat))
@@ -70,7 +84,8 @@ theorem solveTail_spec_bits {g g' : Globals} {pk10 : Vector UInt8 11}
   · rw [if_pos hz] at hrun
     replace hrun : (EStateM.Result.ok 0 g : EStateM.Result Error Globals UInt8) = .ok r g' := hrun
     have hr : r = 0 := (EStateM.Result.ok.inj hrun).1.symm
-    exact ⟨Or.inl hr, Or.inl ⟨by simpa using hz, hr⟩⟩
+    have hg : g' = g := (EStateM.Result.ok.inj hrun).2.symm
+    exact ⟨Or.inl hr, ⟨hg ▸ hcor, g.hashmap, by rw [hg]⟩, Or.inl ⟨by simpa using hz, hr⟩⟩
   · rw [if_neg hz, bind_ok (show (pure PUnit.unit : EStateM Error Globals PUnit) g
       = .ok PUnit.unit g from rfl)] at hrun
     dsimp only at hrun
@@ -100,7 +115,10 @@ theorem solveTail_spec_bits {g g' : Globals} {pk10 : Vector UInt8 11}
       rw [bind_error hrc] at hrun
       simp at hrun
     | ok cs g2 =>
-      obtain ⟨⟨hcsspec, hcsloc⟩, -, -⟩ := recCheckSolvableSpec g g2 p cs hwf hcan hcor hrc
+      obtain ⟨⟨hcsspec, hcsloc⟩, hcor2, -⟩ := recCheckSolvableSpec g g2 p cs hwf hcan hcor hrc
+      -- the frame: `solverRecCheckSolvable` writes nothing but the memo table
+      obtain ⟨-, -, hframe⟩ :=
+        recCheckSolvableSound g g2 p cs (wfGlobals_of_correct hwf hcor) hcan hrc
       rw [bind_ok hrc] at hrun
       -- the `subsetTable` read: the answer stays inside its block, and blocks fit below 100
       have hsolvloc : (cs &&& (fk >>> (closureInfoOf p).shiftValue.toUInt16)).toNat
@@ -151,13 +169,17 @@ theorem solveTail_spec_bits {g g' : Globals} {pk10 : Vector UInt8 11}
         replace hrun : (EStateM.Result.ok 0 g2 : EStateM.Result Error Globals UInt8)
             = .ok r g' := hrun
         have hr : r = 0 := (EStateM.Result.ok.inj hrun).1.symm
-        exact ⟨Or.inl hr, Or.inr ⟨cs, hcsloc, hcsspec, fun _ => hbit, fun _ => hr⟩⟩
+        have hg : g' = g2 := (EStateM.Result.ok.inj hrun).2.symm
+        exact ⟨Or.inl hr, ⟨hg ▸ hcor2, hg ▸ hframe⟩,
+          Or.inr ⟨cs, hcsloc, hcsspec, fun _ => hbit, fun _ => hr⟩⟩
       · rw [if_neg htest] at hrun
         replace hrun : (EStateM.Result.ok 2 g2 : EStateM.Result Error Globals UInt8)
             = .ok r g' := hrun
         obtain ⟨h2r, -⟩ := EStateM.Result.ok.inj hrun
         have hr : r = 2 := h2r.symm
-        refine ⟨Or.inr hr, Or.inr ⟨cs, hcsloc, hcsspec, ?_, fun hbit => ?_⟩⟩
+        have hg : g' = g2 := (EStateM.Result.ok.inj hrun).2.symm
+        refine ⟨Or.inr hr, ⟨hg ▸ hcor2, hg ▸ hframe⟩,
+          Or.inr ⟨cs, hcsloc, hcsspec, ?_, fun hbit => ?_⟩⟩
         · intro h0
           exact absurd (hr.symm.trans h0) (by decide)
         · refine absurd ?_ htest
@@ -198,9 +220,10 @@ theorem solveTail_correct {g g' : Globals} {pk10 : Vector UInt8 11} {s v : State
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
     (hsim : SimulatesNorm g s P (kingCfgOf pk10 hs10) v p k' FK fk)
     (hrun : solveTail pk10 fk p g = .ok r g') :
-    (r = UInt8.ofNat NOMOVE ∧ ¬ isSolvable s) ∨ (r = UInt8.ofNat SUCCESS ∧ isSolvable s) := by
-  obtain ⟨hcode, hbits⟩ := solveTail_spec_bits hwf hcor hcan hs10 hrun
-  refine answer_of_iff hcode ?_
+    (HashmapCorrect g' ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm }) ∧
+    ((r = UInt8.ofNat NOMOVE ∧ ¬ isSolvable s) ∨ (r = UInt8.ofNat SUCCESS ∧ isSolvable s)) := by
+  obtain ⟨hcode, hfr, hbits⟩ := solveTail_spec_bits hwf hcor hcan hs10 hrun
+  refine ⟨hfr, answer_of_iff hcode ?_⟩
   rcases hbits with ⟨hz, hr0⟩ | ⟨cs, hcsloc, hcsspec, hiff⟩
   · exact ⟨fun _ => Solvable.of_reach hsim.reach.toReach
       (solvable_of_hash_zero hcan hsim.cfg.toMatches hz), fun _ => hr0⟩
@@ -227,7 +250,8 @@ theorem solve_correct {g g' : Globals} {pk10 : Vector UInt8 11} {s : State} {r :
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
     (hmatch : StateMatchesKingConfig g s (convertPre g pk10) (kingCfgOf pk10 hs10))
     (hrun : EStateM.run (_root_.solve pk10) g = .ok r g') :
-    (r = UInt8.ofNat NOMOVE ∧ ¬ isSolvable s) ∨ (r = UInt8.ofNat SUCCESS ∧ isSolvable s) := by
+    (HashmapCorrect g' ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm }) ∧
+    ((r = UInt8.ofNat NOMOVE ∧ ¬ isSolvable s) ∨ (r = UInt8.ofNat SUCCESS ∧ isSolvable s)) := by
   obtain ⟨fk, p, v, k', FK, hrunC, hcan, hsim⟩ :=
     convert_simulates g hwf pk10 hpk emptySolverPosType s (kingCfgOf pk10 hs10) hmatch
   have hrun' : _root_.solve pk10 g = .ok r g' := hrun
@@ -247,7 +271,8 @@ theorem solve_correct_of_normReach {g g' : Globals} {pk10 : Vector UInt8 11} {s 
     (hreach : NormReach s w)
     (hmatch : StateMatchesKingConfig g w (convertPre g pk10) (kingCfgOf pk10 hs10))
     (hrun : EStateM.run (_root_.solve pk10) g = .ok r g') :
-    (r = UInt8.ofNat NOMOVE ∧ ¬ isSolvable s) ∨ (r = UInt8.ofNat SUCCESS ∧ isSolvable s) := by
+    (HashmapCorrect g' ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm }) ∧
+    ((r = UInt8.ofNat NOMOVE ∧ ¬ isSolvable s) ∨ (r = UInt8.ofNat SUCCESS ∧ isSolvable s)) := by
   rw [← Solvable_iff_isSolvable, normReach_solvable_iff (fun c =>
     (hreach.toReach.countState_eq c).trans (hmatch.toMatches.cards_count c)) hreach,
     Solvable_iff_isSolvable]
