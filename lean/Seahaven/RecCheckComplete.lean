@@ -48,7 +48,7 @@ solved, *is* solvable.  That case is the caller's `hash = 0` leaf, which answers
 theorem exists_pos_pileDepth_of_hash_ne_zero {g : Globals} {p : SolverPosType}
     (hb : SolverInvBase g p) (hz : p.hash ≠ 0) : ∃ i : Fin 10, 0 < (p.pileDepth.get i).toNat := by
   by_contra hcon
-  push_neg at hcon
+  push Not at hcon
   refine hz ?_
   have hall : ∀ i : Fin 10, (p.pileDepth.get i).toNat.toUInt32 = 0 := by
     intro i

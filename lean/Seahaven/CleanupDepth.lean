@@ -125,7 +125,7 @@ theorem cleanupPile_depth {g : Globals} {w : State} {q0 : SolverPosType}
         have hone : PileMatches g (w.tableau ⟨pile.toNat, hpile⟩) ⟨pile.toNat, hpile⟩
             (⟨1, by omega⟩ : Fin 6) :=
           PileMatches_lower hwf hmatch0 (le_refl 1) hd1N
-            (fun j hj1 hj2 hja hjb => hchain j (by simp only [Fin.val_mk] at hj1; omega)
+            (fun j hj1 hj2 hja hjb => hchain j (by simp only at hj1; omega)
               hj2 hja hjb)
         -- the remaining dealt card is a king
         have hzero : ((q0.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m - 1).toUInt32.toNat = 0 := by
@@ -159,9 +159,9 @@ theorem cleanupPile_depth {g : Globals} {w : State} {q0 : SolverPosType}
           exact depth1_toNat (d := q0.pileDepth.get ⟨pile.toNat, hpile⟩) (m := m) hd5N (by omega)
         refine ⟨by omega, fun _ => PileMatches_of_val_eq
           (n := ⟨(q0.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - m, by omega⟩) ?_ hval⟩
-        exact PileMatches_lower hwf hmatch0 (by simp only [Fin.val_mk]; omega)
-          (by simp only [Fin.val_mk]; omega)
-          (fun j hj1 hj2 hja hjb => hchain j (by simp only [Fin.val_mk] at hj1; omega) hj2 hja hjb)
+        exact PileMatches_lower hwf hmatch0 (by simp only; omega)
+          (by simp only; omega)
+          (fun j hj1 hj2 hja hjb => hchain j (by simp only at hj1; omega) hj2 hja hjb)
     · -- every other pile keeps its depth
       have hval : (p'.pileDepth.get i).toNat = (q0.pileDepth.get i).toNat := by
         by_cases hk : ((q0.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m == 1 &&
@@ -318,12 +318,12 @@ theorem kingVacates_cleanupPile {g : Globals} {w : State} {q0 : SolverPosType}
       have hd1N : 1 ≤ (q0.pileDepth.get ⟨pile.toNat, hpile⟩).toNat := hd1
       have hmatch0 := hdm ⟨pile.toNat, hpile⟩ (by omega)
       obtain ⟨hlen, hbot, -⟩ := hmatch0
-      simp only [Fin.val_mk] at hlen
+      simp only at hlen
       have hrev0 : 0 < (w.tableau ⟨pile.toNat, hpile⟩).reverse.length := by
         simp only [List.length_reverse]; omega
       have hb0 : encodeCard ((w.tableau ⟨pile.toNat, hpile⟩).reverse[0]'hrev0)
           = (g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨0, by omega⟩ := by
-        have hk0 := hbot ⟨0, by simp only [Fin.val_mk]; omega⟩
+        have hk0 := hbot ⟨0, by simp only; omega⟩
         rw [List.getElem?_eq_getElem hrev0, Option.map_some, Option.some.injEq] at hk0
         exact hk0
       -- the remaining dealt card is `B + m`

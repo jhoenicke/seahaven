@@ -313,7 +313,7 @@ def ReachableEntry : Prop :=
           (kingCfgOf (pilesKingsFromState s) (pilesKings_get10_lt16 s))
 
 /-- **Obligation 2a, discharged** (`ReachableMatch`). -/
-theorem reachableEntry : ReachableEntry := fun sh g hinv s hreach =>
+theorem reachableEntry : ReachableEntry := fun _ _ hinv s hreach =>
   exists_cvEntry hinv.1 (matchesLayout_of_reachable hinv hreach) (pilesKings_get10_lt16 s)
 
 /-- **Obligation 2, assembled.**  `solve_correct_lax` answers about the state the
