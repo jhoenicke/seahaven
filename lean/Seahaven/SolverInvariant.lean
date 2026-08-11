@@ -1,4 +1,4 @@
-import Mathlib.Tactic
+import Seahaven.MathlibImports
 import Seahaven.Solver
 import Seahaven.UInt8Lemmas
 

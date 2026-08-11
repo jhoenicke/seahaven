@@ -1,5 +1,4 @@
-import Mathlib.Tactic
-import Mathlib.Logic.Relation
+import Seahaven.MathlibImports
 import Seahaven.Rules
 import Seahaven.CountProofs
 

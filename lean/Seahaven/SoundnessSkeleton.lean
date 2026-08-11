@@ -141,11 +141,9 @@ theorem subsetAt_or_80 : ∀ a b : Fin 16,
     subsetAt (80 + (a.val ||| b.val)) = subsetAt (80 + a.val) ||| subsetAt (80 + b.val) := by
   decide
 
-set_option maxRecDepth 100000 in
-set_option maxHeartbeats 2000000 in
 theorem subsetAt_or_16 : ∀ a b : Fin 64,
     subsetAt (16 + (a.val ||| b.val)) = subsetAt (16 + a.val) ||| subsetAt (16 + b.val) := by
-  decide
+  native_decide
 
 theorem subsetAt_or_block (f : Fin 11) (a b : Nat)
     (ha : a < 2 ^ (closureInfos.get f).numBits.toNat)
@@ -458,12 +456,10 @@ theorem subsetAt_spec_80 : ∀ (T : Fin 16) (c : Fin 16),
       ∃ i : Fin 4, T.val.testBit i.val = true ∧ MaskSub ⟨1 + i.val, by omega⟩ c := by
   decide
 
-set_option maxRecDepth 100000 in
-set_option maxHeartbeats 1000000 in
 theorem subsetAt_spec_16 : ∀ (T : Fin 64) (c : Fin 16),
     BitSet (subsetAt (16 + T.val)) c ↔
       ∃ i : Fin 6, T.val.testBit i.val = true ∧ MaskSub ⟨5 + i.val, by omega⟩ c := by
-  decide
+  native_decide
 
 /-! ### Consequences
 
