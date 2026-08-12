@@ -61,14 +61,6 @@ private theorem dest_idx_eq {d : UInt8} (hd1 : 1 ≤ d.toNat) (_hd5 : d.toNat �
     (by rw [UInt8.le_iff_toNat_le]; show 1 ≤ _; omega)]
   rfl
 
-/-- A real card's code is a valid `card2*` index. -/
-private theorem real_lt64 {c : UInt8} (h : IsRealCard c) : c.toNat < 64 := by
-  have h1 := h.1
-  have h2 := h.2.2
-  have h3 := SUIT_toNat c
-  have h4 := VALUE_toNat c
-  omega
-
 /-- **The only card the composed destination step newly frees is `pile`'s own
     boundary card `B`.**  `isFreeCard` reads nothing but `pileDepth`, and the
     composed state's `pileDepth` differs from `p`'s only at `pile`, where it has
@@ -85,7 +77,7 @@ private theorem dest_free_char (g : Globals) (p q : SolverPosType) (pile : UInt3
     isFreeCard g p c ∨
       c = (g.pos2card.get ⟨pile.toNat, hpile⟩).get
         ⟨(p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1, by omega⟩ := by
-  have hc64 : c.toNat < 64 := real_lt64 hcreal
+  have hc64 : c.toNat < 64 := IsRealCard_lt64 hcreal
   have hp64 : (cardPile g c).toNat < 10 := hwf.pile_lt c hcreal
   have hge := isFree_to_cardDepth_ge g q hwf c hc64 hp64 hfree
   by_cases hcp : (cardPile g c).toNat = pile.toNat
@@ -134,7 +126,7 @@ private theorem dest_B_free (g : Globals) (p q : SolverPosType) (pile : UInt32)
   set B := (g.pos2card.get ⟨pile.toNat, hpile⟩).get
     (⟨(p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1, by omega⟩ : Fin 5) with hBdef
   have hreal : IsRealCard B := hwf.pos2card_real _ _
-  have hc64 : B.toNat < 64 := real_lt64 hreal
+  have hc64 : B.toNat < 64 := IsRealCard_lt64 hreal
   obtain ⟨hcpB, hcdB⟩ := hwf.round_trip_inv (⟨pile.toNat, hpile⟩ : Fin 10)
     (⟨(p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1, by omega⟩ : Fin 5)
   have hp64 : (cardPile g B).toNat < 10 := by rw [hcpB]; exact hpile
@@ -163,7 +155,7 @@ private theorem slot_not_free {g : Globals} {q : SolverPosType} (hwf : WellForme
   intro hfree
   set c := (g.pos2card.get i).get d with hcdef
   have hreal : IsRealCard c := hwf.pos2card_real i d
-  have hc64 : c.toNat < 64 := real_lt64 hreal
+  have hc64 : c.toNat < 64 := IsRealCard_lt64 hreal
   obtain ⟨hcp, hcd⟩ := hwf.round_trip_inv i d
   have hp64 : (cardPile g c).toNat < 10 := by rw [hcp]; exact i.isLt
   have hge := isFree_to_cardDepth_ge g q hwf c hc64 hp64 hfree

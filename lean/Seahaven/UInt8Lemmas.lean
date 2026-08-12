@@ -66,6 +66,26 @@ theorem VALUE_toNat (c : UInt8) : (VALUE c).toNat = c.toNat % 16 := by
 theorem SUIT_toNat (c : UInt8) : (SUIT c).toNat = c.toNat / 16 := by
   simp [SUIT, Nat.shiftRight_eq_div_pow]
 
+/-- `c` is a **real card**: suit in `0..3`, value in `1..13`.  (Consequently
+    `c.toNat ≤ 3*16+13 = 61 < 64`, so it is a valid `card2*` index.)
+
+    Here rather than beside the solver invariant because both sides of the codec
+    need it: the solver-side proofs as the domain of `WellFormedLayout`, and the
+    `Rules`-side bridge as the image of `encodeCard`. -/
+def IsRealCard (c : UInt8) : Prop :=
+  (SUIT c).toNat < 4 ∧ 1 ≤ (VALUE c).toNat ∧ (VALUE c).toNat ≤ 13
+
+instance (c : UInt8) : Decidable (IsRealCard c) :=
+  inferInstanceAs (Decidable (_ ∧ _ ∧ _))
+
+/-- A real card's code is a valid `card2*` index. -/
+theorem IsRealCard_lt64 {c : UInt8} (h : IsRealCard c) : c.toNat < 64 := by
+  have h1 := h.1
+  have h2 := h.2.2
+  have h3 := SUIT_toNat c
+  have h4 := VALUE_toNat c
+  omega
+
 /-- `CARD s v` as raw `Nat` arithmetic, wrap-free for `s<16, v<16`. -/
 theorem CARD_toNat {s v : Nat} (hs : s < 16) (hv : v < 16) :
     (CARD (UInt8.ofNat s) (UInt8.ofNat v)).toNat = s * 16 + v := by

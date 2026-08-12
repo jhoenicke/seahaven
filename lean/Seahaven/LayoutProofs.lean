@@ -15,8 +15,8 @@ the low-level `Globals` / `UInt8` card-code world used by the solver.
 Two layers of properties are developed:
 
 1. **Encoding**: bijection between `Rules.Card` and valid `UInt8` card codes.
-   (`IsValidCard` is definitionally `SolverInvariant.IsRealCard`; well-formedness
-   of the `Globals` arrays lives there, as `WellFormedLayout`.)
+   (`IsRealCard` — the image of `encodeCard` — is in `UInt8Lemmas`; well-formedness
+   of the `Globals` arrays lives in `SolverInvariant`, as `WellFormedLayout`.)
 2. **`StateMatchesLayout`**: a `State` is compatible with a layout,
    meaning the cards in each tableau column correspond to what the layout
    recorded for those positions.
@@ -112,34 +112,14 @@ def decodeCard (code : UInt8) : Option Card :=
     | none   => none
   else none
 
-/-- A `UInt8` code is a **valid card** if its high nibble is a suit (0-3)
-    and its low nibble is a rank value (1-13). -/
-def IsValidCard (code : UInt8) : Prop :=
-  (code >>> 4).toNat < 4 ∧
-  1 ≤ (code &&& 0xf).toNat ∧ (code &&& 0xf).toNat ≤ 13
-
-instance (code : UInt8) : Decidable (IsValidCard code) :=
-  inferInstanceAs (Decidable (_ ∧ _ ∧ _))
-
-theorem encodeCard_valid (c : Card) : IsValidCard (encodeCard c) := by
+theorem encodeCard_real (c : Card) : IsRealCard (encodeCard c) := by
   have hs : suitToNat c.suit < 4 := suitToNat_lt c.suit
   have hv1 : 1 ≤ rankToNat c.rank := by cases c.rank <;> decide
   have hv2 : rankToNat c.rank ≤ 13 := rankBounded c.rank
-  -- `IsValidCard` spells the nibbles out, so bridge to `SUIT`/`VALUE` first
-  have h1 : ((encodeCard c) >>> 4).toNat = suitToNat c.suit := by
-    rw [show ((encodeCard c) >>> 4) = SUIT (encodeCard c) from rfl, SUIT_toNat,
-      encodeCard_toNat]
-    omega
-  have h2 : ((encodeCard c) &&& 0xf).toNat = rankToNat c.rank := encodeCard_VALUE c
+  have h1 : (SUIT (encodeCard c)).toNat = suitToNat c.suit := by
+    rw [SUIT_toNat, encodeCard_toNat]; omega
+  have h2 : (VALUE (encodeCard c)).toNat = rankToNat c.rank := encodeCard_VALUE c
   exact ⟨by omega, by omega, by omega⟩
-
-/-- Valid card codes fit in the 64-entry lookup arrays. -/
-theorem IsValidCard_lt64 {code : UInt8} (h : IsValidCard code) : code.toNat < 64 := by
-  obtain ⟨hs, _, _⟩ := h
-  -- (code >>> 4).toNat = code.toNat / 16, so code.toNat / 16 < 4 → code.toNat < 64
-  have hshift : (code >>> 4).toNat = code.toNat / 16 := by
-    simp [UInt8.toNat_shiftRight, Nat.shiftRight_eq_div_pow]
-  omega
 
 theorem decodeCard_encodeCard (c : Card) : decodeCard (encodeCard c) = some c := by
   have hs : suitToNat c.suit < 4 := suitToNat_lt c.suit

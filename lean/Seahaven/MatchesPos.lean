@@ -26,18 +26,6 @@ that this relation still holds at the intermediate, non-canonical positions that
 simulation argument needs.
 -/
 
-/-! ## `IsValidCard` is `IsRealCard` -/
-
-/-- The two spellings of "this `UInt8` codes a real card" coincide definitionally:
-`SUIT c` is `c >>> 4` and `VALUE c` is `c &&& 0xf`. -/
-theorem isValidCard_iff_isRealCard (c : UInt8) : IsValidCard c ↔ IsRealCard c := Iff.rfl
-
-theorem IsRealCard_lt64 {c : UInt8} (h : IsRealCard c) : c.toNat < 64 :=
-  IsValidCard_lt64 ((isValidCard_iff_isRealCard c).2 h)
-
-theorem encodeCard_real (c : Card) : IsRealCard (encodeCard c) :=
-  (isValidCard_iff_isRealCard _).1 (encodeCard_valid c)
-
 /-! ## Encoding a foundation -/
 
 /-- The `Fin 4` index the solver uses for a suit. -/

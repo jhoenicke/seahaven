@@ -27,11 +27,6 @@ def cardPile (g : Globals) (c : UInt8) : UInt8 :=
 def cardDepth (g : Globals) (c : UInt8) : UInt8 :=
   if h : c.toNat < 64 then g.card2depth.get ⟨c.toNat, h⟩ else 0
 
-/-- `c` is a **real card**: suit in `0..3`, value in `1..13`.  (Consequently
-    `c.toNat ≤ 3*16+13 = 61 < 64`, so it is a valid `card2*` index.) -/
-def IsRealCard (c : UInt8) : Prop :=
-  (SUIT c).toNat < 4 ∧ 1 ≤ (VALUE c).toNat ∧ (VALUE c).toNat ≤ 13
-
 /-- **Well-formed layout** (cf. `VerificationPlan.md §1`).  The deal arrays are
     mutually consistent: `card2pile`/`card2depth` locate each real card, the two
     extra cards (deal positions 50–51) carry the sentinel depth `5`, `pos2card`
