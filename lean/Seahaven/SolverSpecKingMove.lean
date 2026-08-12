@@ -433,36 +433,6 @@ theorem kingMove_pileMerged_ne (pile : UInt32) (g : Globals) (hpile : pile.toNat
     rw [hboundEq2, hfeq, haeq, hbeq]
     exact hpm.busyAces_complete hdi'
 
-/-- Invariant-free twin of `depth_card_not_free`: the same argument, but
-    without the (unused) `SolverInvBase g p` hypothesis, so it applies at
-    positions where only a `PileClean`/`PileBase` fact (not the full tower) is
-    available — exactly what `kingMove_suitClean` has for pile `pile`. -/
-private theorem depth_card_not_free_of_wf {g : Globals} {p : SolverPosType}
-    (hwf : WellFormedLayout g) (i : Fin 10) (d : Fin 5)
-    (hd : d.val < (p.pileDepth.get i).toNat) :
-    ¬ isFreeCard g p ((g.pos2card.get i).get d) := by
-  set c := (g.pos2card.get i).get d with hcdef
-  have hreal : IsRealCard c := hwf.pos2card_real i d
-  have h64 : c.toNat < 64 := by
-    have hsn := SUIT_toNat c
-    have h1 := hreal.1
-    omega
-  obtain ⟨hpileEq, hdepthEq⟩ := hwf.round_trip_inv i d
-  unfold isFreeCard
-  simp only [dif_pos h64]
-  have hpileEq' : g.card2pile.get ⟨c.toNat, h64⟩ = cardPile g c := by unfold cardPile; simp [h64]
-  have hpile64 : (cardPile g c).toNat < 10 := hpileEq' ▸ hwf.card2pile_lt c.toNat h64
-  simp only [hpileEq', dif_pos hpile64]
-  have hdepthEq' : g.card2depth.get ⟨c.toNat, h64⟩ = cardDepth g c := by
-    unfold cardDepth; simp [h64]
-  rw [hdepthEq']
-  have hpileI : (⟨(cardPile g c).toNat, hpile64⟩ : Fin 10) = i := Fin.ext hpileEq
-  rw [show (p.pileDepth.get ⟨(cardPile g c).toNat, hpile64⟩) = p.pileDepth.get i from
-    congrArg p.pileDepth.get hpileI]
-  have hdepthEq2 : (cardDepth g c).toNat = d.val := hdepthEq
-  show ¬ (cardDepth g c).toNat ≥ (p.pileDepth.get i).toNat
-  omega
-
 set_option maxHeartbeats 1000000 in
 /-- **`SuitClean` holds for every suit `s` after `kingMove`.**  Split on
     whether `s` is the drained suit (`s.val = (SUIT K).toUInt32.toNat`, where
@@ -529,7 +499,7 @@ theorem kingMove_suitClean (pile : UInt32) (g : Globals) (hpile : pile.toNat < 1
     rw [hKeqBoundary, UInt8.toNat_toUInt32]
   have hKnotfree : ¬ isFreeCard g p K := by
     rw [← hKeqBoundary]
-    exact depth_card_not_free_of_wf hwf (⟨pile.toNat, hpile⟩ : Fin 10)
+    exact depth_card_not_free_wf hwf (⟨pile.toNat, hpile⟩ : Fin 10)
       ⟨(p.pileDepth.get (⟨pile.toNat, hpile⟩ : Fin 10)).toNat - 1, hidxpf⟩ (by
         show (p.pileDepth.get (⟨pile.toNat, hpile⟩ : Fin 10)).toNat - 1 <
           (p.pileDepth.get (⟨pile.toNat, hpile⟩ : Fin 10)).toNat

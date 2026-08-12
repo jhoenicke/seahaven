@@ -30,7 +30,7 @@ theorem not_mem_column_of_covered {u : State} (hcount : ∀ c : Card, countState
   have h1 : countFoundation u.foundations c = 1 := by
     unfold countFoundation
     rw [if_neg (by omega)]
-  have h2 : 1 ≤ countColumn (u.tableau j) c := one_le_countColumn_of_mem hmem
+  have h2 : 1 ≤ countColumn (u.tableau j) c := one_le_countColumn hmem
   have h3 : countColumn (u.tableau j) c ≤ countTableau u.tableau c :=
     le_sum_ofFn (fun k : Fin 10 => countColumn (u.tableau k) c) j
   have h := hcount c

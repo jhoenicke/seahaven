@@ -95,9 +95,7 @@ theorem ctz_lt_of_lt_two_pow {x : UInt8} {k : Nat} (hne : x ≠ 0) (hlt : x.toNa
 
 /-- **The shape the callers want.**  `busyAces` is a nonzero *4-bit* mask
     (`SolverInvBase.busyAces_lt16`, plus "some bit is set"), so its lowest set bit
-    is a suit index.  Stated on `x < 16` and `x ≠ 0` directly: those are the two
-    facts every caller has, and the low-nibble mask they used to route through
-    (`_ &&& 0x0F ≠ 0`) was pure detour. -/
+    is a suit index.  Stated on `x < 16` and `x ≠ 0`. -/
 theorem ctz_lt_four {x : UInt8} (hlt16 : x < 16) (hne : x ≠ 0) : ctz x < 4 := by
   refine ctz_lt_of_lt_two_pow hne ?_
   rw [UInt8.lt_iff_toNat_lt, show (16 : UInt8).toNat = 16 from by decide] at hlt16

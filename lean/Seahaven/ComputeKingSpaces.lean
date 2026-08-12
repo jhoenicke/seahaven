@@ -129,7 +129,7 @@ private theorem int32_four_toInt : ((4 : Int32)).toInt = 4 := by decide
 private theorem int32_one_toInt : ((1 : Int32)).toInt = 1 := by decide
 
 /-- The guard, as an arithmetic statement. -/
-private theorem bit_guard_iff (u : Int32) : (u ≤ (4 : Int32)) ↔ u.toInt ≤ 4 := by
+theorem bit_guard_iff (u : Int32) : (u ≤ (4 : Int32)) ↔ u.toInt ≤ 4 := by
   rw [Int32.le_iff_toInt_le, int32_four_toInt]
 
 /-- The entry the loop writes at effective space `u`. -/
@@ -144,7 +144,7 @@ private theorem bitIdx_eq (u : Int32) (h1 : -60 ≤ u.toInt) (h2 : u.toInt ≤ 4
   have hsub : ((4 : Int32) - u).toInt = 4 - u.toInt := by
     rw [int32_toInt_sub _ _ (by rw [int32_four_toInt]; omega)
       (by rw [int32_four_toInt]; omega), int32_four_toInt]
-  rw [bitIdx, int32_toUInt32_toNat _ (by rw [hsub]; omega), hsub]
+  rw [bitIdx, Int32.toUInt32_toNat_of_nonneg _ (by rw [hsub]; omega), hsub]
 
 /-- One iteration of the bit loop, when the write index is in range. -/
 private theorem bitBody_yield (bit : UInt8) (s : Globals) (ki : KingInfo) (u : Int32)

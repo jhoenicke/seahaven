@@ -339,6 +339,13 @@ theorem StateMatchesSolverPos.king_pile_contents {g : Globals} {s : State} {p : 
   have hvx := VALUE_toNat x
   omega
 
+/-- An empty column matches a solver-empty pile. -/
+theorem PileMatches_nil {g : Globals} {i : Fin 10} {n : Fin 6} (hn : n.val = 0) :
+    PileMatches g [] i n := by
+  refine ⟨by omega, fun k => absurd k.isLt (by omega), ?_⟩
+  simp only [hn, gt_iff_lt, lt_self_iff_false, dif_neg, not_false_eq_true]
+  exact ⟨0, fun i => i.elim0⟩
+
 /-! ### At most one pile per suit
 
 Identifying *which* pile carries a suit's stack needs a no-duplicates argument:

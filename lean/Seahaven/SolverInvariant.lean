@@ -921,7 +921,7 @@ theorem RealCardsFinset.card_eq : RealCardsFinset.card = 52 := by decide
 
 /-- `Vector.toList.foldl (fun acc x => acc + f x) 0 = Σ f (v.get i)`: bridges
     `usedSpace_def`'s `List.foldl`-based sums to `Finset.sum` over `Fin n`. -/
-private theorem list_foldl_add_eq_sum (l : List Nat) : l.foldl (·+·) 0 = l.sum := by
+theorem list_foldl_add_eq_sum (l : List Nat) : l.foldl (·+·) 0 = l.sum := by
   induction l with
   | nil => simp
   | cons a l ih =>
@@ -930,7 +930,7 @@ private theorem list_foldl_add_eq_sum (l : List Nat) : l.foldl (·+·) 0 = l.sum
     simp only [Nat.add_zero] at h
     rw [h, ih, List.sum_cons]
 
-private theorem vector_foldl_add_eq_finsum {n : Nat} {α : Type} (v : Vector α n) (f : α → Nat) :
+theorem vector_foldl_add_eq_finsum {n : Nat} {α : Type} (v : Vector α n) (f : α → Nat) :
     v.toList.foldl (fun acc x => acc + f x) 0 = ∑ i : Fin n, f (v.get i) := by
   have h1 : v.toList = List.ofFn v.get := by
     apply List.ext_getElem
@@ -953,7 +953,7 @@ private theorem zipWith_toList_eq_ofFn {n : Nat} {α β γ : Type} (g : α → �
     simp only [List.getElem_ofFn, List.getElem_zipWith]
     congr 1
 
-private theorem zipWith_foldl_add_eq_finsum {n : Nat} {α β : Type}
+theorem zipWith_foldl_add_eq_finsum {n : Nat} {α β : Type}
     (v1 : Vector α n) (v2 : Vector β n) (g : α → β → Nat) :
     (List.zipWith g v1.toList v2.toList).foldl (·+·) 0 = ∑ i : Fin n, g (v1.get i) (v2.get i) := by
   rw [zipWith_toList_eq_ofFn, list_foldl_add_eq_sum, List.sum_ofFn]

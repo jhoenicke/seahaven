@@ -276,16 +276,6 @@ theorem pileMatches_removeFluteDepth {g : Globals} (hwf : WellFormedLayout g)
 Needed to pin `kings`: the king of a suit is at the bottom of at most one column, so
 "the length of the column carrying suit `su`'s run" is well defined. -/
 
-theorem one_le_countColumn_of_mem {xs : List Card} {c : Card} (h : c ∈ xs) :
-    1 ≤ countColumn xs c := by
-  induction xs with
-  | nil => exact absurd h (by simp)
-  | cons x rest ih =>
-    rw [countColumnPush]
-    rcases List.mem_cons.1 h with rfl | hm
-    · simp [countCard]
-    · have := ih hm; omega
-
 theorem le_sum_ofFn {n : Nat} (f : Fin n → Nat) (i : Fin n) : f i ≤ (List.ofFn f).sum := by
   rw [List.sum_ofFn]
   exact Finset.single_le_sum (f := f) (fun j _ => Nat.zero_le _) (Finset.mem_univ i)
@@ -294,7 +284,7 @@ theorem le_sum_ofFn {n : Nat} (f : Fin n → Nat) (i : Fin n) : f i ≤ (List.of
 theorem not_mem_cell_of_mem_column {u : State} (hcount : ∀ c : Card, countState u c = 1)
     {c : Card} {j : Fin 10} (hmem : c ∈ u.tableau j) (i : Fin 4) : u.cells i ≠ some c := by
   intro hcell
-  have h1 : 1 ≤ countColumn (u.tableau j) c := one_le_countColumn_of_mem hmem
+  have h1 : 1 ≤ countColumn (u.tableau j) c := one_le_countColumn hmem
   have h2 : countColumn (u.tableau j) c ≤ countTableau u.tableau c :=
     le_sum_ofFn (fun k : Fin 10 => countColumn (u.tableau k) c) j
   have h3 : 1 ≤ countCells u.cells c := by
@@ -316,8 +306,8 @@ theorem add_le_sum_ofFn {n : Nat} (f : Fin n → Nat) {i j : Fin n} (hij : i ≠
 theorem column_eq_of_mem {s : State} (hcount : ∀ c : Card, countState s c = 1)
     {c : Card} {i j : Fin 10} (hi : c ∈ s.tableau i) (hj : c ∈ s.tableau j) : i = j := by
   by_contra hij
-  have h1 := one_le_countColumn_of_mem hi
-  have h2 := one_le_countColumn_of_mem hj
+  have h1 := one_le_countColumn hi
+  have h2 := one_le_countColumn hj
   have hsum := add_le_sum_ofFn (fun k : Fin 10 => countColumn (s.tableau k) c) hij
   have h := hcount c
   unfold countState countTableau at h
@@ -395,8 +385,6 @@ theorem PileMatches.length_le_of_zero {g : Globals} {col : Column} {a : Fin 10} 
   omega
 
 /-! ## The `kingBit` bitmap -/
-
-theorem suit_idxOf (su : Suit) : allSuits.idxOf su = suitToNat su := by cases su <;> rfl
 
 /-- Pile `i` carries suit `su`'s king run: the encoding calls it empty, and its top
 card — hence its whole run — is of suit `su`. -/

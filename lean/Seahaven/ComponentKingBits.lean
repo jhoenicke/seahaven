@@ -58,9 +58,6 @@ theorem component_eq_explicit : computeComponentKingBits = componentExplicit := 
 No vector is written, so unlike `computeKingSpaces` this loop always succeeds; the
 only bound needed is that the block fits inside `grlex2bits`. -/
 
-private theorem guard_iff (u : Int32) : (u ≤ (4 : Int32)) ↔ u.toInt ≤ 4 := by
-  rw [Int32.le_iff_toInt_le, show ((4 : Int32)).toInt = 4 from by decide]
-
 private theorem pure_apply {α : Type} (a : α) (t : Globals) :
     (EStateM.pure a : EStateM Error Globals α) t = .ok a t := rfl
 
@@ -83,10 +80,10 @@ theorem compBody_run (info : ClosureInfo) (game : SolverPosType) (s : Globals) (
     exact getElem?_pos grlex2bits (cfgIdx info.shiftValue i) hcfg
   simp only [compBody, bind, EStateM.bind, pure, Vector.getE, cfgIdx] at hgrl ⊢
   by_cases hu : (blockSpace info.shiftValue game i).toInt ≤ 4
-  · have hg : effSpace game (blockBitmap info.shiftValue i) ≤ (4 : Int32) := (guard_iff _).2 hu
+  · have hg : effSpace game (blockBitmap info.shiftValue i) ≤ (4 : Int32) := (bit_guard_iff _).2 hu
     simp only [hgrl, pure_apply, spaceLoop_run, hg, reduceIte, if_pos hu]
   · have hg : ¬ (effSpace game (blockBitmap info.shiftValue i) ≤ (4 : Int32)) :=
-      fun h => hu ((guard_iff _).1 h)
+      fun h => hu ((bit_guard_iff _).1 h)
     simp only [hgrl, pure_apply, spaceLoop_run, hg, reduceIte, if_neg hu]
 
 theorem compLoop_run (info : ClosureInfo) (game : SolverPosType) (s : Globals) :

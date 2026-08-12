@@ -216,22 +216,10 @@ private theorem vector_toList_ofFn {n : Nat} {α : Type} (v : Vector α n) :
   · intro i h1 h2
     simp [Vector.get]
 
-private theorem vec_sum {n : Nat} {α : Type} (v : Vector α n) (f : α → Nat) :
-    v.toList.foldl (fun acc x => acc + f x) 0 = ∑ i : Fin n, f (v.get i) := by
-  rw [foldl_add_map, vector_toList_ofFn, List.map_ofFn, List.sum_ofFn, Nat.zero_add]
-  rfl
-
 private theorem zipWith_ofFn {n : Nat} {α β γ : Type} (f : α → β → γ)
     (a : Fin n → α) (b : Fin n → β) :
     List.zipWith f (List.ofFn a) (List.ofFn b) = List.ofFn (fun i => f (a i) (b i)) := by
   apply List.ext_getElem <;> simp
-
-private theorem zip_sum {n : Nat} {α β : Type} (v1 : Vector α n) (v2 : Vector β n)
-    (g : α → β → Nat) :
-    (List.zipWith g v1.toList v2.toList).foldl (·+·) 0
-      = ∑ i : Fin n, g (v1.get i) (v2.get i) := by
-  rw [vector_toList_ofFn, vector_toList_ofFn, zipWith_ofFn, foldl_add_self, List.sum_ofFn,
-    Nat.zero_add]
 
 private theorem sum_filter_map {α : Type} (l : List α) (q : α → Bool) (h : α → Nat) :
     ((l.filter q).map h).sum = (l.map (fun a => if q a then h a else 0)).sum := by
@@ -264,8 +252,9 @@ theorem usedSpace_eq_outside {g : Globals} {u : State} {p : SolverPosType}
       = ((cellList u).length : Int) + ((kingList u p).length : Int) := by
   -- the three sums of `usedSpace_def`, in `Finset` form
   have hused := hb.usedSpace_def
-  rw [vec_sum p.pileDepth (fun d => d.toNat), vec_sum p.aces (fun a => (VALUE a).toNat),
-    zip_sum p.pileDepth p.pileFlute
+  rw [vector_foldl_add_eq_finsum p.pileDepth (fun d => d.toNat),
+    vector_foldl_add_eq_finsum p.aces (fun a => (VALUE a).toNat),
+    zipWith_foldl_add_eq_finsum p.pileDepth p.pileFlute
       (fun d f => if d ≠ (0 : UInt8) then f.toNat - 1 else 0)] at hused
   -- the `if` guard, as a guard on the depth's `toNat`
   have hguard : ∀ i : Fin 10,

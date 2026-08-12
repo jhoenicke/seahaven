@@ -426,17 +426,6 @@ theorem moveAces_notfree_bound {g : Globals} {gameF : SolverPosType} {suit : Fin
         c hcsuit' hvpos hcnf hcc
       omega
 
-/-- An empty column matches a solver-empty pile. -/
-private theorem pileMatches_nil {g : Globals} (i : Fin 10) (n : Fin 6) (hn : n.val = 0) :
-    PileMatches g [] i n := by
-  have hn0 : n = (0 : Fin 6) := Fin.ext hn
-  subst hn0
-  refine ⟨by simp, fun k => k.elim0, ?_⟩
-  simp only [List.reverse_nil, List.drop_nil, List.map_nil]
-  split_ifs with h
-  · exact absurd h (by omega)
-  · exact ⟨0, fun i => i.elim0⟩
-
 /-- **The suit-complete tail, as one `Simulates`.**  The walk has run the suit out to
 its king, so the cards it counted are the whole remainder of the suit: they come off the
 cells and — for the one solver-empty column that carried the suit's freed run — off that
@@ -489,7 +478,7 @@ theorem SimulatesNorm.tailPlaysComplete {g : Globals} {w : State} {gameF pF : So
     · simp only [hpFd]
       rcases hdich' i with hsame | ⟨hnil, hd0, -⟩
       · rw [hsame]; exact hk.toMatches.depth_match i
-      · rw [hnil]; exact pileMatches_nil i _ hd0
+      · rw [hnil]; exact PileMatches_nil hd0
     · simp only [hpFd, hpFf] at hi ⊢
       rcases hdich' i with hsame | ⟨-, hd0, -⟩
       · rw [hsame]; exact hk.toMatches.flute_match i hi

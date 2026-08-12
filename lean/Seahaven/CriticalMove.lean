@@ -39,16 +39,6 @@ already parked" hypothesis of `DeckCount.usedSpace_add_flute_le`.
 `not_ready_of_free` both read only the `aces_match` clause.  Along the prefix that
 is all that is available, so both are restated over the bare clause. -/
 
-/-- The foundation top, as a value.  (`not_ready_of_free`'s `hVa`, standalone.) -/
-theorem value_aces_of_aces {u : State} {p : SolverPosType}
-    (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
-    (su : Suit) :
-    (VALUE (p.aces.get (finOfSuit su))).toNat = optRankToNat (u.foundations su) := by
-  have hsu : suitToNat su < 4 := suitToNat_lt _
-  have hf13 := optRankToNat_le (u.foundations su)
-  rw [VALUE_toNat, haces su, encodeFoundation, CARD_toNat (by omega) (by omega)]
-  omega
-
 /-- `ready_code`, over the bare `aces_match` clause. -/
 theorem ready_code_of_aces {u : State} {p : SolverPosType}
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
@@ -205,7 +195,7 @@ theorem no_fmStep_of_depthMatch {g : Globals} {u : State} {p : SolverPosType}
   -- the suit is not yet complete, so `aces + 1` is a real, buried card
   have h13 : (VALUE (p.aces.get (finOfSuit c.suit))).toNat < 13 := by
     have hrb : rankToNat c.rank ≤ 13 := rankBounded _
-    rw [value_aces_of_aces haces c.suit]
+    rw [VALUE_aces_eq haces c.suit]
     omega
   have hp10 : (cardPile g (encodeCard c)).toNat < 10 :=
     hwf.pile_lt _ (encodeCard_real c)

@@ -201,16 +201,6 @@ theorem int32_toInt_sub (a b : Int32) (h1 : -2147483648 ≤ a.toInt - b.toInt)
   rw [Int32.toInt_sub]
   exact Int.bmod_eq_of_le (by omega) (by omega)
 
-theorem int32_toUInt32_toNat (x : Int32) (h0 : 0 ≤ x.toInt) : x.toUInt32.toNat = x.toInt.toNat := by
-  have hb : x.toInt = ((x.toUInt32.toNat : Int)).bmod (2 ^ 32) := by
-    show x.toBitVec.toInt = _
-    rw [BitVec.toInt_eq_toNat_bmod]; rfl
-  have hlt : x.toUInt32.toNat < 2 ^ 32 := x.toUInt32.toNat_lt_size
-  rw [hb] at h0 ⊢
-  rw [Int.bmod] at h0 ⊢
-  norm_num at h0 ⊢
-  omega
-
 /-- The boundary index the code computes, in `Nat` terms: for `1 ≤ depth ≤ 5`,
 `(depth - 1).toUInt32.toNat = depth - 1`. -/
 theorem depth_index (d : UInt8) (h1 : 0 < d.toNat) (h5 : d.toNat ≤ 5) :

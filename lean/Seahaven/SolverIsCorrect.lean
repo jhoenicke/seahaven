@@ -42,11 +42,8 @@ open Lean Lean.Order
 `encodeShuffle (encodeCard c)`; so `decodeShuffle` recovers the solver's card code
 and `dealCards` recovers the `Rules` card. -/
 
-theorem idxOf_suit (su : Suit) : allSuits.idxOf su = suitToNat su := by
-  cases su <;> rfl
-
 theorem cardToNat_eq (c : Card) : cardToNat c = 13 * suitToNat c.suit + rankToNat c.rank := by
-  rw [cardToNat, idxOf_suit]
+  rw [cardToNat, suit_idxOf]
 
 theorem cardToNat_bounds (c : Card) : 1 ≤ cardToNat c ∧ cardToNat c ≤ 52 := by
   rw [cardToNat_eq]

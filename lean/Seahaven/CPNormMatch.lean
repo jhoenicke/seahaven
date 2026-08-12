@@ -109,11 +109,3 @@ theorem exists_match_of_depthMatch {g : Globals} {u : State} {p : SolverPosType}
   intro su
   rw [hfnd]
   exact haces su
-
-/-- **And the position is then forced.**  Two canonical positions cannot both be
-matched by the CP-normal form, so the one reached *is* the solver's child. -/
-theorem canonical_unique_of_depthMatch {g : Globals} {t : State} {p q : SolverPosType}
-    (hwf : WellFormedLayout g) (hp : IsCanonicalPos g p) (hq : IsCanonicalPos g q)
-    (hmp : StateMatchesSolverPos g t p) (hmq : StateMatchesSolverPos g t q)
-    (hlp : NoLoneKing g p) (hlq : NoLoneKing g q) : p = q :=
-  canonical_eq_of_matches hwf hp hq hmp hmq hlp hlq

@@ -144,27 +144,6 @@ private theorem dest_B_free (g : Globals) (p q : SolverPosType) (pile : UInt32)
     omega
   rw [hsub, hcdB]
 
-/-- Invariant-free twin of `depth_card_not_free`: a card still physically
-    resident in its own pile is not free.  (Only `WellFormedLayout` is needed —
-    the tower hypothesis of `depth_card_not_free` is unused there too, but its
-    statement fixes the position, which is exactly what we cannot supply while
-    still *building* the invariant for the post-move state.) -/
-private theorem slot_not_free {g : Globals} {q : SolverPosType} (hwf : WellFormedLayout g)
-    (i : Fin 10) (d : Fin 5) (hd : d.val < (q.pileDepth.get i).toNat) :
-    ¬ isFreeCard g q ((g.pos2card.get i).get d) := by
-  intro hfree
-  set c := (g.pos2card.get i).get d with hcdef
-  have hreal : IsRealCard c := hwf.pos2card_real i d
-  have hc64 : c.toNat < 64 := IsRealCard_lt64 hreal
-  obtain ⟨hcp, hcd⟩ := hwf.round_trip_inv i d
-  have hp64 : (cardPile g c).toNat < 10 := by rw [hcp]; exact i.isLt
-  have hge := isFree_to_cardDepth_ge g q hwf c hc64 hp64 hfree
-  have hidxeq : (⟨(cardPile g c).toNat, hp64⟩ : Fin 10) = i := Fin.ext hcp
-  have hqEq : q.pileDepth[(cardPile g c).toNat]'hp64 = q.pileDepth.get i :=
-    congrArg q.pileDepth.get hidxeq
-  rw [hqEq, hcd] at hge
-  omega
-
 /-- `(B + k).toNat = B.toNat + k` for a real card `B` and a small offset. -/
 private theorem card_add_toNat {B : UInt8} (hB : B.toNat ≤ 61) {k : Nat} (hk : k ≤ 13) :
     (B + UInt8.ofNat k).toNat = B.toNat + k := by
@@ -233,7 +212,7 @@ private theorem dest_prevCard_forces (g : Globals) (p : SolverPosType)
   have hidxlt : (p.pileDepth.get j).toNat - 1 < (p.pileDepth.get j).toNat := by omega
   have hBjnotfree : ¬ isFreeCard g p Bj := by
     rw [← hBjeq]
-    exact slot_not_free hwf j ⟨(p.pileDepth.get j).toNat - 1, hidx⟩ hidxlt
+    exact depth_card_not_free_wf hwf j ⟨(p.pileDepth.get j).toNat - 1, hidx⟩ hidxlt
   rcases Nat.lt_trichotomy (p.pileFlute.get j).toNat n with hlt | heq | hgt
   · exfalso
     have hfree := hwalk (p.pileFlute.get j).toNat hfl1 hlt
@@ -291,7 +270,7 @@ private theorem dest_prevCard_ne_king (g : Globals) (p : SolverPosType)
   have hfree := (hbase.king_frontier s).2 Bj hSBjeq (by rw [hkB]; omega) hBjreal.2.2
   rw [← hBjeq] at hfree
   have hidxlt : (p.pileDepth.get j).toNat - 1 < (p.pileDepth.get j).toNat := by omega
-  exact slot_not_free hwf j ⟨(p.pileDepth.get j).toNat - 1, hidx⟩ hidxlt hfree
+  exact depth_card_not_free_wf hwf j ⟨(p.pileDepth.get j).toNat - 1, hidx⟩ hidxlt hfree
 
 /-- **Frame conditions the composed destination step satisfies in all three
     branches.**  `moveDestPre` touches only `pileFlute[toPile]` / `kings` /
@@ -373,7 +352,7 @@ private theorem destFrame_pileBase_self (g : Globals) (p q : SolverPosType) (pil
   have hidxq : (q.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5 := by omega
   have hB'notfree : ¬ isFreeCard g q B' := by
     rw [hB'def]
-    exact slot_not_free hwf ⟨pile.toNat, hpile⟩
+    exact depth_card_not_free_wf hwf ⟨pile.toNat, hpile⟩
       ⟨(q.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1, hidxq⟩
       (show (q.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 <
         (q.pileDepth.get ⟨pile.toNat, hpile⟩).toNat by omega)

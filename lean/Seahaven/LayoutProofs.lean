@@ -56,6 +56,9 @@ def natToSuit (s : Fin 4) : Suit := allSuits.get s
 /-! `suitToNat` is `idxOf`, so unfolding it no longer produces a numeral — `simp`
 callers want these four equations instead of the definition. -/
 
+/-- `suitToNat` *is* the `allSuits` index, so this rewrites either way. -/
+theorem suit_idxOf (su : Suit) : allSuits.idxOf su = suitToNat su := rfl
+
 @[simp] theorem suitToNat_clubs : suitToNat Suit.clubs = 0 := rfl
 @[simp] theorem suitToNat_diamonds : suitToNat Suit.diamonds = 1 := rfl
 @[simp] theorem suitToNat_hearts : suitToNat Suit.hearts = 2 := rfl

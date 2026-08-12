@@ -293,20 +293,3 @@ theorem run_fluteMoves {s : State} {a b : Fin 10} {cells : List (Fin 4)}
 theorem reach_fluteMoves {s v : State} {a b : Fin 10} {cells : List (Fin 4)}
     (h : List.foldl applyMoveOpt (some s) (fluteMoves a b cells) = some v) : Reach s v :=
   reach_of_foldl h
-
-/-- Moving a flute into the cells (the solver's `EXTRA` destination) is just the
-parking phase: `L` moves costing `L` cells. -/
-theorem run_fluteToCells {s : State} {a : Fin 10} {cells : List (Fin 4)}
-    {top rest : Column}
-    (hcol : s.tableau a = top ++ rest)
-    (hlen : cells.length = top.length)
-    (hnd : cells.Nodup)
-    (hfree : ∀ i ∈ cells, s.cells i = none) :
-    ∃ t : State,
-      List.foldl applyMoveOpt (some s) (parkMoves a cells) = some t ∧
-      t.tableau a = rest ∧
-      (∀ q, q ≠ a → t.tableau q = s.tableau q) ∧
-      t.foundations = s.foundations ∧
-      HoldsCards t.cells cells top ∧
-      (∀ i, i ∉ cells → t.cells i = s.cells i) :=
-  run_parkMoves hcol hlen hnd hfree

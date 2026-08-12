@@ -55,13 +55,6 @@ theorem freeCellsOf_clearCfgBit (p : SolverPosType) (k : Fin 16) {su : Suit}
 
 /-! ## Framing: only one solver-empty column changes -/
 
-/-- `PileMatches` for an empty column the solver treats as empty. -/
-theorem PileMatches_nil {g : Globals} {i : Fin 10} {n : Fin 6} (hn : n.val = 0) :
-    PileMatches g [] i n := by
-  refine ⟨by omega, fun k => absurd k.isLt (by omega), ?_⟩
-  simp only [hn, gt_iff_lt, lt_self_iff_false, dif_neg, not_false_eq_true]
-  exact ⟨0, fun k => absurd k.isLt (by simp)⟩
-
 /-- **A state whose only change is that a solver-empty column was emptied still
 matches `p`.**  Nothing the position records mentions those cards: the column's
 depth stays `0`, no flute is involved, and the foundations are untouched. -/

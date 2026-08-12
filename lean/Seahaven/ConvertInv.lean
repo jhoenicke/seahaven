@@ -140,28 +140,6 @@ theorem cvKingVal_stop (d : Vector UInt8 10) (su : Nat) (hA : cvAceVal g d su < 
 
 /-! ## Sum bridges for `usedSpace_def` -/
 
-theorem vec_foldl_add_eq_sum {n : Nat} {α : Type} (v : Vector α n) (f : α → Nat) :
-    v.toList.foldl (fun acc x => acc + f x) 0 = ∑ i : Fin n, f (v.get i) := by
-  have h1 : v.toList = List.ofFn v.get := by
-    apply List.ext_getElem
-    · simp
-    · intro i _ _
-      simp only [List.getElem_ofFn, Vector.getElem_toList]
-      rfl
-  rw [h1,
-    show (List.ofFn v.get).foldl (fun acc x => acc + f x) 0
-      = ((List.ofFn v.get).map f).foldl (·+·) 0 from (List.foldl_map ..).symm,
-    List.map_ofFn]
-  rw [show ((List.ofFn (f ∘ v.get)).foldl (·+·) 0) = (List.ofFn (f ∘ v.get)).sum from
-    (by induction (List.ofFn (f ∘ v.get)) with
-        | nil => simp
-        | cons a l ih =>
-          rw [List.foldl_cons, Nat.zero_add]
-          have h := @List.foldl_assoc Nat (·+·) _ l a 0
-          simp only [Nat.add_zero] at h
-          rw [h, ih, List.sum_cons]), List.sum_ofFn]
-  rfl
-
 theorem zipWith_flute_one_zero (dv fv : Vector UInt8 10) (hf : ∀ i : Fin 10, fv.get i = 1) :
     (List.zipWith (fun d f => if d ≠ (0 : UInt8) then f.toNat - 1 else 0)
       dv.toList fv.toList).foldl (·+·) 0 = 0 := by
@@ -327,10 +305,10 @@ theorem convertPre_usedSpace_def (hwf : WellFormedLayout g) (hpk : ValidDepths p
   have hbound : DS + AS ≤ 52 := by unfold CvCountBound at hcount; omega
   have hdsum : (convertPre g pk).pileDepth.toList.foldl (fun acc d => acc + d.toNat) 0 = DS := by
     show (cvDepths pk).toList.foldl (fun acc d => acc + d.toNat) 0 = DS
-    rw [vec_foldl_add_eq_sum, ← cvDepthPrefix_ten pk, hDS]
+    rw [vector_foldl_add_eq_finsum, ← cvDepthPrefix_ten pk, hDS]
   have hasum : (convertPre g pk).aces.toList.foldl (fun acc a => acc + (VALUE a).toNat) 0
       = AS := by
-    rw [vec_foldl_add_eq_sum, ← hAS, cvAcePrefix_four g (cvDepths pk)]
+    rw [vector_foldl_add_eq_finsum, ← hAS, cvAcePrefix_four g (cvDepths pk)]
     refine Finset.sum_congr rfl (fun s _ => ?_)
     rw [convertPre_aces, cv_card_value s.isLt
       (by have := cvAceVal_le g (cvDepths pk) s.val; omega), UInt8.toNat_ofNat']

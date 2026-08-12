@@ -374,10 +374,6 @@ def freedGuard (g : Globals) (suit : UInt8) (r : FreedAcc) : Prop :=
     (r.snd.fst.pileDepth[(g.card2pile[r.snd.snd.toUInt32.toNat]'h64).toUInt32.toNat]'h10
       ).toNat
 
-/-- `a - b - c = a - (b + c)` for `UInt8` (missing from core, unlike `UInt8.sub_sub`). -/
-private theorem uint8_sub_sub (a b c : UInt8) : a - b - c = a - (b + c) := by
-  simp only [UInt8.sub_eq_add_neg, UInt8.neg_add, UInt8.add_assoc]
-
 /-- Closed form of `freedIter`: after `f` freed steps, `flute` grew by `f`,
     `usedSpace` shrank by `f`, and `prevCard` walked down by `f`. -/
 theorem freedIter_eq (f : Nat) (r : FreedAcc) :
@@ -397,7 +393,7 @@ theorem freedIter_eq (f : Nat) (r : FreedAcc) :
     refine ⟨?_, ?_, ?_⟩
     · rw [UInt8.add_assoc, UInt8.add_comm 1]
     · rw [UInt8.sub_sub, UInt8.add_comm 1]
-    · rw [uint8_sub_sub, UInt8.add_comm 1]
+    · rw [UInt8.sub_sub, UInt8.add_comm 1]
 
 /-- The `(forcedKings, game)` result of a non-empty `SolverCleanupPile` run, given
     the boundary card `B`, the pile hash `ph`, the entry depth `d32`, and the two

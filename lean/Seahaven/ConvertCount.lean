@@ -23,20 +23,11 @@ open Lean Lean.Order
 
 /-! ## Sums over `Fin n`, as the prefix folds spell them -/
 
-private theorem foldl_add_eq_sum (l : List Nat) : l.foldl (·+·) 0 = l.sum := by
-  induction l with
-  | nil => simp
-  | cons a l ih =>
-    rw [List.foldl_cons, Nat.zero_add]
-    have h := @List.foldl_assoc Nat (·+·) _ l a 0
-    simp only [Nat.add_zero] at h
-    rw [h, ih, List.sum_cons]
-
 theorem finRange_foldl_eq_sum {n : Nat} (f : Fin n → Nat) :
     (List.finRange n).foldl (fun acc i => acc + f i) 0 = ∑ i : Fin n, f i := by
   rw [show (List.finRange n).foldl (fun acc i => acc + f i) 0
         = ((List.finRange n).map f).foldl (·+·) 0 from (List.foldl_map ..).symm,
-    foldl_add_eq_sum, ← List.ofFn_eq_map, List.sum_ofFn]
+    list_foldl_add_eq_sum, ← List.ofFn_eq_map, List.sum_ofFn]
 
 theorem cvDepthPrefix_ten (pk : Vector UInt8 11) :
     cvDepthPrefix pk 10 = ∑ i : Fin 10, ((cvDepths pk).get i).toNat := by

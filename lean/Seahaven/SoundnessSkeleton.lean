@@ -678,7 +678,7 @@ Stated here rather than beside `SubsetSound`/`ComponentSound` because it needs
 /-- **(3) Move simulation.**  One abstract `SolverMove` — flute move, cleanup,
 and the `busyAces` drain — is realized by a sequence of legal `Rules` moves,
 provided the move is affordable in `s`'s configuration (`solverGetMovable`).
-The pieces are already built: `run_fluteMoves` / `run_fluteToCells` for the flute,
+The pieces are already built: `run_fluteMoves` / `run_parkMoves` for the flute,
 `CPStep` for the freed-predecessor absorption, `PlaysAll` for the drain.
 
 Three hypotheses pin down what the solver actually asked for, and none of them is
