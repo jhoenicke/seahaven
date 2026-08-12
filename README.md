@@ -1,6 +1,6 @@
 # Seahaven Towers
 
-Copyright 2021, Jochen Hoenicke.
+Copyright 2021-2026, Jochen Hoenicke.
 
 ## Try Online
 

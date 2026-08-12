@@ -1,4 +1,4 @@
-const CACHE_NAME = 'seahaven-v2';
+const CACHE_NAME = 'seahaven-v1.1.0';
 const FILES_TO_CACHE = [
   './',
   './online.html',

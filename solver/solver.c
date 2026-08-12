@@ -1011,7 +1011,7 @@ void solve(uint8_t* stacks, int size) {
         result[11] = (subsetTable[ci->offset + solvable] & (1 << kingbit)) ? SUCCESS : NOMOVE;
     }
     emscripten_worker_respond(result, 12);
-    printf("Stats: %d hits %d misses\n", hit, miss);
+    //printf("Stats: %d hits %d misses\n", hit, miss);
 }
 
 #ifdef STANDALONE
