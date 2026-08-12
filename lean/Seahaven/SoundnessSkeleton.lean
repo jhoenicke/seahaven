@@ -597,47 +597,6 @@ theorem kingStep_flipped_insufficient :
       ¬ MaskSub d k' :=
   ⟨5, 11, 2, {Suit.hearts}, by decide, by decide, by decide, by decide⟩
 
-/-! ## `componentTable` fits its blocks
-
-Needed to thread `LocalMask` through `solverRecCheckSolvable`'s accumulator: the
-`component` contribution is a `componentTable` entry, which never has bits above
-its block's width. -/
-
-private theorem compBound_98 : ∀ j : Fin 2,
-    (componentTable.get ⟨98 + j.val, by omega⟩).toNat < 16 := by decide
-private theorem compBound_0 : ∀ j : Fin 16,
-    (componentTable.get ⟨0 + j.val, by omega⟩).toNat < 64 := by decide
-private theorem compBound_16 : ∀ j : Fin 64,
-    (componentTable.get ⟨16 + j.val, by omega⟩).toNat < 16 := by decide
-private theorem compBound_80 : ∀ j : Fin 16,
-    (componentTable.get ⟨80 + j.val, by omega⟩).toNat < 2 := by decide
-private theorem compBound_96 : ∀ j : Fin 2,
-    (componentTable.get ⟨96 + j.val, by omega⟩).toNat < 2 := by decide
-
-/-- Note the off-by-one: `computeComponentKingBits` indexes `componentTable`
-through `closureInfos[emptyPiles - 1]` — the loop enumerates the block one
-*below* the position's — but the returned value is a local mask of the
-position's own block.  So block `f`'s component entries are bounded by block
-`f + 1`'s width; instantiate at `f := freePiles - 1` to get `LocalMask` for the
-`component` contribution. -/
-theorem componentTable_localBound (f : Fin 11) (hf : f.val < 10) (j : Nat)
-    (hj : j < 2 ^ (closureInfos.get f).numBits.toNat)
-    (hidx : (closureInfos.get f).offset.toNat + j < 100) :
-    (componentTable.get ⟨(closureInfos.get f).offset.toNat + j, hidx⟩).toNat
-      < 2 ^ (closureInfos.get ⟨f.val + 1, by omega⟩).numBits.toNat := by
-  fin_cases f
-  · exact compBound_98 ⟨j, hj⟩
-  · exact compBound_0 ⟨j, hj⟩
-  · exact compBound_16 ⟨j, hj⟩
-  · exact compBound_80 ⟨j, hj⟩
-  · exact compBound_96 ⟨j, hj⟩
-  · exact compBound_96 ⟨j, hj⟩
-  · exact compBound_96 ⟨j, hj⟩
-  · exact compBound_96 ⟨j, hj⟩
-  · exact compBound_96 ⟨j, hj⟩
-  · exact compBound_96 ⟨j, hj⟩
-  · exact absurd hf (by decide)
-
 /-! ## King spaces -/
 
 /-- **How many suits get a king pile**: as many as there are free piles, capped

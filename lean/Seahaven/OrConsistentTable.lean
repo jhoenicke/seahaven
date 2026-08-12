@@ -67,18 +67,15 @@ theorem or_consistent_distributes_or16 {n : Nat} {f : Nat → UInt16} (hor : or_
   rw [UInt16.toNat_or]
   exact h
 
-/-- `BitSet` of the bit-decomposition fold: exactly the set bits contribute. -/
-private theorem BitSet_fold (n : Nat) (g : Nat → UInt16) (a : Nat) (c : Fin 16) :
-    BitSet (Nat.fold n (fun bit _ acc => acc ||| if a.testBit bit then g (1 <<< bit) else 0) 0) c
-      ↔ ∃ i : Fin n, a.testBit i.val = true ∧ BitSet (g (1 <<< i.val)) c := by
+/-- `testBit` of the bit-decomposition fold: exactly the set bits contribute. -/
+private theorem testBit_fold (n : Nat) (g : Nat → Nat) (a c : Nat) :
+    (Nat.fold n (fun bit _ acc => acc ||| if a.testBit bit then g (1 <<< bit) else 0) 0).testBit c
+        = true
+      ↔ ∃ i : Fin n, a.testBit i.val = true ∧ (g (1 <<< i.val)).testBit c = true := by
   induction n with
-  | zero =>
-    constructor
-    · intro h; exact absurd h (BitSet_zero c)
-    · rintro ⟨i, -, -⟩; exact absurd i.isLt (Nat.not_lt_zero _)
+  | zero => simp
   | succ m ih =>
-    simp only [Nat.fold_succ]
-    rw [BitSet_or, ih]
+    simp only [Nat.fold_succ, Nat.testBit_or, Bool.or_eq_true, ih]
     constructor
     · rintro (⟨i, ht, hb⟩ | h)
       · exact ⟨i.castSucc, ht, hb⟩
@@ -86,7 +83,7 @@ private theorem BitSet_fold (n : Nat) (g : Nat → UInt16) (a : Nat) (c : Fin 16
         · rw [if_pos ht] at h
           exact ⟨Fin.last m, ht, h⟩
         · rw [if_neg ht] at h
-          exact absurd h (BitSet_zero c)
+          simp at h
     · rintro ⟨i, ht, hb⟩
       rcases Nat.lt_succ_iff_lt_or_eq.1 i.isLt with hlt | heq
       · exact Or.inl ⟨⟨i.val, hlt⟩, ht, hb⟩
@@ -95,10 +92,35 @@ private theorem BitSet_fold (n : Nat) (g : Nat → UInt16) (a : Nat) (c : Fin 16
         rw [if_pos ht]
         exact hb
 
+/-- **The point of `or_consistent`**: one bit of one entry only ever depends on the
+entries of the *single* index bits, so a table specification costs `n` cases per
+queried bit instead of `2 ^ n`. -/
+theorem or_consistent_testBit {n : Nat} {f : Nat → Nat} (hor : or_consistent n f)
+    (T : Fin (2 ^ n)) (c : Nat) :
+    (f T.val).testBit c = true ↔
+      ∃ i : Fin n, T.val.testBit i.val = true ∧ (f (2 ^ i.val)).testBit c = true := by
+  rw [hor T, testBit_fold]
+  simp only [Nat.one_shiftLeft]
+
+/-- **A width bound is per bit too.**  An entry is the `|||` of its single-bit
+entries, and `|||` cannot leave a bit range — so bounding the `n` single-bit entries
+bounds all `2 ^ n` of them.  (Note this does *not* follow from a table's
+specification: a specification quantifies over the *in-range* bits, and says nothing
+about the bits this rules out.) -/
+theorem or_consistent_lt_two_pow {n m : Nat} {f : Nat → Nat} (hor : or_consistent n f)
+    (h : ∀ i : Fin n, f (2 ^ i.val) < 2 ^ m) (T : Fin (2 ^ n)) : f T.val < 2 ^ m := by
+  refine Nat.lt_pow_two_of_testBit _ (fun b hb => ?_)
+  by_contra hcon
+  rw [Bool.not_eq_false] at hcon
+  obtain ⟨i, -, hbit⟩ := (or_consistent_testBit hor T b).1 hcon
+  rw [Nat.testBit_lt_two_pow
+    (lt_of_lt_of_le (h i) (Nat.pow_le_pow_right (by omega) hb))] at hbit
+  exact absurd hbit (by simp)
+
 theorem or_consistent_spec {n : Nat} {f : Nat → UInt16} (hor: or_consistent n f) :
   ∀ (T : Fin (2 ^ n)) (c : Fin 16),
     BitSet (f T.val) c ↔
       ∃ i : Fin n, T.val.testBit i.val = true ∧ BitSet (f (2 ^ i.val)) c := by
   intro T c
-  rw [hor T, BitSet_fold]
-  simp only [Nat.one_shiftLeft]
+  simp only [BitSet_toNat]
+  exact or_consistent_testBit (or_consistent_toNat hor) T c.val

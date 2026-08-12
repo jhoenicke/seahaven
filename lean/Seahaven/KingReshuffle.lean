@@ -98,6 +98,51 @@ theorem piledSet_setCfgBit (k : Fin 16) (su : Suit) :
 theorem piledSet_clearCfgBit (k : Fin 16) (su : Suit) :
     piledSet (clearCfgBit k su) = insert su (piledSet k) := by revert k su; decide
 
+/-- `MaskSub` is the piled sets' inclusion, turned around: `d` piles more. -/
+theorem maskSub_iff_piledSet_subset (d c : Fin 16) :
+    MaskSub d c ↔ piledSet c ⊆ piledSet d := by
+  rw [MaskSub_iff]
+  constructor
+  · intro h su hsu
+    rw [mem_piledSet] at hsu ⊢
+    exact fun hc => hsu (h su hc)
+  · intro h su hd
+    by_contra hc
+    exact (mem_piledSet.1 (h (mem_piledSet.2 hc))) hd
+
+/-- **`MaskSub` one suit down is `setCfgBit`.**  A configuration `c` that `d` piles
+one more king than is `d` with exactly one suit unpiled: the inclusion of piled sets
+is strict by the cardinality, and one element short means `erase`.
+
+This is what lets the `componentTable` specification stay in the `MaskSub` form the
+tables decide (`component_spec_pos`) while its two consumers work with the
+`setCfgBit` form the reshuffle argument needs. -/
+theorem exists_setCfgBit_of_maskSub {d c : Fin 16} (hms : MaskSub d c)
+    (hcard : (piledSet c).card + 1 = (piledSet d).card) :
+    ∃ su : Suit, ¬ CfgBitSet d su ∧ setCfgBit d su = c := by
+  have hsub : piledSet c ⊆ piledSet d := (maskSub_iff_piledSet_subset d c).1 hms
+  have hne : piledSet c ≠ piledSet d := fun h => by rw [h] at hcard; omega
+  obtain ⟨su, hsud, hsuc⟩ := Finset.exists_of_ssubset (lt_of_le_of_ne hsub hne)
+  refine ⟨su, mem_piledSet.1 hsud, piledSet_inj ?_⟩
+  rw [piledSet_setCfgBit]
+  refine (Finset.eq_of_subset_of_card_le (Finset.subset_erase.2 ⟨hsub, hsuc⟩) ?_).symm
+  rw [Finset.card_erase_of_mem hsud]
+  omega
+
+/-- The converse reading of `exists_setCfgBit_of_maskSub`: unpiling a suit lands
+strictly below, which is the `MaskSub`-plus-masks-differ form. -/
+theorem maskSub_setCfgBit {d : Fin 16} {su : Suit} (hsu : ¬ CfgBitSet d su) :
+    MaskSub d (setCfgBit d su) ∧ grlex2bits.get d ≠ grlex2bits.get (setCfgBit d su) := by
+  refine ⟨?_, ?_⟩
+  · rw [maskSub_iff_piledSet_subset, piledSet_setCfgBit]
+    exact Finset.erase_subset _ _
+  · intro h
+    have heq : piledSet (setCfgBit d su) = piledSet d := by
+      simp only [piledSet, CfgBitSet, h]
+    rw [piledSet_setCfgBit] at heq
+    have hmem : su ∈ (piledSet d).erase su := by rw [heq]; exact mem_piledSet.2 hsu
+    exact (Finset.notMem_erase su (piledSet d)) hmem
+
 /-! ## The cell arithmetic
 
 `kingRefund` is the total run length of the piled suits, so `freeCellsOf` is an
@@ -485,23 +530,28 @@ the block's size (`closureInfo_block`). -/
 theorem card_piledSet_add_popCount (k : Fin 16) :
     (piledSet k).card + popCount4 (grlex2bits.get k).toNat = 4 := by revert k; decide
 
+/-- Every configuration of block `f` piles `min f 4` suits. -/
+theorem card_piledSet_blockCfg (f : Fin 11) (i : Nat)
+    (hi : i < (closureInfos.get f).numBits.toNat) :
+    (piledSet (globalCfg (closureInfos.get f) i)).card = min f.val 4 := by
+  have hble : (closureInfos.get f).shiftValue.toNat + (closureInfos.get f).numBits.toNat ≤ 16 :=
+    closureInfo_shift_add_numBits f
+  have hval : (globalCfg (closureInfos.get f) i).val
+      = (closureInfos.get f).shiftValue.toNat + i := globalCfg_val _ _ (by omega)
+  have hblock := (closureInfo_block f (globalCfg (closureInfos.get f) i)).1 (by rw [hval]; omega)
+  have hcard := card_piledSet_add_popCount (globalCfg (closureInfos.get f) i)
+  rw [hblock] at hcard
+  omega
+
 /-- Every configuration of `p`'s block piles `numPiledKings p` suits. -/
 theorem card_piledSet_globalCfg (p : SolverPosType) (i : Nat)
     (hi : i < (closureInfoOf p).numBits.toNat) :
     (piledSet (globalCfg (closureInfoOf p) i)).card = numPiledKings p := by
   have hf : (closureInfoOf p) = closureInfos.get ⟨min p.freePiles.toNat 10, by omega⟩ := rfl
-  have hble : (closureInfoOf p).shiftValue.toNat + (closureInfoOf p).numBits.toNat ≤ 16 :=
-    closureInfo_shift_add_numBits ⟨min p.freePiles.toNat 10, by omega⟩
-  have hval : (globalCfg (closureInfoOf p) i).val = (closureInfoOf p).shiftValue.toNat + i :=
-    globalCfg_val _ _ (by omega)
-  have hblock := (closureInfo_block ⟨min p.freePiles.toNat 10, by omega⟩
-    (globalCfg (closureInfoOf p) i)).1 (by rw [hval, ← hf]; omega)
-  have hcard := card_piledSet_add_popCount (globalCfg (closureInfoOf p) i)
-  rw [show (↑(⟨min p.freePiles.toNat 10, by omega⟩ : Fin 11) : Nat)
-      = min p.freePiles.toNat 10 from rfl] at hblock
-  rw [hblock] at hcard
-  have hmin := numPiledKings_eq p
-  omega
+  rw [hf] at hi ⊢
+  rw [card_piledSet_blockCfg _ i hi,
+    show (⟨min p.freePiles.toNat 10, by omega⟩ : Fin 11).val = min p.freePiles.toNat 10 from rfl]
+  exact numPiledKings_eq p
 
 /-- **The shape `ComponentSound` asks for.**  Same statement as
 `component_configReachable`, but with a *reachable* configuration on the left
@@ -525,83 +575,51 @@ theorem component_kingConfigReachable (hU : KingUnpileReachable) (hP : KingPileR
 
 /-! ## The table bridge: a `componentTable` bit means `InComponent`
 
-`component_spec_*` characterizes the table as "`MaskSub` plus the masks differ",
+`component_spec_pos` characterizes the table as "`MaskSub` plus the masks differ",
 i.e. the enumerated block-`f-1` configuration piles a *strict* subset of the
 block-`f` one.  Since the two blocks' configurations pile `f-1` and `f` suits, that
 subset misses exactly one suit — so the enumerated configuration *is* `setCfgBit`
-of the queried one.  Stated that way, each block is a `decide`. -/
+of the queried one (`exists_setCfgBit_of_maskSub`, and `maskSub_setCfgBit` back).
 
-set_option maxRecDepth 100000 in
-private theorem comp_sem_98 : ∀ (T : Fin 2) (j : Fin 4),
-    (componentAt (98 + T.val)).toNat.testBit j.val = true →
-      ∃ il : Fin 1, T.val.testBit il.val = true ∧
-        ∃ su : Suit, ¬ CfgBitSet (globalCfg (closureInfos.get (1 : Fin 11)) j.val) su ∧
-          setCfgBit (globalCfg (closureInfos.get (1 : Fin 11)) j.val) su
-            = globalCfg (closureInfos.get (0 : Fin 11)) il.val := by decide
+Both directions are recorded, in the `setCfgBit` phrasing both consumers want:
+soundness reads a set bit (`inComponent_of_component_bit` below), completeness sets
+one (`ComponentComplete.component_bit_of_inComponent`). -/
 
-set_option maxRecDepth 100000 in
-private theorem comp_sem_0 : ∀ (T : Fin 16) (j : Fin 6),
-    (componentAt (0 + T.val)).toNat.testBit j.val = true →
-      ∃ il : Fin 4, T.val.testBit il.val = true ∧
-        ∃ su : Suit, ¬ CfgBitSet (globalCfg (closureInfos.get (2 : Fin 11)) j.val) su ∧
-          setCfgBit (globalCfg (closureInfos.get (2 : Fin 11)) j.val) su
-            = globalCfg (closureInfos.get (1 : Fin 11)) il.val := by decide
-
-set_option maxRecDepth 1000000 in
-set_option maxHeartbeats 2000000 in
-private theorem comp_sem_16 : ∀ (T : Fin 64) (j : Fin 4),
-    (componentAt (16 + T.val)).toNat.testBit j.val = true →
-      ∃ il : Fin 6, T.val.testBit il.val = true ∧
-        ∃ su : Suit, ¬ CfgBitSet (globalCfg (closureInfos.get (3 : Fin 11)) j.val) su ∧
-          setCfgBit (globalCfg (closureInfos.get (3 : Fin 11)) j.val) su
-            = globalCfg (closureInfos.get (2 : Fin 11)) il.val := by decide
-
-private theorem freePiles_bridge (p : SolverPosType) :
-    p.freePiles.toNat = p.freePiles.toNat := rfl
-
-/-- **The three blocks, uniformly.**  A set component bit at local index `j` comes
-from a block-`f-1` configuration `il` that is `j`'s configuration with one suit
-unpiled. -/
-private theorem comp_bit_semantics (p : SolverPosType) (hfp1 : 1 ≤ p.freePiles.toNat)
+/-- **The three blocks, uniformly.**  A component bit at local index `j` is set
+exactly when the mask `T` contains a block-`f-1` configuration that is `j`'s
+configuration with one suit unpiled. -/
+theorem component_bit_iff (p : SolverPosType) (hfp1 : 1 ≤ p.freePiles.toNat)
     (hfp3 : p.freePiles.toNat ≤ 3) (T : Nat) (hT : T < 2 ^ (prevInfo p).numBits.toNat)
-    (j : Nat) (hj : j < (closureInfoOf p).numBits.toNat)
-    (hbit : (componentAt ((prevInfo p).offset.toNat + T)).toNat.testBit j = true) :
-    ∃ il : Nat, il < (prevInfo p).numBits.toNat ∧ T.testBit il = true ∧
-      ∃ su : Suit, ¬ CfgBitSet (globalCfg (closureInfoOf p) j) su ∧
-        setCfgBit (globalCfg (closureInfoOf p) j) su = globalCfg (prevInfo p) il := by
-  have hbr := freePiles_bridge p
-  have hcases : p.freePiles.toNat = 1 ∨ p.freePiles.toNat = 2 ∨ p.freePiles.toNat = 3 := by omega
-  rcases hcases with h | h | h
-  · have hc : closureInfoOf p = closureInfos.get (1 : Fin 11) :=
-      congrArg closureInfos.get (Fin.ext (show min p.freePiles.toNat 10 = 1 by rw [hbr, h]; decide))
-    have hp : prevInfo p = closureInfos.get (0 : Fin 11) :=
-      congrArg closureInfos.get (Fin.ext (show min (p.freePiles.toNat - 1) 10 = 0 by rw [h]; decide))
-    rw [hc, show (closureInfos.get (1 : Fin 11)).numBits.toNat = 4 from by decide] at hj
-    rw [hp, show (closureInfos.get (0 : Fin 11)).numBits.toNat = 1 from by decide] at hT
-    rw [hp, show (closureInfos.get (0 : Fin 11)).offset.toNat = 98 from by decide] at hbit
-    rw [hc, hp, show (closureInfos.get (0 : Fin 11)).numBits.toNat = 1 from by decide]
-    obtain ⟨il, hilbit, su, hsu, heq⟩ := comp_sem_98 ⟨T, by omega⟩ ⟨j, hj⟩ hbit
-    exact ⟨il.val, il.isLt, hilbit, su, hsu, heq⟩
-  · have hc : closureInfoOf p = closureInfos.get (2 : Fin 11) :=
-      congrArg closureInfos.get (Fin.ext (show min p.freePiles.toNat 10 = 2 by rw [hbr, h]; decide))
-    have hp : prevInfo p = closureInfos.get (1 : Fin 11) :=
-      congrArg closureInfos.get (Fin.ext (show min (p.freePiles.toNat - 1) 10 = 1 by rw [h]; decide))
-    rw [hc, show (closureInfos.get (2 : Fin 11)).numBits.toNat = 6 from by decide] at hj
-    rw [hp, show (closureInfos.get (1 : Fin 11)).numBits.toNat = 4 from by decide] at hT
-    rw [hp, show (closureInfos.get (1 : Fin 11)).offset.toNat = 0 from by decide] at hbit
-    rw [hc, hp, show (closureInfos.get (1 : Fin 11)).numBits.toNat = 4 from by decide]
-    obtain ⟨il, hilbit, su, hsu, heq⟩ := comp_sem_0 ⟨T, by omega⟩ ⟨j, hj⟩ hbit
-    exact ⟨il.val, il.isLt, hilbit, su, hsu, heq⟩
-  · have hc : closureInfoOf p = closureInfos.get (3 : Fin 11) :=
-      congrArg closureInfos.get (Fin.ext (show min p.freePiles.toNat 10 = 3 by rw [hbr, h]; decide))
-    have hp : prevInfo p = closureInfos.get (2 : Fin 11) :=
-      congrArg closureInfos.get (Fin.ext (show min (p.freePiles.toNat - 1) 10 = 2 by rw [h]; decide))
-    rw [hc, show (closureInfos.get (3 : Fin 11)).numBits.toNat = 4 from by decide] at hj
-    rw [hp, show (closureInfos.get (2 : Fin 11)).numBits.toNat = 6 from by decide] at hT
-    rw [hp, show (closureInfos.get (2 : Fin 11)).offset.toNat = 16 from by decide] at hbit
-    rw [hc, hp, show (closureInfos.get (2 : Fin 11)).numBits.toNat = 6 from by decide]
-    obtain ⟨il, hilbit, su, hsu, heq⟩ := comp_sem_16 ⟨T, by omega⟩ ⟨j, hj⟩ hbit
-    exact ⟨il.val, il.isLt, hilbit, su, hsu, heq⟩
+    (j : Nat) (hj : j < (closureInfoOf p).numBits.toNat) :
+    (componentAt ((prevInfo p).offset.toNat + T)).toNat.testBit j = true ↔
+      ∃ il : Nat, il < (prevInfo p).numBits.toNat ∧ T.testBit il = true ∧
+        ∃ su : Suit, ¬ CfgBitSet (globalCfg (closureInfoOf p) j) su ∧
+          setCfgBit (globalCfg (closureInfoOf p) j) su = globalCfg (prevInfo p) il := by
+  rw [component_spec_pos p hfp1 hfp3 T hT j hj]
+  -- the two blocks pile `freePiles` and `freePiles - 1` suits, so a strict inclusion
+  -- misses exactly one suit
+  have hcj : (piledSet (globalCfg (closureInfoOf p) j)).card = p.freePiles.toNat := by
+    rw [card_piledSet_globalCfg p j hj]
+    unfold numPiledKings
+    omega
+  have hcil : ∀ il : Nat, il < (prevInfo p).numBits.toNat →
+      (piledSet (globalCfg (prevInfo p) il)).card = p.freePiles.toNat - 1 := by
+    intro il hil
+    have hf : prevInfo p = closureInfos.get ⟨min (p.freePiles.toNat - 1) 10, by omega⟩ := rfl
+    rw [hf] at hil ⊢
+    rw [card_piledSet_blockCfg _ il hil,
+      show (⟨min (p.freePiles.toNat - 1) 10, by omega⟩ : Fin 11).val
+        = min (p.freePiles.toNat - 1) 10 from rfl]
+    omega
+  constructor
+  · rintro ⟨il, hil, hTbit, hms, -⟩
+    refine ⟨il, hil, hTbit, exists_setCfgBit_of_maskSub hms ?_⟩
+    rw [hcj, hcil il hil]
+    omega
+  · rintro ⟨il, hil, hTbit, su, hsu, heq⟩
+    obtain ⟨hms, hne⟩ := maskSub_setCfgBit hsu
+    rw [heq] at hms hne
+    exact ⟨il, hil, hTbit, hms, hne⟩
 
 /-- **A set component bit means the configuration is in the component.**  The
 loop's `usedSpace ≤ 4` test is `freeCellsOf ≥ 0` for the enumerated
@@ -625,7 +643,7 @@ theorem inComponent_of_component_bit {g : Globals} {p : SolverPosType} {comp : U
     rwa [UInt8.toNat_toUInt16,
       show (⟨min i 15, by omega⟩ : Fin 16).val = i from min_eq_left (by omega)] at h
   obtain ⟨il, hil, hilbit, su, hsu, heq⟩ :=
-    comp_bit_semantics p hfp1 hfp3 result.toNat hbound i hi hbit'
+    (component_bit_iff p hfp1 hfp3 result.toNat hbound i hi).1 hbit'
   -- and the configuration it came from fits in the cells
   refine ⟨su, hsu, ?_⟩
   rw [heq]
@@ -678,14 +696,6 @@ block — `componentTable_localBound` read at `f := freePiles - 1`.
 `SubsetSound` is `movable' ||| component`, and the expansion of a mask is only
 meaningful in-block.) -/
 
-private theorem componentAt_eq_get (idx : Nat) (h : idx < 100) :
-    componentAt idx = componentTable.get ⟨idx, h⟩ := by
-  unfold componentAt
-  congr 1
-  refine Fin.ext ?_
-  show min idx 99 = idx
-  omega
-
 set_option linter.unusedSimpArgs false in
 theorem localMask_component {g : Globals} {p : SolverPosType} {comp : UInt8}
     (hrun : EStateM.run (computeComponentKingBits p) g = .ok comp g) :
@@ -711,16 +721,9 @@ theorem localMask_component {g : Globals} {p : SolverPosType} {comp : UInt8}
       rw [htoInt]
       omega
     rw [hprev] at hres hcompeq
-    have hoffb : (closureInfos.get f).offset.toNat
-        + 2 ^ (closureInfos.get f).numBits.toNat ≤ 100 := by
-      have h : ∀ f : Fin 11,
-          (closureInfos.get f).offset.toNat + 2 ^ (closureInfos.get f).numBits.toNat ≤ 100 := by
-        decide
-      exact h f
-    have hidx : (closureInfos.get f).offset.toNat + result.toNat < 100 := by omega
-    have hbound := componentTable_localBound f (by omega) result.toNat hres hidx
+    have hbound := componentTable_localBound f (by omega) result.toNat hres
     show comp.toUInt16.toNat < _
-    rw [UInt8.toNat_toUInt16, hcompeq, componentAt_eq_get _ hidx, hown]
+    rw [UInt8.toNat_toUInt16, hcompeq, hown]
     exact hbound
   · -- the guard is false, so the function returns `0`
     have hz : comp = 0 := by
@@ -817,7 +820,6 @@ theorem subsetSound_of (hP : KingPileReachable) : SubsetSound := by
   · refine maskSub_kingConfigReachable hP hwf hm ?_ _ c le_rfl ?_ hreach
     · rw [card_piledSet_globalCfg p i hi]
       unfold numPiledKings
-      rw [freePiles_bridge p]
       omega
     · intro su hsu
       rw [mem_piledSet] at hsu ⊢
