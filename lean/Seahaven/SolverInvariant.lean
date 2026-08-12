@@ -513,16 +513,9 @@ theorem SolverInvMerged.busyAces_complete {g : Globals} {p : SolverPosType}
 
 -- ---------------------------------------------------------------------------
 -- Arithmetic helpers for SUIT / VALUE
+-- (`VALUE_toNat` / `SUIT_toNat` / `CARD_toNat` are in `UInt8Lemmas`, so that the
+--  `Rules`-side encoding bridge can use them without importing this file.)
 -- ---------------------------------------------------------------------------
-
-private theorem nat_and_15 (n : Nat) : n &&& 15 = n % 16 := by
-  simpa using Nat.and_two_pow_sub_one_eq_mod n 4
-
-theorem VALUE_toNat (c : UInt8) : (VALUE c).toNat = c.toNat % 16 := by
-  simp [VALUE, UInt8.toNat_and, nat_and_15]
-
-theorem SUIT_toNat (c : UInt8) : (SUIT c).toNat = c.toNat / 16 := by
-  simp [SUIT, Nat.shiftRight_eq_div_pow]
 
 theorem toNat_succ (c : UInt8) (hc : c.toNat < 255) : (c + 1).toNat = c.toNat + 1 := by
   simp only [UInt8.toNat_add, UInt8.toNat_ofNat]; omega
@@ -993,16 +986,6 @@ private def cardOf (g : Globals) (p : SolverPosType) : CountDomain p → UInt8
       (g.pos2card.get i).get ⟨(p.pileDepth.get i).toNat - 1, by omega⟩ -
         UInt8.ofNat (k.val + 1)
     else 0
-
-/-- `CARD s v` as raw `Nat` arithmetic, wrap-free for `s<16, v<16`. -/
-theorem CARD_toNat {s v : Nat} (hs : s < 16) (hv : v < 16) :
-    (CARD (UInt8.ofNat s) (UInt8.ofNat v)).toNat = s * 16 + v := by
-  unfold CARD
-  rw [UInt8.toNat_add, UInt8.toNat_shiftLeft]
-  have h1 : (UInt8.ofNat s).toNat = s := by rw [UInt8.toNat_ofNat']; omega
-  have h2 : (UInt8.ofNat v).toNat = v := by rw [UInt8.toNat_ofNat']; omega
-  rw [h1, h2, show ((4:UInt8).toNat % 8 = 4) from by decide, Nat.shiftLeft_eq]
-  omega
 
 private theorem cardOf_isReal {g : Globals} {p : SolverPosType}
     (hwf : WellFormedLayout g) (hdb : ∀ i : Fin 10, (p.pileDepth.get i).toNat ≤ 5)

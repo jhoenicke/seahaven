@@ -1,6 +1,6 @@
 inductive Suit
   | clubs | diamonds | hearts | spades
-  deriving DecidableEq, Repr, BEq, Hashable
+  deriving DecidableEq, Repr, BEq, ReflBEq, LawfulBEq, Hashable
 
 inductive Rank
   | ace | two | three | four | five | six | seven

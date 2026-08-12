@@ -946,7 +946,7 @@ theorem kingRunSet_disjoint {g : Globals} {p : SolverPosType} (h : SolverInvBase
   have h1 := (kingRunSet_spec h hc).1
   have h2 := (kingRunSet_spec h hc').1
   have : (finOfSuit su).val = (finOfSuit su').val := by omega
-  exact hne (by revert this; cases su <;> cases su' <;> simp [finOfSuit, suitToNat])
+  exact hne (by revert this; cases su <;> cases su' <;> simp [finOfSuit])
 
 theorem card_kingRunsSet {g : Globals} {p : SolverPosType} (h : SolverInvBase g p) (k : Fin 16) :
     (kingRunsSet p k).card

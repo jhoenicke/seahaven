@@ -722,10 +722,7 @@ theorem SimulatesNorm.moveAces {g : Globals} {s : State} {p : SolverPosType} {k 
       ∃ (s' : State) (k' : Fin 16) (FK : Finset Suit),
         SimulatesNorm g s p k s' p' k' FK fk := by
   -- the walked suit, exactly as `moveAces_merged` fixes it
-  have hlow : p.busyAces &&& 0x0F ≠ 0 := by
-    rw [SolverSpec.uint8_and_0xF_eq_self_of_lt16 p.busyAces hmerged.busyAces_lt16]
-    exact hbusy
-  have hsuit4 : ctz p.busyAces < 4 := SolverSpec.ctz_lt_four_of_low_nibble p.busyAces hlow
+  have hsuit4 : ctz p.busyAces < 4 := SolverSpec.ctz_lt_four hmerged.busyAces_lt16 hbusy
   set suit : Fin 4 := ⟨ctz p.busyAces, hsuit4⟩ with hsuitdef
   set suitU32 : UInt32 := UInt32.ofNat (ctz p.busyAces) with hsuitU32def
   have hsuitval : suit.val = ctz p.busyAces := rfl

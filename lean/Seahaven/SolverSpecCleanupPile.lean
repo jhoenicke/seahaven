@@ -703,15 +703,25 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
         omega
 
 /-- `1 <<< x < 16` whenever the shift amount `x.toNat < 4` (the bit set sits
-    among the low 4 positions) — finite check via `native_decide`. -/
-private theorem uint8_one_shl_lt16_nat :
-    ∀ n : Nat, n < 256 → n < 4 → ((1 : UInt8) <<< UInt8.ofNat n).toNat < 16 := by
-  native_decide
+    among the low 4 positions).
+
+`UInt8.toNat_shiftLeft` turns the shift into `1 <<< (n % 8) % 2 ^ 8`; with `n < 4`
+both `%`s are the identity (`2 ^ n ≤ 8`), leaving `2 ^ n < 16` for `omega`.  Note
+`omega` needs the outer `%` rewritten away rather than reasoning about it — it does
+not connect `2 ^ n / 256` to the bound on the `2 ^ n` atom. -/
+private theorem uint8_one_shl_lt16_nat (n : Nat) (hn : n < 4) :
+    ((1 : UInt8) <<< UInt8.ofNat n).toNat < 16 := by
+  have hn8 : (UInt8.ofNat n).toNat = n := by rw [UInt8.toNat_ofNat']; omega
+  have hpow : (2 : Nat) ^ n ≤ 8 :=
+    le_trans (Nat.pow_le_pow_right (by omega) (show n ≤ 3 by omega)) (by decide)
+  rw [UInt8.toNat_shiftLeft, hn8, show ((1 : UInt8).toNat = 1) from rfl,
+    Nat.mod_eq_of_lt (show n < 8 by omega), Nat.shiftLeft_eq, one_mul,
+    Nat.mod_eq_of_lt (show (2:Nat) ^ n < 2 ^ 8 by omega)]
+  omega
 
 private theorem uint8_one_shl_lt16_of_lt4 (x : UInt8) (hx : x.toNat < 4) :
     ((1 : UInt8) <<< x) < 16 := by
-  have h256 : x.toNat < 256 := x.toNat_lt
-  have h := uint8_one_shl_lt16_nat x.toNat h256 hx
+  have h := uint8_one_shl_lt16_nat x.toNat hx
   rw [UInt8.ofNat_toNat] at h
   rwa [UInt8.lt_iff_toNat_lt, show (16 : UInt8).toNat = 16 from by decide]
 

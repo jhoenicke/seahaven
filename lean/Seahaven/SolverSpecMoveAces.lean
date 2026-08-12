@@ -19,48 +19,114 @@ open Lean Lean.Order
 -- `SolverMoveAces` — the foundation-walk loop invariant and its machinery
 -- ---------------------------------------------------------------------------
 
-/-- The lowest set bit of `UInt8.ofNat n` lies strictly below position 4
-    whenever its low nibble is nonzero — a finite check over all 256 `UInt8`
-    values, run via `native_decide` (already an accepted idiom in this
-    codebase, see `LayoutProofs.lean`). -/
-private theorem ctz_lt_four_of_low_nibble_nat :
-    ∀ n : Nat, n < 256 → (UInt8.ofNat n) &&& 0x0F ≠ 0 → ctz (UInt8.ofNat n) < 4 := by
-  native_decide
+/-! ### `ctz`, specified
 
-/-- `UInt8` form: if `x`'s low nibble is nonzero, `ctz x < 4`. -/
-theorem ctz_lt_four_of_low_nibble (x : UInt8) (hx : x &&& 0x0F ≠ 0) :
-    ctz x < 4 := by
-  have h256 : x.toNat < 256 := x.toNat_lt
-  have h := ctz_lt_four_of_low_nibble_nat x.toNat h256 (by rwa [UInt8.ofNat_toNat])
-  rwa [UInt8.ofNat_toNat] at h
+`ctz` is a `termination_by` recursion, so the kernel cannot evaluate it and a
+`decide` over the 256 `UInt8` values is not available — which is why these facts
+used to be `native_decide`d.  Three inductions on a bound `k` for the argument
+replace that: the counter factors out of `ctz.go`, a nonzero value below `2 ^ k`
+has its lowest set bit below `k`, and that bit really is set. -/
 
-/-- `x`'s own `ctz`-th bit is actually set in `x`, whenever `x ≠ 0` — again a
-    finite check over all 256 `UInt8` values. -/
-private theorem ctz_bit_self_nat :
-    ∀ n : Nat, n < 256 → (UInt8.ofNat n) ≠ 0 →
-      (UInt8.ofNat n) &&& ((1 : UInt8) <<< UInt8.ofNat (ctz (UInt8.ofNat n))) ≠ 0 := by
-  native_decide
+/-- `ctz.go` counts up from its first argument, so the start value factors out. -/
+private theorem ctz_go_shift : ∀ k v n : Nat, v ≠ 0 → v < 2 ^ k →
+    ctz.go n v = n + ctz.go 0 v := by
+  intro k
+  induction k with
+  | zero => intro v n hv hlt; simp at hlt; omega
+  | succ k ih =>
+    intro v n hv hlt
+    rw [ctz.go.eq_def n v, ctz.go.eq_def 0 v]
+    by_cases h1 : v % 2 == 1
+    · simp [h1]
+    · have hmod : v % 2 = 0 := by simp at h1; omega
+      have hv2 : v / 2 ≠ 0 := by omega
+      have hlt2 : v / 2 < 2 ^ k := by rw [Nat.pow_succ] at hlt; omega
+      have hvne0 : (v == 0) = false := by simp; omega
+      simp only [h1, Bool.false_eq_true, if_false, hvne0, Nat.zero_add]
+      rw [ih (v / 2) (n + 1) hv2 hlt2, ih (v / 2) 1 hv2 hlt2]
+      omega
 
-/-- `UInt8` form: `x`'s own `ctz`-th bit is set in `x`, whenever `x ≠ 0`. -/
+/-- A nonzero value below `2 ^ k` has its lowest set bit below `k`. -/
+private theorem ctz_go_lt : ∀ k v : Nat, v ≠ 0 → v < 2 ^ k → ctz.go 0 v < k := by
+  intro k
+  induction k with
+  | zero => intro v hv hlt; simp at hlt; omega
+  | succ k ih =>
+    intro v hv hlt
+    rw [ctz.go.eq_def 0 v]
+    by_cases h1 : v % 2 == 1
+    · simp [h1]
+    · have hmod : v % 2 = 0 := by simp at h1; omega
+      have hv2 : v / 2 ≠ 0 := by omega
+      have hlt2 : v / 2 < 2 ^ k := by rw [Nat.pow_succ] at hlt; omega
+      have hvne0 : (v == 0) = false := by simp; omega
+      simp only [h1, Bool.false_eq_true, if_false, hvne0, Nat.zero_add]
+      have := ih (v / 2) hv2 hlt2
+      rw [ctz_go_shift (k + 1) (v / 2) 1 hv2 (by rw [Nat.pow_succ]; omega)]
+      omega
+
+/-- And that bit really is set. -/
+private theorem ctz_go_testBit : ∀ k v : Nat, v ≠ 0 → v < 2 ^ k →
+    v.testBit (ctz.go 0 v) = true := by
+  intro k
+  induction k with
+  | zero => intro v hv hlt; simp at hlt; omega
+  | succ k ih =>
+    intro v hv hlt
+    rw [ctz.go.eq_def 0 v]
+    by_cases h1 : v % 2 == 1
+    · simp only [h1, if_true, Nat.testBit_zero, decide_eq_true_eq]
+      simpa using h1
+    · have hmod : v % 2 = 0 := by simp at h1; omega
+      have hv2 : v / 2 ≠ 0 := by omega
+      have hlt2 : v / 2 < 2 ^ k := by rw [Nat.pow_succ] at hlt; omega
+      have hvne0 : (v == 0) = false := by simp; omega
+      simp only [h1, Bool.false_eq_true, if_false, hvne0, Nat.zero_add]
+      rw [ctz_go_shift (k + 1) (v / 2) 1 hv2 (by rw [Nat.pow_succ]; omega),
+        Nat.add_comm 1 (ctz.go 0 (v / 2)), Nat.testBit_succ]
+      exact ih (v / 2) hv2 hlt2
+
+private theorem toNat_ne_zero {x : UInt8} (hx : x ≠ 0) : x.toNat ≠ 0 :=
+  fun h => hx (UInt8.toNat_inj.mp (show x.toNat = (0 : UInt8).toNat from h))
+
+/-- `ctz x < k` for a nonzero `x` bounded by `2 ^ k`. -/
+theorem ctz_lt_of_lt_two_pow {x : UInt8} {k : Nat} (hne : x ≠ 0) (hlt : x.toNat < 2 ^ k) :
+    ctz x < k := ctz_go_lt k x.toNat (toNat_ne_zero hne) hlt
+
+/-- **The shape the callers want.**  `busyAces` is a nonzero *4-bit* mask
+    (`SolverInvBase.busyAces_lt16`, plus "some bit is set"), so its lowest set bit
+    is a suit index.  Stated on `x < 16` and `x ≠ 0` directly: those are the two
+    facts every caller has, and the low-nibble mask they used to route through
+    (`_ &&& 0x0F ≠ 0`) was pure detour. -/
+theorem ctz_lt_four {x : UInt8} (hlt16 : x < 16) (hne : x ≠ 0) : ctz x < 4 := by
+  refine ctz_lt_of_lt_two_pow hne ?_
+  rw [UInt8.lt_iff_toNat_lt, show (16 : UInt8).toNat = 16 from by decide] at hlt16
+  omega
+
+private theorem nat_and_two_pow_ne_zero {n k : Nat} (h : n.testBit k = true) :
+    n &&& 2 ^ k ≠ 0 := by
+  intro hzero
+  have hb := congrArg (fun m => Nat.testBit m k) hzero
+  simp only [Nat.testBit_and, h, Nat.testBit_two_pow_self, Bool.and_true, Nat.zero_testBit] at hb
+  exact Bool.noConfusion hb
+
+/-- `x`'s own `ctz`-th bit is set in `x`, whenever `x ≠ 0`. -/
 theorem ctz_bit_self (x : UInt8) (hx : x ≠ 0) :
     x &&& ((1 : UInt8) <<< UInt8.ofNat (ctz x)) ≠ 0 := by
   have h256 : x.toNat < 256 := x.toNat_lt
-  have h := ctz_bit_self_nat x.toNat h256 (by rwa [UInt8.ofNat_toNat])
-  rwa [UInt8.ofNat_toNat] at h
-
-/-- `x < 16` means bits `4..7` are already clear, so ANDing with the low-nibble
-    mask `0x0F` is a no-op. -/
-private theorem uint8_and_0xF_eq_self_of_lt16_nat :
-    ∀ n : Nat, n < 256 → n < 16 → (UInt8.ofNat n) &&& 0x0F = UInt8.ofNat n := by
-  native_decide
-
-theorem uint8_and_0xF_eq_self_of_lt16 (x : UInt8) (hx : x < 16) :
-    x &&& 0x0F = x := by
-  have h256 : x.toNat < 256 := x.toNat_lt
-  have hxnat : x.toNat < 16 := by
-    rwa [UInt8.lt_iff_toNat_lt, show (16 : UInt8).toNat = 16 from by decide] at hx
-  have h := uint8_and_0xF_eq_self_of_lt16_nat x.toNat h256 hxnat
-  rwa [UInt8.ofNat_toNat] at h
+  have h8 : ctz x < 8 := ctz_lt_of_lt_two_pow hx (by omega)
+  have hbit : x.toNat.testBit (ctz x) = true :=
+    ctz_go_testBit 8 x.toNat (toNat_ne_zero hx) (by omega)
+  -- the mask is exactly `2 ^ ctz x`: neither `%` of `UInt8.toNat_shiftLeft` fires
+  have hmask : ((1 : UInt8) <<< UInt8.ofNat (ctz x)).toNat = 2 ^ ctz x := by
+    have hpow : (2 : Nat) ^ ctz x < 2 ^ 8 := Nat.pow_lt_pow_right (by omega) h8
+    rw [UInt8.toNat_shiftLeft, show ((1 : UInt8).toNat = 1) from rfl, UInt8.toNat_ofNat',
+      Nat.mod_eq_of_lt (show ctz x < 2 ^ 8 by omega), Nat.mod_eq_of_lt h8,
+      Nat.shiftLeft_eq, one_mul, Nat.mod_eq_of_lt hpow]
+  intro hzero
+  refine nat_and_two_pow_ne_zero hbit ?_
+  rw [← hmask, ← UInt8.toNat_and, hzero]
+  rfl
 
 /-- **Loop invariant for `SolverMoveAces`'s foundation walk**, carried through
     every iteration of `moveAcesBody suitU32` on the accumulator
@@ -145,15 +211,15 @@ theorem finVal_toUInt8_toNat (s : Fin 4) : (s.val.toUInt8).toNat = s.val := by
 
 /-- If a single suit-bit is set in `busyAces` (`x &&& (1 <<< s) ≠ 0`), that bit's
     own value is `≤ x` — needed to show `busyAces - (1 <<< s)` doesn't wrap
-    (subtracting a bit that's actually set never borrows). Finite check over
-    `UInt8 × Fin 4` (1024 cases), same `native_decide` idiom used elsewhere in
-    this file for small bitwise facts. -/
+    (subtracting a bit that's actually set never borrows).  Finite check over
+    `Fin 16 × Fin 4` (64 cases) — plain `decide`, since no `ctz` is involved and
+    the kernel evaluates `UInt8` bit operations fine. -/
 private theorem uint8_bit_le_of_and_ne_zero {x : UInt8} (hx : x.toNat < 16) (s : Fin 4)
     (h : x &&& ((1 : UInt8) <<< s.val.toUInt8) ≠ 0) :
     ((1 : UInt8) <<< s.val.toUInt8) ≤ x := by
   have hall : ∀ n : Fin 16, ∀ t : Fin 4,
       n.val.toUInt8 &&& ((1 : UInt8) <<< t.val.toUInt8) ≠ 0 →
-      ((1 : UInt8) <<< t.val.toUInt8) ≤ n.val.toUInt8 := by native_decide
+      ((1 : UInt8) <<< t.val.toUInt8) ≤ n.val.toUInt8 := by decide
   have hxeq : (⟨x.toNat, hx⟩ : Fin 16).val.toUInt8 = x := by
     apply UInt8.toNat_inj.mp
     rw [UInt8.toNat_ofNat']
@@ -175,7 +241,7 @@ private theorem uint8_and_ne_zero_of_sub_ne {x : UInt8} (hx : x.toNat < 16) (s t
       n.val.toUInt8 &&& ((1 : UInt8) <<< t'.val.toUInt8) ≠ 0 →
       (n.val.toUInt8 - ((1 : UInt8) <<< s'.val.toUInt8)) &&&
         ((1 : UInt8) <<< t'.val.toUInt8) ≠ 0 := by
-    native_decide
+    decide
   have hxeq : (⟨x.toNat, hx⟩ : Fin 16).val.toUInt8 = x := by
     apply UInt8.toNat_inj.mp
     rw [UInt8.toNat_ofNat']
@@ -1875,10 +1941,7 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
   -- typecheck through (`aces`/`kings` have only 4 entries) — now immediate
   -- from `SolverInvBase.busyAces_lt16` (bits `4..7` are always clear) plus
   -- `hbusy` (some bit IS set, so it must be among `0..3`).
-  have hlow : p.busyAces &&& 0x0F ≠ 0 := by
-    rw [uint8_and_0xF_eq_self_of_lt16 p.busyAces hmerged.busyAces_lt16]
-    exact hbusy
-  have hsuit4 : ctz p.busyAces < 4 := ctz_lt_four_of_low_nibble p.busyAces hlow
+  have hsuit4 : ctz p.busyAces < 4 := ctz_lt_four hmerged.busyAces_lt16 hbusy
   set suit : Fin 4 := ⟨ctz p.busyAces, hsuit4⟩ with hsuitdef
   set suitU32 : UInt32 := UInt32.ofNat (ctz p.busyAces) with hsuitU32def
   have hsuitval : suit.val = ctz p.busyAces := rfl
@@ -2202,7 +2265,7 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
       have hsub : (p.busyAces - ((1 : UInt8) <<< suit.val.toUInt8)).toNat =
           p.busyAces.toNat - ((1 : UInt8) <<< suit.val.toUInt8).toNat :=
         UInt8.toNat_sub_of_le _ _ hle
-      have hbitpos : ∀ t : Fin 4, 0 < ((1 : UInt8) <<< t.val.toUInt8).toNat := by native_decide
+      have hbitpos : ∀ t : Fin 4, 0 < ((1 : UInt8) <<< t.val.toUInt8).toNat := by decide
       have hbp := hbitpos suit
       omega
     · left

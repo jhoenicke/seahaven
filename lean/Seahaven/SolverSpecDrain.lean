@@ -40,9 +40,7 @@ private theorem rank_decrease (g : Globals) (game game1 : SolverPosType)
       (VALUE (game1.aces.get s)).toNat > (VALUE (game.aces.get s)).toNat ∨
       (game1.aces = game.aces ∧ game1.busyAces.toNat < game.busyAces.toNat)) :
     rank game1 < rank game := by
-  have hsuit4 : ctz game.busyAces < 4 :=
-    ctz_lt_four_of_low_nibble game.busyAces (by
-      rw [uint8_and_0xF_eq_self_of_lt16 game.busyAces hmerged.busyAces_lt16]; exact hbusy)
+  have hsuit4 : ctz game.busyAces < 4 := ctz_lt_four hmerged.busyAces_lt16 hbusy
   have hb0 : (VALUE (game.aces.get (0 : Fin 4))).toNat ≤ 13 :=
     (hmerged.aces_kings_valid 0).2.1
   have hb1 : (VALUE (game.aces.get (1 : Fin 4))).toNat ≤ 13 :=

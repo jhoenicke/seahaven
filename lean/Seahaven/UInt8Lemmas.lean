@@ -7,6 +7,10 @@ import Seahaven.Solver
 solver code itself.  The `Int`-valued view `UInt8.toInt` and the lemmas relating
 it to `≤`, `<`, `+`, `-` and `toInt32` exist purely for the proofs, so they live
 here and are imported by the files that reason about the solver.
+
+The card codec's field accessors are here too, as plain `Nat` arithmetic: they are
+what every reader of a card code starts from, and both the solver-side proofs and
+the `Rules`-side encoding bridge (`LayoutProofs.encodeCard_SUIT`) need them.
 -/
 
 /-- The mathematical value of a `uint8_t`. -/
@@ -46,6 +50,30 @@ theorem UInt8.sub_sub (a b c : UInt8) : a - b - c = a - (b + c) := by
 theorem UInt8.toInt_add (a b : UInt8) : (a + b).toInt = (a.toInt + b.toInt) % 256 := by
   have h : (a + b).toNat = (a.toNat + b.toNat) % 256 := UInt8.toNat_add a b
   simp only [UInt8.toInt, h]
+  omega
+
+/-! ## The card codec, as `Nat` arithmetic
+
+A card code is `suit * 16 + value`.  These three turn the bit operations into the
+`/`, `%` and `*` form `omega` can work with. -/
+
+private theorem nat_and_15 (n : Nat) : n &&& 15 = n % 16 := by
+  simpa using Nat.and_two_pow_sub_one_eq_mod n 4
+
+theorem VALUE_toNat (c : UInt8) : (VALUE c).toNat = c.toNat % 16 := by
+  simp [VALUE, UInt8.toNat_and, nat_and_15]
+
+theorem SUIT_toNat (c : UInt8) : (SUIT c).toNat = c.toNat / 16 := by
+  simp [SUIT, Nat.shiftRight_eq_div_pow]
+
+/-- `CARD s v` as raw `Nat` arithmetic, wrap-free for `s<16, v<16`. -/
+theorem CARD_toNat {s v : Nat} (hs : s < 16) (hv : v < 16) :
+    (CARD (UInt8.ofNat s) (UInt8.ofNat v)).toNat = s * 16 + v := by
+  unfold CARD
+  rw [UInt8.toNat_add, UInt8.toNat_shiftLeft]
+  have h1 : (UInt8.ofNat s).toNat = s := by rw [UInt8.toNat_ofNat']; omega
+  have h2 : (UInt8.ofNat v).toNat = v := by rw [UInt8.toNat_ofNat']; omega
+  rw [h1, h2, show ((4:UInt8).toNat % 8 = 4) from by decide, Nat.shiftLeft_eq]
   omega
 
 theorem UInt8.toInt_sub (a b : UInt8) : (a - b).toInt = (a.toInt - b.toInt) % 256 := by

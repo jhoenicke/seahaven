@@ -1,6 +1,7 @@
 import Seahaven.MathlibImports
 import Seahaven.Rules
 import Seahaven.Solver
+import Seahaven.UInt8Lemmas
 import Seahaven.CountProofs
 -- CountProofs exports @[simp] lemmas for `update` that interfere with proofs here.
 attribute [-simp] update_same update_diff update2
@@ -47,31 +48,58 @@ instance : Fintype Card := Fintype.ofEquiv _ cardEquiv.symm
 
 /-- Convert a `Suit` to its 0-based numeric index (clubs=0, diamonds=1,
     hearts=2, spades=3), matching the solver's suit encoding. -/
-def suitToNat : Suit → Nat
-  | Suit.clubs    => 0
-  | Suit.diamonds => 1
-  | Suit.hearts   => 2
-  | Suit.spades   => 3
+def suitToNat (s : Suit) : Nat := allSuits.idxOf s
 
 /-- Convert a 0-based suit index back to a `Suit`. -/
-def natToSuit : Fin 4 → Suit
-  | ⟨0, _⟩ => Suit.clubs
-  | ⟨1, _⟩ => Suit.diamonds
-  | ⟨2, _⟩ => Suit.hearts
-  | ⟨3, _⟩ => Suit.spades
+def natToSuit (s : Fin 4) : Suit := allSuits.get s
 
-theorem suitToNat_lt (s : Suit) : suitToNat s < 4 := by cases s <;> simp [suitToNat]
+/-! `suitToNat` is `idxOf`, so unfolding it no longer produces a numeral — `simp`
+callers want these four equations instead of the definition. -/
+
+@[simp] theorem suitToNat_clubs : suitToNat Suit.clubs = 0 := rfl
+@[simp] theorem suitToNat_diamonds : suitToNat Suit.diamonds = 1 := rfl
+@[simp] theorem suitToNat_hearts : suitToNat Suit.hearts = 2 := rfl
+@[simp] theorem suitToNat_spades : suitToNat Suit.spades = 3 := rfl
+
+theorem suitToNat_lt (s : Suit) : suitToNat s < 4 := by cases s <;> decide
 
 theorem natToSuit_suitToNat (s : Suit) :
-    natToSuit ⟨suitToNat s, suitToNat_lt s⟩ = s := by cases s <;> simp [suitToNat, natToSuit]
+    natToSuit ⟨suitToNat s, suitToNat_lt s⟩ = s :=
+  List.idxOf_get (suitToNat_lt s)
 
+/-- The other direction has no generic counterpart — `idxOf (l.get i) = i` needs
+`l.Nodup` — so it stays a four-case check. -/
 theorem suitToNat_natToSuit (n : Fin 4) :
-    suitToNat (natToSuit n) = n.val := by fin_cases n <;> simp [natToSuit, suitToNat]
+    suitToNat (natToSuit n) = n.val := by fin_cases n <;> rfl
 
 /-- Encode a `Rules.Card` as the `UInt8` card code used by the solver:
     bits 7-4 = suit index, bits 3-0 = rank (1-13). -/
 def encodeCard (c : Card) : UInt8 :=
   CARD (UInt8.ofNat (suitToNat c.suit)) (UInt8.ofNat (rankToNat c.rank))
+
+/-! ### The two nibbles, read back
+
+`encodeCard c` is `suit * 16 + rank` with `suit ≤ 3` and `rank ≤ 13`, so neither
+field can carry into the other.  That single fact — `encodeCard_toNat` — is what
+every lemma below is `omega` away from. -/
+
+theorem encodeCard_toNat (c : Card) :
+    (encodeCard c).toNat = suitToNat c.suit * 16 + rankToNat c.rank :=
+  CARD_toNat (by have := suitToNat_lt c.suit; omega) (by have := rankBounded c.rank; omega)
+
+theorem encodeCard_SUIT (c : Card) :
+    SUIT (encodeCard c) = UInt8.ofNat (suitToNat c.suit) := by
+  have hs : suitToNat c.suit < 4 := suitToNat_lt c.suit
+  have hv : rankToNat c.rank ≤ 13 := rankBounded c.rank
+  apply UInt8.toNat_inj.mp
+  rw [SUIT_toNat, encodeCard_toNat, UInt8.toNat_ofNat']
+  omega
+
+theorem encodeCard_VALUE (c : Card) :
+    (VALUE (encodeCard c)).toNat = rankToNat c.rank := by
+  have hv : rankToNat c.rank ≤ 13 := rankBounded c.rank
+  rw [VALUE_toNat, encodeCard_toNat]
+  omega
 
 /-- Decode a solver `UInt8` card code back to a `Rules.Card`, returning `none`
     for codes that do not represent a valid card. -/
@@ -94,7 +122,16 @@ instance (code : UInt8) : Decidable (IsValidCard code) :=
   inferInstanceAs (Decidable (_ ∧ _ ∧ _))
 
 theorem encodeCard_valid (c : Card) : IsValidCard (encodeCard c) := by
-  fin_cases c <;> native_decide
+  have hs : suitToNat c.suit < 4 := suitToNat_lt c.suit
+  have hv1 : 1 ≤ rankToNat c.rank := by cases c.rank <;> decide
+  have hv2 : rankToNat c.rank ≤ 13 := rankBounded c.rank
+  -- `IsValidCard` spells the nibbles out, so bridge to `SUIT`/`VALUE` first
+  have h1 : ((encodeCard c) >>> 4).toNat = suitToNat c.suit := by
+    rw [show ((encodeCard c) >>> 4) = SUIT (encodeCard c) from rfl, SUIT_toNat,
+      encodeCard_toNat]
+    omega
+  have h2 : ((encodeCard c) &&& 0xf).toNat = rankToNat c.rank := encodeCard_VALUE c
+  exact ⟨by omega, by omega, by omega⟩
 
 /-- Valid card codes fit in the 64-entry lookup arrays. -/
 theorem IsValidCard_lt64 {code : UInt8} (h : IsValidCard code) : code.toNat < 64 := by
@@ -105,7 +142,16 @@ theorem IsValidCard_lt64 {code : UInt8} (h : IsValidCard code) : code.toNat < 64
   omega
 
 theorem decodeCard_encodeCard (c : Card) : decodeCard (encodeCard c) = some c := by
-  fin_cases c <;> native_decide
+  have hs : suitToNat c.suit < 4 := suitToNat_lt c.suit
+  have hv : rankToNat c.rank ≤ 13 := rankBounded c.rank
+  have h1 : ((encodeCard c) >>> 4).toNat = suitToNat c.suit := by
+    rw [show ((encodeCard c) >>> 4) = SUIT (encodeCard c) from rfl, SUIT_toNat,
+      encodeCard_toNat]
+    omega
+  have h2 : ((encodeCard c) &&& 0xf).toNat = rankToNat c.rank := encodeCard_VALUE c
+  -- both fields round-trip: the rank through `Rules`, the suit through `allSuits`
+  have hrank : natToRank (rankToNat c.rank) = some c.rank := rankToNatToRank (some c.rank)
+  simp only [decodeCard, h1, h2, dif_pos hs, hrank, natToSuit_suitToNat]
 
 theorem encodeCard_inj {c1 c2 : Card} (h : encodeCard c1 = encodeCard c2) : c1 = c2 := by
   have h1 := decodeCard_encodeCard c1
@@ -332,15 +378,6 @@ lemma PileMatches_tail
       split_ifs
       · exact fun i => i.elim0
       · exact ⟨0, fun i => i.elim0⟩
-
--- ---- Encoding helpers
-lemma encodeCard_SUIT (c : Card) :
-    SUIT (encodeCard c) = UInt8.ofNat (suitToNat c.suit) := by
-  fin_cases c <;> native_decide
-
-lemma encodeCard_VALUE (c : Card) :
-    (VALUE (encodeCard c)).toNat = rankToNat c.rank := by
-  fin_cases c <;> native_decide
 
 -- nextCard preserves suit; rank increases by 1
 lemma nextCard_suit {c top : Card} (h : nextCard c = some top) :

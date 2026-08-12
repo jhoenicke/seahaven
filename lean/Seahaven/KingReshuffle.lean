@@ -174,7 +174,8 @@ theorem kingRefund_eq_sum (p : SolverPosType) (k : Fin 16) :
       ↔ ((grlex2bits.get k).toNat / 2 ^ suitToNat su % 2 = 0) := by
     intro su; unfold CfgBitSet; omega
   rw [piledSet, Finset.sum_filter, sum_suit]
-  simp only [hcfg, runLen, finOfSuit, suitToNat,
+  simp only [hcfg, runLen, finOfSuit, suitToNat_clubs, suitToNat_diamonds, suitToNat_hearts,
+    suitToNat_spades,
     show (⟨0, by omega⟩ : Fin 4) = 0 from rfl, show (⟨1, by omega⟩ : Fin 4) = 1 from rfl,
     show (⟨2, by omega⟩ : Fin 4) = 2 from rfl, show (⟨3, by omega⟩ : Fin 4) = 3 from rfl]
   rw [kingRefund, show (List.finRange 4) = [0, 1, 2, 3] from by decide]

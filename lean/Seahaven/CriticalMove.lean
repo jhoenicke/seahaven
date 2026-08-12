@@ -477,7 +477,8 @@ theorem piledPlusMaskNat_bit (u : State) (p : SolverPosType) (su₀ su : Suit) :
     piledPlusMaskNat u p su₀ / 2 ^ (suitToNat su) % 2 = 1
       ↔ ¬ (PiledSuit u p su ∨ su = su₀) := by
   unfold piledPlusMaskNat
-  cases su <;> simp only [suitToNat] <;> split_ifs <;> simp_all
+  cases su <;> simp only [suitToNat_clubs, suitToNat_diamonds, suitToNat_hearts,
+    suitToNat_spades] <;> split_ifs <;> simp_all
 
 /-- **`k_t`.**  The configuration the critical state is in, with `su₀` claiming the
 column its king is about to occupy. -/

@@ -432,7 +432,8 @@ theorem piledMaskNat_lt (u : State) (p : SolverPosType) : piledMaskNat u p < 16 
 theorem piledMaskNat_bit (u : State) (p : SolverPosType) (su : Suit) :
     piledMaskNat u p / 2 ^ (suitToNat su) % 2 = 1 ↔ ¬ PiledSuit u p su := by
   unfold piledMaskNat
-  cases su <;> simp only [suitToNat] <;> split_ifs <;> simp_all
+  cases su <;> simp only [suitToNat_clubs, suitToNat_diamonds, suitToNat_hearts,
+    suitToNat_spades] <;> split_ifs <;> simp_all
 
 /-- **The configuration `u` realizes**, as a function of the state. -/
 noncomputable def cfgOf (u : State) (p : SolverPosType) : Fin 16 :=

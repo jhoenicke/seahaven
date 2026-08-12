@@ -45,14 +45,10 @@ can precede the first real move out of such a state, and (b) re-normalizing afte
 a move can only redo the cleanup the solver itself performs.
 -/
 
-/-! ## Card-code arithmetic -/
+/-! ## Card-code arithmetic
 
-/-- The card code of a `Card`, in `Nat` arithmetic. -/
-theorem encodeCard_toNat (c : Card) :
-    (encodeCard c).toNat = suitToNat c.suit * 16 + rankToNat c.rank := by
-  have h1 : suitToNat c.suit < 4 := suitToNat_lt _
-  have h2 : rankToNat c.rank ≤ 13 := rankBounded _
-  rw [encodeCard, CARD_toNat (by omega) (by omega)]
+(`encodeCard_toNat` — the card code as `suit * 16 + rank` — is in `LayoutProofs`,
+beside `encodeCard` itself.) -/
 
 theorem uint8_toNat_one : (1 : UInt8).toNat = 1 := rfl
 
