@@ -24,13 +24,35 @@ tableau piles may hold kings.  You can move the cards only one by one.
 Only the lowest card from the tableau piles and the cards on reserved
 cells are available.
 
-The program will do some moves automatically: It will move all cards
-to the foundations as soon as they get available.  It will move all
-matching cards from the reserved cells back to the tableau piles.
-When moving cards from the tableau piles it will move all cards of the
-current suit as long as there is enough space in the reserved cells.
-Also you just have to say which card to move, and the program will
-automatically determine the destination.
+You just have to say which card to move, and the program will
+automatically determine the destination: the foundations, a tableau
+pile, or the reserved cells, in that order.
+
+How much else the program does for you is selected with the automation
+box at the top (or by pressing `a`):
+
+* *None*: Only the lowest card of the clicked pile is moved and
+  nothing happens automatically.
+* *Flutes*: When moving cards from the tableau piles it will move all
+  cards of the current suit as long as there is enough space in the
+  reserved cells.  If the whole sequence does not fit anywhere, as
+  many cards as the reserved cells can hold are moved there.
+* *Aces*: It will also move all cards to the foundations as soon as
+  they get available.
+* *Full*: It will also move all matching cards from the reserved cells
+  back to the tableau piles.
+
+Changing the level is not a move and cannot be undone, but the moves a
+higher level makes by itself are made right away.  They can be undone
+like any other move; switching back to a lower level does not take them
+back.
+
+The game remembers every single card move, also the ones it made for
+you.  Undo takes back one move of the level you have selected: the
+moves the level makes by itself are taken back together with the click
+that caused them.  On a lower level undo walks back card by card, so
+with the automation switched off you can see how a flute was moved
+through the reserved cells.
 
 If you think you're stuck you can check if the game is still solvable.
 It will give you a tick or a cross as an answer.  If you're stuck you

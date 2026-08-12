@@ -308,11 +308,13 @@ class Card:
                              f'xlink:href="#{self.suit}{self.value}{layer}"></use>')
         if self.value == "A":
             if self.suit == "S":
-                # Ace of spades: large pip with the traditional maker's mark
+                # Ace of spades: large pip with the traditional maker's mark.
+                # Only the mark is a link; the pip must stay clickable as a
+                # card.
                 aw = self.bw
-                p.append(f'<a href="https://www.me.uk/cards">'
-                         f'<use xlink:href="#SS" height="{tho(aw)}" '
+                p.append(f'<use xlink:href="#SS" height="{tho(aw)}" '
                          f'x="{tho(-cdiv(aw, 2))}" y="{tho(-cdiv(aw, 2))}"></use>')
+                p.append('<a href="https://www.me.uk/cards">')
                 for i, line in enumerate(("www.me.uk", "/cards/")):
                     y = cdiv(self.bh, 2) - cdiv(THO * FONTSIZE * (3 - 2 * i), 2)
                     p.append(f'<text font-size="{FONTSIZE}" font-family="Bariol" '
