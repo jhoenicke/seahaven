@@ -77,7 +77,7 @@ theorem uint8_and_0xF_eq_self_of_lt16 (x : UInt8) (hx : x < 16) :
 def MoveAcesInv (g : Globals) (suit : Fin 4) (card : UInt8) (found : UInt8)
     (game : SolverPosType) : Prop :=
   SolverInvMerged g game ∧
-  0 ≤ found.toInt ∧ found.toInt ≤ 13 ∧
+  found.toInt ≤ 13 ∧
   SUIT card = suit.val.toUInt8 ∧
   1 ≤ (VALUE card).toNat ∧ (VALUE card).toNat ≤ 14 ∧
   (card.toNat : Int) = (game.aces.get suit).toNat + 1 + found.toInt ∧
@@ -96,7 +96,7 @@ theorem moveAces_lt_of_not_free (g : Globals) (suit : Fin 4) (card : UInt8)
     (X : UInt8) (hSuitX : SUIT X = suit.val.toUInt8) (hXreal : 1 ≤ (VALUE X).toNat)
     (hXnotfree : ¬ isFreeCard g game X) (hXne : X ≠ card) :
     card.toNat < X.toNat := by
-  obtain ⟨hmerged, _hfound0, _hfound13, hsuitcard, _hval1, _hval14, hcardeq, hfoundfree, _hbit⟩ :=
+  obtain ⟨hmerged, _hfound13, hsuitcard, _hval1, _hval14, hcardeq, hfoundfree, _hbit⟩ :=
     hinv
   set A := (game.aces.get suit) with hAdef
   have hSuitA : SUIT A = suit.val.toUInt8 := (hmerged.aces_kings_valid suit).1
@@ -316,7 +316,10 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
     have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × SolverPosType))
       (l := Loop.mk) (b := (⟨card, forcedKings, found, game, g⟩ : MoveAcesAcc))
       (f := moveAcesBody suitU32)
-    obtain ⟨hmerged, hf0, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩ := hinv
+    obtain ⟨hmerged, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩ := hinv
+    -- `found` is a `uint8_t`, so its `Int` view is nonnegative (needed by the
+    -- wrap-freedom arithmetic below; `omega` treats `UInt8.toInt` as an atom).
+    have hf0 : (0 : Int) ≤ found.toInt := UInt8.toInt_nonneg found
     have hsuitcardNat : (SUIT card).toNat < 4 := by
       rw [hsuitcard, finVal_toUInt8_toNat]; omega
     have h13nat : (13 : UInt8).toNat = 13 := by decide
@@ -362,11 +365,6 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
       simp only [moveAcesBody, hgProp, bind, EStateM.bind, pure,
         EStateM.pure, Vector.getE, getElem?_pos, hc64, hp10, reduceIte, ← hpiledef, ← hcd1def,
         ← hcd2def]
-      have hcd2nonneg : 0 ≤ cd2 := by
-        rw [hcd2EqPD]; exact hmerged.pileDepth_nonneg ⟨(cardPile g card).toNat, hp64⟩
-      have hcd2nonneg' : (0 : Int) ≤ cd2.toInt := by
-        rw [UInt8.le_iff_toInt_le] at hcd2nonneg
-        simp
       -- Bridge the `Int32` sign test on `cd1.toUInt32.toInt32 + 1 - cd2.toInt32`
       -- down to a plain `Int` equation relating `cd1`/`cd2`, wrap-free (both
       -- are tiny: `cd1 ≤ 5`, `0 ≤ cd2 ≤ 5`).
@@ -379,6 +377,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
         have hcast : (game.pileDepth.get ⟨(cardPile g card).toNat, hp64⟩).toInt =
             ((game.pileDepth.get ⟨(cardPile g card).toNat, hp64⟩).toNat : Int) := rfl
         omega
+      have hcd2nonneg : (0 : Int) ≤ cd2.toInt := UInt8.toInt_nonneg cd2
       have hcd1small : (cd1.toUInt32.toInt32).toInt = (cd1.toNat : Int) := by
         have hbmod : (cd1.toUInt32.toInt32).toInt = ((cd1.toUInt32.toNat : Int)).bmod (2 ^ 32) := by
           show (cd1.toUInt32.toInt32).toBitVec.toInt = _
@@ -443,7 +442,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
             rw [← hcardEqA]
             exact hcardFree
         have hnewinv : MoveAcesInv g suit (card + 1) (found + 1) game :=
-          ⟨hmerged, by omega, hfound1le13, hsuitcard1, hval1_1, hval14_1, hnewcardeq,
+          ⟨hmerged, hfound1le13, hsuitcard1, hval1_1, hval14_1, hnewcardeq,
             hnewfoundfree, hbit⟩
         have hnewmeas : 14 - (VALUE (card + 1)).toNat < n := by
           have := VALUE_succ card hcardVal15; omega
@@ -675,7 +674,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
               { game with aces := game.aces.set suitU32.toNat card hsuitU32lt4 } with
               hgameAdef
             have hinvBundle : MoveAcesInv g suit card found game :=
-              ⟨hmerged, hf0, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩
+              ⟨hmerged, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩
             have hpileFinEqP32 : pileFin = (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10) := by
               apply Fin.ext
               show (cardPile g card).toNat = pile.toUInt32.toNat
@@ -778,7 +777,6 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
               by_cases hkP : k.val = pile.toUInt32.toNat
               · have hkeq : k = (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10) := Fin.ext hkP
                 rw [hkeq, hp1_pileDepth_self]
-                have hnn := hmerged.pileDepth_nonneg (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)
                 have hpos : (game.pileDepth.get (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)).toInt.toNat
                     > 0 := by
                   have : (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10) = pileFin := hpileFinEqP32.symm
@@ -825,14 +823,9 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
                 have hbound5 :
                     (game.pileDepth.get (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)).toInt.toNat ≤ 5 :=
                   hbOld.pileDepth_bound
-                refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+                refine ⟨?_, ?_, ?_, ?_, ?_⟩
                 · -- pileDepth_bound
                   rw [hp1_pileDepth_self]
-                  have hcast : ((game.pileDepth.get (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)) - 1).toInt =
-                      (((game.pileDepth.get (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)) - 1).toNat : Int) := rfl
-                  omega
-                · -- pileDepth_nonneg
-                  rw [hp1_pileDepth_self, UInt8.le_iff_toInt_le, show ((0 : UInt8).toInt = 0) from rfl]
                   have hcast : ((game.pileDepth.get (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)) - 1).toInt =
                       (((game.pileDepth.get (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)) - 1).toNat : Int) := rfl
                   omega
@@ -847,11 +840,6 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
                   omega
                 · -- flute_not_aces: the new boundary (if any) sits `> card`.
                   intro hnewDepthPos boundary hs
-                  have hgameDepthNonneg :
-                      (0 : Int) ≤ (game.pileDepth.get (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)).toInt := by
-                    have h4 := hmerged.pileDepth_nonneg (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)
-                    rw [UInt8.le_iff_toInt_le] at h4
-                    simp
                   have hp1DepthEq : (p1.pileDepth.get
                       (⟨pile.toUInt32.toNat, hp10⟩ : Fin 10)).toInt.toNat = cd1.toNat := by
                     have h1 := hp1_pileDepth_self
@@ -938,9 +926,8 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
                 have hdeq := hp1_pileDepth_ne i hiP
                 have hfeq := hp1_pileFlute_ne i hiP
                 have hbOld := hmerged.pileBase i
-                refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+                refine ⟨?_, ?_, ?_, ?_, ?_⟩
                 · rw [hdeq]; exact hbOld.pileDepth_bound
-                · rw [hdeq]; exact hbOld.pileDepth_nonneg
                 · rw [hfeq]; exact hbOld.flute_pos
                 · intro h; rw [hfeq]; exact hbOld.flute_empty (hdeq ▸ h)
                 · intro j hdj hj0 hjlt
@@ -1132,7 +1119,6 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
                 set K := game.kings.get s with hKdef
                 have hKSuit : SUIT K = s.val.toUInt8 := hbOldS.aces_kings_valid.2.2.1
                 have hKVal13 : (VALUE K).toNat ≤ 13 := hbOldS.aces_kings_valid.2.2.2.1
-                have hKnonneg : (0 : UInt8) ≤ K := int8_nonneg_of_suit hKSuit
                 -- `card` itself becomes free in `p1`: its home pile's depth
                 -- has been decremented to sit exactly at `card`'s `cardDepth`.
                 have hcardFreeP1 : isFreeCard g p1 card := by
@@ -1180,7 +1166,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
                   · rw [hp1_kings]; exact hKVal13
                   · rw [hacesEq, hp1_kings]
                     apply UInt8.le_iff_toInt_le.mpr
-                    rw [uint8_toInt8_toInt_of_lt128 (by omega : card.toNat < 128), int8_toInt_eq_toUInt8_toNat_of_nonneg hKnonneg]
+                    simp only [UInt8.toInt_eq]
                     exact_mod_cast hcardLeK
                 · -- foundation_cards_free
                   intro c hSc hVc1 hVc2
@@ -1227,7 +1213,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
                       refine Or.inr ⟨?_, ?_⟩
                       · rw [hacesEq]
                         apply UInt8.lt_iff_toInt_lt.mpr
-                        rw [uint8_toInt8_toInt_of_lt128 (by omega : card.toNat < 128), int8_toInt_eq_toUInt8_toNat_of_nonneg hKnonneg]
+                        simp only [UInt8.toInt_eq]
                         exact_mod_cast hlt
                       · have hKreal : IsRealCard K := by
                           refine ⟨?_, ?_, hKVal13⟩
@@ -1304,9 +1290,6 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
                         (hbOldS.aces_kings_valid).2.2.1
                       have hVK13 : (VALUE (game.kings.get s)).toNat ≤ 13 :=
                         (hbOldS.aces_kings_valid).2.2.2.1
-                      have hAnonneg : (0 : UInt8) ≤ game.aces.get s :=
-                        int8_nonneg_of_suit (hbOldS.aces_kings_valid).1
-                      have hKnonneg : (0 : UInt8) ≤ game.kings.get s := int8_nonneg_of_suit hSK
                       have hVKpos : 1 ≤ (VALUE (game.kings.get s)).toNat := by
                         have hsa := SUIT_toNat (game.aces.get s)
                         have hva := VALUE_toNat (game.aces.get s)
@@ -1316,20 +1299,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
                             (SUIT (game.kings.get s)).toNat := by
                           rw [(hbOldS.aces_kings_valid).1, hSK]
                         have hlt' : (game.aces.get s).toNat <
-                            (game.kings.get s).toNat := by
-                          show (game.aces.get s).toNat < (game.kings.get s).toNat
-                          have hltI := UInt8.lt_iff_toInt_lt.mp hlt
-                          have hAnn : (0:Int) ≤ (game.aces.get s).toInt := by
-                            have := UInt8.le_iff_toInt_le.mp hAnonneg
-                            rw [UInt8.toInt_zero] at this; exact this
-                          have hKnn : (0:Int) ≤ (game.kings.get s).toInt := by
-                            have := UInt8.le_iff_toInt_le.mp hKnonneg
-                            rw [UInt8.toInt_zero] at this; exact this
-                          have hcastA : (game.aces.get s).toInt =
-                              ((game.aces.get s).toNat : Int) := rfl
-                          have hcastK : (game.kings.get s).toInt =
-                              ((game.kings.get s).toNat : Int) := rfl
-                          omega
+                            (game.kings.get s).toNat := UInt8.lt_iff_toNat_lt.mp hlt
                         omega
                       exact hfreeTransfer _
                         ⟨by rw [hSK]; have := s.isLt; have := finVal_toUInt8_toNat s; omega,
@@ -1535,15 +1505,8 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
                 by_cases hd0 : p1.pileDepth.get j = 0
                 · left; exact hd0
                 · have hgd0 : game.pileDepth.get j ≠ 0 := by rw [hdeq] at hd0; exact hd0
-                  have hgdj : (game.pileDepth.get j).toNat > 0 := by
-                    have h1 := hbOldBase.pileDepth_nonneg
-                    rw [UInt8.le_iff_toInt_le, show ((0 : UInt8).toInt = 0) from rfl] at h1
-                    have h2 : (game.pileDepth.get j).toInt ≠ 0 := by
-                      intro hz; apply hgd0; apply UInt8.toInt_inj.mp
-                      rw [hz, show ((0 : UInt8).toInt = 0) from rfl]
-                    have hcast : (game.pileDepth.get j).toInt =
-                        ((game.pileDepth.get j).toNat : Int) := rfl
-                    omega
+                  have hgdj : (game.pileDepth.get j).toNat > 0 :=
+                    Nat.pos_of_ne_zero (fun h => hgd0 (UInt8.toNat_inj.mp h))
                   right
                   have hidxEqB : (p1.pileDepth.get j).toNat - 1 =
                       (game.pileDepth.get j).toNat - 1 := by rw [hdeq]
@@ -1669,8 +1632,6 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
                       have hna : (game.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toNat +
                           (game.pileFlute.get j).toNat ≤ boundary.toNat :=
                         hbOldBase.flute_not_aces hgdj hs4'
-                      have haces0 : (0 : UInt8) ≤ game.aces.get ⟨(SUIT boundary).toNat, hs4'⟩ :=
-                        int8_nonneg_of_suit (hak ⟨(SUIT boundary).toNat, hs4'⟩)
                       have hSuitAcesEq : SUIT ((game.aces.get
                           ⟨(SUIT boundary).toNat, hs4'⟩)) = SUIT boundary := by
                         rw [hak ⟨(SUIT boundary).toNat, hs4'⟩]
@@ -1688,22 +1649,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
                           ).toNat ≤ prevCard.toNat := by rw [hprevNat]; omega
                       have hacesEqNat : (game.aces.get ⟨(SUIT boundary).toNat, hs4'⟩
                           ).toNat = prevCard.toNat := le_antisymm hacesLeNat hacesGeNat
-                      have hprevlt128 : prevCard.toNat < 128 := by omega
-                      apply UInt8.toInt_inj.mp
-                      rw [uint8_toInt8_toInt_of_lt128 hprevlt128]
-                      have haces0' : (0 : Int) ≤ (game.aces.get
-                          ⟨(SUIT boundary).toNat, hs4'⟩).toInt := by
-                        rw [← show ((0 : UInt8).toInt = 0) from rfl]
-                        exact UInt8.le_iff_toInt_le.mp haces0
-                      have hcast : ((game.aces.get ⟨(SUIT boundary).toNat, hs4'⟩
-                          ).toInt.toNat : Int) =
-                          (game.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toInt :=
-                        Int.toNat_of_nonneg haces0'
-                      have hacesIntEqUInt8Nat :
-                          (game.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toInt.toNat =
-                          (game.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toNat := by
-                        rfl
-                      omega
+                      exact UInt8.toNat_inj.mp hacesEqNat
                     · have hVpos : 1 ≤ (VALUE prevCard).toNat := by omega
                       have hVle : (VALUE prevCard).toNat ≤ 13 := by
                         have := hrealBd.2.2; rw [hVALeq]; omega
@@ -1814,7 +1760,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
               have h0 : (0 : UInt8).toInt = 0 := rfl
               omega
             have hnewinv2 : MoveAcesInv g suit (card + 1) 0 p' :=
-              ⟨hinvP', by decide, by decide, hsuitcard1, hval1_1, hval14_1,
+              ⟨hinvP', by decide, hsuitcard1, hval1_1, hval14_1,
                 hnewcard1eq, hnewfoundfree0, hp'busybit⟩
             have hnewmeas : 14 - (VALUE (card + 1)).toNat < n := by
               have := VALUE_succ card hcardVal15; omega
@@ -1883,7 +1829,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
             rw [hcardDepthI, show ((0 : Int32).toInt = 0) from by decide]
             exact heq
           refine ⟨card, forcedKings, found, game, ?_,
-            ⟨hmerged, hf0, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩,
+            ⟨hmerged, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩,
             Or.inr ⟨?_, hp64, ?_⟩, fun _ _ => rfl, Or.inl ⟨rfl, rfl, rfl, rfl⟩, hP⟩
           · simp only [hcdpos, hcd0, reduceIte, EStateM.pure, Bool.false_eq_true]
           · intro hfree
@@ -1897,7 +1843,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
     · -- guard false: `.done`, unchanged accumulator; `VALUE card = 14`.
       have hgProp' : ¬ (VALUE card ≤ (13 : UInt8)) := fun h => hg (hgIff.mp h)
       refine ⟨card, forcedKings, found, game, ?_,
-        ⟨hmerged, hf0, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩,
+        ⟨hmerged, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩,
         Or.inl (by omega), fun _ _ => rfl, Or.inl ⟨rfl, rfl, rfl, rfl⟩, hP⟩
       rw [hunf]
       simp only [moveAcesBody, hgProp', bind, EStateM.bind, pure, EStateM.pure, reduceIte]
@@ -1951,7 +1897,6 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
   set card0 : UInt8 := A + 1 with hcard0def
   set found0 : UInt8 := 0 with hfound0def
   -- Establish `MoveAcesInv` at the walk's starting point.
-  have hAnonneg : (0 : UInt8) ≤ A := int8_nonneg_of_suit (hmerged.aces_kings_valid suit).1
   have hAsuit : SUIT A = suit.val.toUInt8 := (hmerged.aces_kings_valid suit).1
   have hAval13 : (VALUE A).toNat ≤ 13 := (hmerged.aces_kings_valid suit).2.1
   have hcard0eq : card0 = A + 1 := hcard0def
@@ -1982,7 +1927,7 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
     rw [hsuitval]
     exact ctz_bit_self p.busyAces hbusy
   have hinv0 : MoveAcesInv g suit card0 found0 p :=
-    ⟨hmerged, by rw [hfound0def]; decide, by rw [hfound0def]; decide, hsuitcard0, hval1_0,
+    ⟨hmerged, by rw [hfound0def]; decide, hsuitcard0, hval1_0,
       hval14_0, hcard0eqInv, hfoundfree0, hbusybit⟩
   obtain ⟨cardF, forcedKingsF, foundF, gameF, hloopeq, hloopinv, hloopexit, hloopframe,
       hloopdich, hloopDepth⟩ :=
@@ -2022,10 +1967,11 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
             (removeFlutePre pile' hpile' gameA)).pileDepth.get i).toNat ≤ _
           rw [hqdne i hi])
       15 card0 0xffff found0 p (by have := hval14_0; omega) hinv0 (DepthLe.rfl' p)
-  obtain ⟨hmergedF, hf0F, hf13F, hsuitcardF, hval1F, hval14F, hcardeqF, hfoundfreeF, hbitF⟩ :=
+  obtain ⟨hmergedF, hf13F, hsuitcardF, hval1F, hval14F, hcardeqF, hfoundfreeF, hbitF⟩ :=
     hloopinv
+  have hf0F : (0 : Int) ≤ foundF.toInt := UInt8.toInt_nonneg foundF
   have hloopinv' : MoveAcesInv g suit cardF foundF gameF :=
-    ⟨hmergedF, hf0F, hf13F, hsuitcardF, hval1F, hval14F, hcardeqF, hfoundfreeF, hbitF⟩
+    ⟨hmergedF, hf13F, hsuitcardF, hval1F, hval14F, hcardeqF, hfoundfreeF, hbitF⟩
   set card2 := cardF - 1 with hcard2def
   have h1lecardF : (1 : UInt8) ≤ cardF := by
     rw [UInt8.le_iff_toNat_le]
@@ -2281,7 +2227,7 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
       PileBase g (gameFinalOf K) i := by
     intro K i
     have hbOld := hmergedF.pileBase i
-    refine ⟨hbOld.pileDepth_bound, hbOld.pileDepth_nonneg, hbOld.flute_pos, hbOld.flute_empty,
+    refine ⟨hbOld.pileDepth_bound, hbOld.flute_pos, hbOld.flute_empty,
       hbOld.flute_cards_free, ?_⟩
     intro hnewDepthPos boundary hs
     by_cases hSB : SUIT boundary = suit.val.toUInt8
@@ -2331,15 +2277,8 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
       by_cases hd0 : gameF.pileDepth.get i = 0
       · left; exact hd0
       · right
-        have hgdj : (gameF.pileDepth.get i).toNat > 0 := by
-          have h1 := hbOldBase.pileDepth_nonneg
-          rw [UInt8.le_iff_toInt_le, show ((0 : UInt8).toInt = 0) from rfl] at h1
-          have h2 : (gameF.pileDepth.get i).toInt ≠ 0 := by
-            intro hz; apply hd0; apply UInt8.toInt_inj.mp
-            rw [hz, show ((0 : UInt8).toInt = 0) from rfl]
-          have hcast : (gameF.pileDepth.get i).toInt =
-              ((gameF.pileDepth.get i).toNat : Int) := rfl
-          omega
+        have hgdj : (gameF.pileDepth.get i).toNat > 0 :=
+          Nat.pos_of_ne_zero (fun h => hd0 (UInt8.toNat_inj.mp h))
         set boundary := (g.pos2card.get i).get ⟨(gameF.pileDepth.get i).toNat - 1,
           by have := hbOldBase.pileDepth_bound; simp only [UInt8.toInt_eq] at *; omega⟩ with hboundaryDef
         set prevCard := boundary - gameF.pileFlute.get i with hprevCardDef
@@ -2547,10 +2486,9 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
       omega
     have hcardVAL : (VALUE card2).toNat = (VALUE card2).toNat := rfl
     rw [hcardVAL] at has_
-    have hfound_nonneg : (0 : Int) ≤ foundF.toInt := hf0F
-    have husedBound := usedSpace_nonneg hwf hmergedF.toSolverInvBase
+    have husedBound := usedSpace_bounded hwf hmergedF.toSolverInvBase
     -- The counting argument's ace-side mirror (`usedSpace_ge_found_run`,
-    -- extracted from `usedSpace_nonneg`'s disjointness proof): the `foundF`
+    -- extracted from `usedSpace_bounded`'s disjointness proof): the `foundF`
     -- cards the ace walk absorbed are all distinct from every card the
     -- layout is currently charging for, so `usedSpace` must already have
     -- room for them.  `hAboveCard2` (proved above) is exactly the fact
@@ -2683,7 +2621,6 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
         have hAKvalid := hbOld.aces_kings_valid
         have hVK13 := hAKvalid.2.2.2.1
         have hSK := hAKvalid.2.2.1
-        have hKnonneg : (0 : UInt8) ≤ gameF.kings.get suit := int8_nonneg_of_suit hSK
         -- `cardF` is real (`≤ 13`): if it were the value-14 sentinel,
         -- `card2`'s value would be exactly `13` (`hVcard2eq13From`),
         -- contradicting `hVCne13`.
@@ -2740,7 +2677,7 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
             have hSC24 : (SUIT card2).toNat < 4 := by
               rw [hSuitCard2]; have := suit.isLt; have h := finVal_toUInt8_toNat suit; omega
             have hsvc2 := SUIT_toNat card2; have hvvc2 := VALUE_toNat card2
-            rw [uint8_toInt8_toInt_of_lt128 (by omega : card2.toNat < 128), int8_toInt_eq_toUInt8_toNat_of_nonneg hKnonneg]
+            simp only [UInt8.toInt_eq]
             exact_mod_cast hcard2ltK_nat
           have hcard2leK : card2 ≤ gameF.kings.get suit :=
             UInt8.le_iff_toInt_le.mpr (le_of_lt (UInt8.lt_iff_toInt_lt.mp hcard2ltK))

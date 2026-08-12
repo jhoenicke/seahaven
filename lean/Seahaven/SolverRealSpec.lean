@@ -244,21 +244,19 @@ def freedBody (g : Globals) (suit : UInt8) :
 /-- The freed-predecessor loop terminates without touching the state, by induction
     on a `Nat` bounding `prevCard`.  Preconditions: `suit` indexes `aces`; every
     `card2pile` entry is a valid pile index (`< 10`, its value indexes `pileDepth`);
-    `prevCard < 64` (indexes `card2depth`/`card2pile`); and the foundation top
-    `aces[suit]` is nonnegative — together with the loop guard this keeps
-    `prevCard.toNat` in `[1, 63]` while the loop runs, so `prevCard - 1` never
-    wraps and the index bounds are maintained. -/
+    `prevCard < 64` (indexes `card2depth`/`card2pile`) — together with the loop
+    guard this keeps `prevCard.toNat` in `[1, 63]` while the loop runs, so
+    `prevCard - 1` never wraps and the index bounds are maintained. -/
 theorem freedLoop_ok (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat < 4)
     (hpiles : ∀ (i : Nat) (h : i < 64), (g.card2pile[i]'h).toNat < 10) :
     ∀ (n : Nat) (r : FreedAcc) (s : Globals × SolverPosType),
       r.snd.snd.toNat < n → r.snd.snd.toNat < 64 →
-      (0 : UInt8) ≤ r.snd.fst.aces[suit.toUInt32.toNat]'hsuit →
       ∃ res, Loop.forIn Loop.mk r (freedBody g suit) s = .ok res s := by
   intro n
   induction n with
-  | zero => intro r s h1 _ _; exact absurd h1 (Nat.not_lt_zero _)
+  | zero => intro r s h1 _; exact absurd h1 (Nat.not_lt_zero _)
   | succ n ih =>
-    intro r s h1 h64 haces
+    intro r s h1 h64
     have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × SolverPosType))
       (l := Loop.mk) (b := r) (f := freedBody g suit)
     have hc64 : r.snd.snd.toUInt32.toNat < 64 := by rw [UInt8.toNat_toUInt32]; exact h64
@@ -278,7 +276,7 @@ theorem freedLoop_ok (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat <
           UInt8.toNat_sub_of_le _ _ h1le
         obtain ⟨res, hres⟩ := ih
           ⟨r.fst + 1, { r.snd.fst with usedSpace := r.snd.fst.usedSpace - 1 }, r.snd.snd - 1⟩ s
-          (by rw [hsub]; omega) (by rw [hsub]; omega) haces
+          (by rw [hsub]; omega) (by rw [hsub]; omega)
         refine ⟨res, ?_⟩
         rw [hunf]
         simp only [freedBody, hg1, hg2, decide_true, bind, EStateM.bind, andM, toBool, pure,
@@ -508,16 +506,15 @@ theorem freedLoop_run (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat 
     (hpiles : ∀ (i : Nat) (h : i < 64), (g.card2pile[i]'h).toNat < 10) :
     ∀ (n : Nat) (r : FreedAcc) (s : Globals × SolverPosType),
       r.snd.snd.toNat < n → r.snd.snd.toNat < 64 →
-      (0 : UInt8) ≤ r.snd.fst.aces[suit.toUInt32.toNat]'hsuit →
       ∃ f : Nat,
         Loop.forIn Loop.mk r (freedBody g suit) s = .ok (freedIter f r) s ∧
         (∀ i, i < f → freedGuard g suit (freedIter i r)) ∧
         ¬ freedGuard g suit (freedIter f r) := by
   intro n
   induction n with
-  | zero => intro r s h1 _ _; exact absurd h1 (Nat.not_lt_zero _)
+  | zero => intro r s h1 _; exact absurd h1 (Nat.not_lt_zero _)
   | succ n ih =>
-    intro r s h1 h64 haces
+    intro r s h1 h64
     have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × SolverPosType))
       (l := Loop.mk) (b := r) (f := freedBody g suit)
     have hc64 : r.snd.snd.toUInt32.toNat < 64 := by rw [UInt8.toNat_toUInt32]; exact h64
@@ -537,7 +534,7 @@ theorem freedLoop_run (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat 
           UInt8.toNat_sub_of_le _ _ h1le
         obtain ⟨f, heq, hguards, hexit⟩ := ih (freedStep r) s
           (by show (r.snd.snd - 1).toNat < n; rw [hsub]; omega)
-          (by show (r.snd.snd - 1).toNat < 64; rw [hsub]; omega) haces
+          (by show (r.snd.snd - 1).toNat < 64; rw [hsub]; omega)
         refine ⟨f + 1, ?_, ?_, hexit⟩
         · rw [hunf]
           simp only [freedBody, hg1, hg2, decide_true, bind, EStateM.bind, andM, toBool, pure,
@@ -567,8 +564,8 @@ theorem freedLoop_run (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat 
     before every iteration and fail at exit, and the run returns exactly
     `cleanupRunResult … m f p` with `globals` untouched.  Preconditions supply
     the index bounds: `0 < depth ≤ 5`, the boundary card `B` (with `SUIT B < 4`
-    and `B - 1 < 64` for the freed loop's reads), every `card2pile` entry a valid
-    pile index, and a nonnegative foundation top for `SUIT B`. -/
+    and `B - 1 < 64` for the freed loop's reads), and every `card2pile` entry a
+    valid pile index. -/
 theorem cleanupPile_nonempty_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
     (B : UInt8) (ph : UInt32)
     (hpile : pile.toNat < 10)
@@ -580,8 +577,7 @@ theorem cleanupPile_nonempty_eq (pile : UInt32) (g : Globals) (p : SolverPosType
       ).toUInt32.toNat]'hidx = B)
     (hs4 : (SUIT B).toUInt32.toNat < 4)
     (hprev64 : (B - 1).toNat < 64)
-    (hpiles : ∀ (i : Nat) (h : i < 64), (g.card2pile[i]'h).toNat < 10)
-    (haces0 : (0 : UInt8) ≤ p.aces[(SUIT B).toUInt32.toNat]'hs4) :
+    (hpiles : ∀ (i : Nat) (h : i < 64), (g.card2pile[i]'h).toNat < 10) :
     ∃ m f : Nat,
       (∀ i, i < m → mergeGuard g pile
         (mergeIter ph i ⟨B, p.pileDepth[pile.toNat]'hpile, 1, p⟩)) ∧
@@ -605,7 +601,6 @@ theorem cleanupPile_nonempty_eq (pile : UInt32) (g : Globals) (p : SolverPosType
     ⟨1 + UInt8.ofNat m, { p with hash := p.hash - UInt32.ofNat m * ph }, B - 1⟩ (g, p)
     (by show (B - 1).toNat < 64; exact hprev64)
     (by show (B - 1).toNat < 64; exact hprev64)
-    (by show (0 : UInt8) ≤ p.aces[(SUIT B).toUInt32.toNat]'hs4; exact haces0)
   rw [freedIter_eq] at hfeq
   refine ⟨m, f, hmg, hmx, hfg, hfx, ?_⟩
   have hd0 : ((p.pileDepth[pile.toNat]'hpile) == 0) = false := by

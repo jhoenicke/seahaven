@@ -160,11 +160,9 @@ theorem isFreeCard_iff (g : Globals) (game : SolverPosType) (c : UInt8)
        else 0).toNat) ↔ _
   rw [dif_pos hp10]
 
-/-- **The loop's `posFromTop > 0` test is exactly "not free".**  Needs pile
-depths to be non-negative, which `SolverInvBase.pileDepth_nonneg` supplies. -/
+/-- **The loop's `posFromTop > 0` test is exactly "not free".** -/
 theorem posFromTopOf_pos_iff (g : Globals) (game : SolverPosType) (c : UInt8)
-    (hp10 : (cardPile g c).toNat < 10)
-    (_hnn : (0 : Int) ≤ (game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toInt) :
+    (hp10 : (cardPile g c).toNat < 10) :
     0 < posFromTopOf g game c ↔ ¬ isFreeCard g game c := by
   rw [isFreeCard_iff g game c hp10]
   unfold posFromTopOf
@@ -179,8 +177,6 @@ The loop computes `posFromTop` as `pileDepth.toInt32 - card2depth.toUInt32.toInt
 Relating that to `posFromTopOf`'s `Int` needs three no-wrap facts.  `Int32.toInt_sub`
 only exists in the `bmod` form and `Int32.toInt_sub_of_le` needs `b ≤ a`, which
 fails exactly when the card *is* free — so the general version is proved here. -/
-
-theorem int8_toInt_lb (x : UInt8) : 0 ≤ x.toInt := UInt8.toInt_nonneg x
 
 theorem int8_toInt_ub (x : UInt8) : x.toInt < 256 := by
   have h : x.toNat < 256 := x.toNat_lt_size
@@ -228,7 +224,7 @@ theorem pft_toInt (pd : UInt8) (cd : UInt8) :
     (pd.toInt32 - cd.toUInt32.toInt32).toInt = pd.toInt - (cd.toNat : Int) := by
   have hb : (cd.toUInt32.toInt32).toInt = (cd.toNat : Int) := uint8_toInt32_toInt cd
   have ha : (pd.toInt32).toInt = pd.toInt := UInt8.toInt_toInt32 pd
-  have h1 := int8_toInt_lb pd
+  have h1 := UInt8.toInt_nonneg pd
   have h2 := int8_toInt_ub pd
   have h3 := uint8_toNat_lt cd
   rw [int32_toInt_sub _ _ (by rw [ha, hb]; omega) (by rw [ha, hb]; omega), ha, hb]
@@ -236,8 +232,7 @@ theorem pft_toInt (pd : UInt8) (cd : UInt8) :
 /-- **The loop's sign test is exactly `¬ isFreeCard`,** stated on the `Int32`
 value the code actually computes. -/
 theorem loop_test_iff (g : Globals) (game : SolverPosType) (c : UInt8)
-    (hp10 : (cardPile g c).toNat < 10)
-    (_hnn : (0 : Int) ≤ (game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toInt) :
+    (hp10 : (cardPile g c).toNat < 10) :
     0 < (game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toInt32
           - (cardDepth g c).toUInt32.toInt32
       ↔ ¬ isFreeCard g game c := by
@@ -294,10 +289,9 @@ theorem pftVal_eq (g : Globals) (game : SolverPosType) (c : UInt8)
   unfold pftVal; rw [pileDepth_mod game _ hp10]
 
 theorem pftVal_pos_iff (g : Globals) (game : SolverPosType) (c : UInt8)
-    (hp10 : (cardPile g c).toNat < 10)
-    (hnn : (0 : Int) ≤ (game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toInt) :
+    (hp10 : (cardPile g c).toNat < 10) :
     0 < pftVal g game c ↔ ¬ isFreeCard g game c := by
-  rw [pftVal_eq g game c hp10]; exact loop_test_iff g game c hp10 hnn
+  rw [pftVal_eq g game c hp10]; exact loop_test_iff g game c hp10
 
 theorem destBody_run' (g : Globals) (game : SolverPosType) (acc : DestAcc) (c : UInt8)
     (hc : c = acc.fst + 1) (h64 : c.toNat < 64) (hp10 : (cardPile g c).toNat < 10) :
@@ -313,8 +307,7 @@ theorem cardPile_lt10 (g : Globals) (hwf : WellFormedLayout g) (c : UInt8) (h64 
 
 /-- **The walk.**  If `B+1 … B+m` are free and `B+(m+1)` is not, the loop stops
 there and reports that card's pile data. -/
-theorem destFuel_walk (g : Globals) (game : SolverPosType) (hwf : WellFormedLayout g)
-    (hnn : ∀ i : Fin 10, (0:Int) ≤ (game.pileDepth.get i).toInt) :
+theorem destFuel_walk (g : Globals) (game : SolverPosType) (hwf : WellFormedLayout g) :
     ∀ (m : Nat) (B : UInt8) (k : Nat) (pft0 : Int32) (tp0 : UInt8),
       m + 1 ≤ k →
       (∀ j, 1 ≤ j → j ≤ m + 1 → (B + UInt8.ofNat j).toNat < 64) →
@@ -332,7 +325,7 @@ theorem destFuel_walk (g : Globals) (game : SolverPosType) (hwf : WellFormedLayo
     have h1 : (B + 1).toNat < 64 := by rw [← hc1]; exact hb 1 (by omega) (by omega)
     rw [hc1] at hnf ⊢
     have hp10 := cardPile_lt10 g hwf (B + 1) h1
-    have hpos : 0 < pftVal g game (B + 1) := (pftVal_pos_iff g game (B+1) hp10 (hnn _)).2 hnf
+    have hpos : 0 < pftVal g game (B + 1) := (pftVal_pos_iff g game (B+1) hp10).2 hnf
     rw [destFuel]
     simp only [EStateM.run, bind, EStateM.bind,
       destBody_run' g game ⟨B, pft0, tp0⟩ (B+1) rfl h1 hp10, if_pos hpos, pure, EStateM.pure]
@@ -345,7 +338,7 @@ theorem destFuel_walk (g : Globals) (game : SolverPosType) (hwf : WellFormedLayo
     have hfree1 : isFreeCard g game (B + 1) := by
       have := hfree 1 (by omega) (by omega); rwa [hc1] at this
     have hnpos : ¬ (0 < pftVal g game (B + 1)) := fun h =>
-      ((pftVal_pos_iff g game (B+1) hp10 (hnn _)).1 h) hfree1
+      ((pftVal_pos_iff g game (B+1) hp10).1 h) hfree1
     have hIH := ih (B + 1) k' (pftVal g game (B+1)) (cardPile g (B+1)) (by omega)
       (fun j hj1 hj2 => by rw [uint8_shift]; exact hb (j+1) (by omega) (by omega))
       (fun j hj1 hj2 => by rw [uint8_shift]; exact hfree (j+1) (by omega) (by omega))
@@ -417,7 +410,6 @@ theorem exists_stop (g : Globals) (game : SolverPosType) (s : Fin 4) (B : UInt8)
 
 /-- **The loop does the walk.**  Combines `destFuel_walk` with `destLoop_eq_of_fuel`. -/
 theorem destLoop_result (g : Globals) (game : SolverPosType) (hwf : WellFormedLayout g)
-    (hnn : ∀ i : Fin 10, (0:Int) ≤ (game.pileDepth.get i).toInt)
     (B : UInt8) (n : Nat) (hn1 : 1 ≤ n)
     (hbound : ∀ j, 1 ≤ j → j ≤ n → (B + UInt8.ofNat j).toNat < 64)
     (hfree : ∀ j, 1 ≤ j → j < n → isFreeCard g game (B + UInt8.ofNat j))
@@ -427,7 +419,7 @@ theorem destLoop_result (g : Globals) (game : SolverPosType) (hwf : WellFormedLa
              cardPile g (B + UInt8.ofNat n)⟩ g := by
   obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
   refine destLoop_eq_of_fuel game g (m + 1) ⟨B, 0, 0⟩ _ g g ?_
-  exact destFuel_walk g game hwf hnn m B (m + 1) 0 0 (by omega) hbound
+  exact destFuel_walk g game hwf m B (m + 1) 0 0 (by omega) hbound
     (fun j h1 h2 => hfree j h1 (by omega)) hnf
 
 /-! ### Evaluating the function -/
@@ -460,7 +452,6 @@ otherwise the stopping card's pile when it is exposed, `EXTRA` when it is
 buried. -/
 theorem getDest_result (game : SolverPosType) (pile : UInt32) (g : Globals) (B : UInt8)
     (hwf : WellFormedLayout g)
-    (hnn : ∀ i : Fin 10, (0:Int) ≤ (game.pileDepth.get i).toInt)
     (hp : pile.toNat < 10)
     (hidx : ((game.pileDepth[pile.toNat]'hp) - 1).toUInt32.toNat < 5)
     (hcard : (g.pos2card[pile.toNat]'hp)[((game.pileDepth[pile.toNat]'hp)
@@ -476,7 +467,7 @@ theorem getDest_result (game : SolverPosType) (pile : UInt32) (g : Globals) (B :
        else .ok (if (pftVal g game (B + UInt8.ofNat n) == 1) = true
                  then cardPile g (B + UInt8.ofNat n) else 14) g) :=
   getDest_apply game pile g g B hp hidx hcard hs32 _
-    (destLoop_result g game hwf hnn B n hn1 hbound hfree hnf)
+    (destLoop_result g game hwf B n hn1 hbound hfree hnf)
 
 /-- **The walk stops, from the invariant alone.**  The `kings[s] = aces[s]`
 disjunct of `king_frontier` cannot fire: `busyAces = 0` in a canonical position
@@ -528,7 +519,6 @@ theorem getDest_king (game : SolverPosType) (pile : UInt32) (g : Globals) (B : U
 /-- Boundary card is *not* the king frontier: the loop runs and stops at `B + n`. -/
 theorem getDest_walk (game : SolverPosType) (pile : UInt32) (g : Globals) (B : UInt8)
     (hwf : WellFormedLayout g)
-    (hnn : ∀ i : Fin 10, (0:Int) ≤ (game.pileDepth.get i).toInt)
     (hp : pile.toNat < 10)
     (hidx : ((game.pileDepth[pile.toNat]'hp) - 1).toUInt32.toNat < 5)
     (hcard : (g.pos2card[pile.toNat]'hp)[((game.pileDepth[pile.toNat]'hp)
@@ -542,7 +532,7 @@ theorem getDest_walk (game : SolverPosType) (pile : UInt32) (g : Globals) (B : U
     solverGetDestination game pile g
       = .ok (if (pftVal g game (B + UInt8.ofNat n) == 1) = true
              then cardPile g (B + UInt8.ofNat n) else 14) g := by
-  rw [getDest_result game pile g B hwf hnn hp hidx hcard hs32 n hn1 hbound hfree hnf,
+  rw [getDest_result game pile g B hwf hp hidx hcard hs32 n hn1 hbound hfree hnf,
     if_neg (by rw [hkne]; simp)]
 
 /-- **`solverGetDestination`, from the invariant alone.**  `B` is let-bound, the
@@ -570,9 +560,6 @@ theorem getDest_spec (g : Globals) (game : SolverPosType) (pile : UInt32)
   have hbase := hcan.toSolverInvMerged.toSolverInvBase
   have hreal : IsRealCard B := hwf.pos2card_real ⟨pile.toNat, hp⟩ ⟨_, hb5⟩
   have hs32 : (SUIT B).toUInt32.toNat < 4 := by rw [UInt8.toNat_toUInt32]; exact hreal.1
-  have hnn : ∀ i : Fin 10, (0:Int) ≤ (game.pileDepth.get i).toInt := fun i => by
-    have := hbase.pileDepth_nonneg i
-    rw [UInt8.le_iff_toInt_le] at this; simp
   have hdi := depth_index (game.pileDepth.get ⟨pile.toNat, hp⟩) hd
                 (hbase.pileDepth_bound ⟨pile.toNat, hp⟩)
   have hidx : ((game.pileDepth[pile.toNat]'hp) - 1).toUInt32.toNat < 5 := by
@@ -592,7 +579,7 @@ theorem getDest_spec (g : Globals) (game : SolverPosType) (pile : UInt32)
     rw [hkidx]; exact beq_iff_eq.mpr hkeq
   · obtain ⟨n, hn1, hnle, hfree, hnf⟩ := exists_stop_canonical g game hcan B hreal hBnf hkeq
     refine Or.inr ⟨n, hn1, hnle, hfree, hnf,
-      getDest_walk game pile g B hwf hnn hp hidx hcard hs32 ?_ n hn1
+      getDest_walk game pile g B hwf hp hidx hcard hs32 ?_ n hn1
         (fun j hj1 hj2 => card_walk_lt64 B hreal.1 j (by omega)) hfree hnf⟩
     rw [hkidx]
     simp only [beq_eq_false_iff_ne, ne_eq]

@@ -231,7 +231,7 @@ theorem moveAcesSim_sync {g : Globals} {s : State} {p : SolverPosType} {k : Fin 
     hqds hqdne hqfs hqfne hqk hqas hqane hready hrun hP
   subst hqdef
   obtain ⟨w, kk, FK, hsimW⟩ := hP
-  obtain ⟨hmerged, hf0, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩ := hinv
+  obtain ⟨hmerged, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩ := hinv
   -- the walked suit, on the `Rules` side
   have hsu : suitToNat (natToSuit suit) = suit.val := suitToNat_natToSuit suit
   have hfin : finOfSuit (natToSuit suit) = suit := Fin.ext hsu
@@ -342,7 +342,7 @@ theorem moveAces_runFrom_free {g : Globals} {w : State} {gameF : SolverPosType}
     (hinv : SolverSpec.MoveAcesInv g suit cardF found gameF) :
     ∀ d ∈ runFrom (nextFoundationCard w su) found.toNat,
       isFreeCard g gameF (encodeCard d) := by
-  obtain ⟨hmerged, hf0, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩ := hinv
+  obtain ⟨hmerged, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩ := hinv
   have hfin : finOfSuit su = suit := Fin.ext hsu
   have hfv : (VALUE (gameF.aces.get suit)).toNat = optRankToNat (w.foundations su) := by
     rw [← hfin]; exact hm.foundation_value su
@@ -401,7 +401,7 @@ theorem moveAces_notfree_bound {g : Globals} {gameF : SolverPosType} {suit : Fin
   have hfin : finOfSuit su = suit := Fin.ext hsu
   rw [hfin]
   intro c hcsuit hcnf hcle
-  obtain ⟨hmerged, hf0, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩ := hinv
+  obtain ⟨hmerged, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩ := hinv
   have hAsuitN : (SUIT (gameF.aces.get suit)).toNat = suit.val := by
     rw [(hmerged.aces_kings_valid suit).1, SolverSpec.finVal_toUInt8_toNat]
   have hcardsuitN : (SUIT cardF).toNat = suit.val := by
@@ -422,7 +422,7 @@ theorem moveAces_notfree_bound {g : Globals} {gameF : SolverPosType} {suit : Fin
     · rw [hcc] at hcle
       omega
     · have hlt := SolverSpec.moveAces_lt_of_not_free g suit cardF found gameF
-        ⟨hmerged, hf0, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩
+        ⟨hmerged, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩
         c hcsuit' hvpos hcnf hcc
       omega
 
@@ -585,7 +585,7 @@ theorem SimulatesNorm.moveAcesTail {g : Globals} {w : State} {gameF pF : SolverP
     (hpFkid : (VALUE cardF).toNat ≠ 14 → pF.kings.get suit = gameF.kings.get suit) :
     ∃ v : State, SimulatesNorm g w gameF kk v pF kk ∅ 0xffff := by
   have hinv' := hinv
-  obtain ⟨hmerged, hf0, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩ := hinv
+  obtain ⟨hmerged, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩ := hinv
   have hfin : finOfSuit su = suit := Fin.ext hsu
   have hfv : (VALUE (gameF.aces.get suit)).toNat = optRankToNat (w.foundations su) := by
     rw [← hfin]; exact hk.toMatches.foundation_value su
@@ -777,7 +777,7 @@ theorem SimulatesNorm.moveAces {g : Globals} {s : State} {p : SolverPosType} {k 
     rw [hsuitval]
     exact SolverSpec.ctz_bit_self p.busyAces hbusy
   have hinv0 : SolverSpec.MoveAcesInv g suit card0 found0 p :=
-    ⟨hmerged, by rw [hfound0def]; decide, by rw [hfound0def]; decide, hsuitcard0, hval1_0,
+    ⟨hmerged, by rw [hfound0def]; decide, hsuitcard0, hval1_0,
       hval14_0, hcard0eqInv, hfoundfree0, hbusybit⟩
   -- run the walk, carrying the simulation
   obtain ⟨cardF, forcedKingsF, foundF, gameF, hloopeq, hloopinv, hloopexit, hloopframe,
@@ -785,10 +785,10 @@ theorem SimulatesNorm.moveAces {g : Globals} {s : State} {p : SolverPosType} {k 
     SolverSpec.moveAcesLoop_run g hwf suit suitU32 hsuitU32 (MoveAcesSim g s p k)
       (moveAcesSim_sync hwf suit) 15 card0 0xffff found0 p (by have := hval14_0; omega) hinv0
       ⟨s, k, ∅, SimulatesNorm.refl hk⟩
-  obtain ⟨hmergedF, hf0F, hf13F, hsuitcardF, hval1F, hval14F, hcardeqF, hfoundfreeF, hbitF⟩ :=
+  obtain ⟨hmergedF, hf13F, hsuitcardF, hval1F, hval14F, hcardeqF, hfoundfreeF, hbitF⟩ :=
     hloopinv
   have hloopinv' : SolverSpec.MoveAcesInv g suit cardF foundF gameF :=
-    ⟨hmergedF, hf0F, hf13F, hsuitcardF, hval1F, hval14F, hcardeqF, hfoundfreeF, hbitF⟩
+    ⟨hmergedF, hf13F, hsuitcardF, hval1F, hval14F, hcardeqF, hfoundfreeF, hbitF⟩
   have h1lecardF : (1 : UInt8) ≤ cardF := by
     rw [UInt8.le_iff_toNat_le]
     have hv := VALUE_toNat cardF

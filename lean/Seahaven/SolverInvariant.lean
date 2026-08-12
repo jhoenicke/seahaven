@@ -84,7 +84,6 @@ structure WellFormedLayout (g : Globals) : Prop where
     `PileClean` (which adds the merged facts on top). -/
 structure PileBase (g : Globals) (p : SolverPosType) (i : Fin 10) : Prop where
   pileDepth_bound : (p.pileDepth.get i).toNat ≤ 5
-  pileDepth_nonneg : 0 ≤ p.pileDepth.get i
   flute_pos : 1 ≤ (p.pileFlute.get i).toNat
   flute_empty : p.pileDepth.get i = 0 → p.pileFlute.get i = 1
   flute_cards_free : ∀ j : UInt8,
@@ -240,16 +239,12 @@ structure SolverInvBase (g : Globals) (p : SolverPosType) : Prop where
   busyAces_lt16 : p.busyAces < 16
 
 /-- Shims preserving the pre-refactor field-access names now that
-    `pileDepth_bound`/`pileDepth_nonneg`/`flute_pos`/`flute_empty`/
+    `pileDepth_bound`/`flute_pos`/`flute_empty`/
     `flute_cards_free`/`flute_not_aces` are bundled into
     `pileBase : ∀ i, PileBase g p i`. -/
 theorem SolverInvBase.pileDepth_bound {g : Globals} {p : SolverPosType}
     (h : SolverInvBase g p) (i : Fin 10) : (p.pileDepth.get i).toNat ≤ 5 :=
   (h.pileBase i).pileDepth_bound
-
-theorem SolverInvBase.pileDepth_nonneg {g : Globals} {p : SolverPosType}
-    (h : SolverInvBase g p) (i : Fin 10) : 0 ≤ p.pileDepth.get i :=
-  (h.pileBase i).pileDepth_nonneg
 
 theorem SolverInvBase.flute_pos {g : Globals} {p : SolverPosType}
     (h : SolverInvBase g p) (i : Fin 10) : 1 ≤ (p.pileFlute.get i).toNat :=
@@ -271,8 +266,8 @@ theorem SolverInvBase.flute_cards_free {g : Globals} {p : SolverPosType}
 
 -- `SolverInvBase.flute_not_aces` (the per-offset UInt8-comparison shim derived from the
 -- new Nat-based `PileBase.flute_not_aces` field) is defined further below, after
--- `int8_nonneg_of_suit`/`SUIT_toNat`/`VALUE_toNat` (its proof needs them) — see the
--- theorem of the same name just before `PileBase.flute_le_value`.
+-- `SUIT_toNat`/`VALUE_toNat` (its proof needs them) — see the theorem of the same
+-- name just before `PileBase.flute_le_value`.
 
 theorem SolverInvBase.aces_kings_valid {g p}
     (h : SolverInvBase g p) (s : Fin 4) :
@@ -332,10 +327,6 @@ theorem SolverInvBase.toLocal {g : Globals} {p : SolverPosType} (h : SolverInvBa
 theorem SolverInvLocal.pileDepth_bound {g : Globals} {p : SolverPosType}
     (h : SolverInvLocal g p) (i : Fin 10) : (p.pileDepth.get i).toNat ≤ 5 :=
   (h.pileBase i).pileDepth_bound
-
-theorem SolverInvLocal.pileDepth_nonneg {g : Globals} {p : SolverPosType}
-    (h : SolverInvLocal g p) (i : Fin 10) : 0 ≤ p.pileDepth.get i :=
-  (h.pileBase i).pileDepth_nonneg
 
 theorem SolverInvLocal.flute_pos {g : Globals} {p : SolverPosType}
     (h : SolverInvLocal g p) (i : Fin 10) : 1 ≤ (p.pileFlute.get i).toNat :=
@@ -563,24 +554,18 @@ theorem card_eq_of_suit_value (c d : UInt8)
 -- Arithmetic helpers for UInt8 / toNatClampNeg
 -- ---------------------------------------------------------------------------
 
-private theorem toNatClampNeg_pos {x : UInt8} (_h1 : 0 ≤ x) (h2 : x ≠ 0) :
+private theorem toNatClampNeg_pos {x : UInt8} (h2 : x ≠ 0) :
     x.toNat > 0 := by
   have h3 : x.toNat ≠ 0 := fun h => h2 (UInt8.toNat_inj.mp h)
   omega
-
-/-- Trivial now that the field is `uint8_t`: every value is non-negative.
-    (Kept so downstream call sites need no change.) -/
-theorem int8_nonneg_of_suit {x : UInt8} {s : Fin 4}
-    (_hs : SUIT x = s.val.toUInt8) : (0 : UInt8) ≤ x :=
-  UInt8.le_iff_toNat_le.mpr (Nat.zero_le _)
 
 /-- **Per-offset `UInt8` shim, derived from the Nat-based `PileBase.flute_not_aces`
     field.**  Preserves the pre-refactor call shape (`h.flute_not_aces i j hdi hj0
     hjlt hs : aces < (boundary - j)`) used throughout this file, now proved
     from the new field `aces.toNat + pileFlute.toNat ≤ boundary.toNat`
-    (wraparound-safe: `aces` is nonnegative via `aces_kings_valid`/`int8_nonneg_of_suit`,
-    and `boundary` is `< 64` via `WellFormedLayout`/`IsRealCard`, so every UInt8/UInt8
-    cast involved stays comfortably below the 128 sign threshold). -/
+    (wraparound-safe: `aces` is a `uint8_t`, hence nonnegative, and `boundary` is
+    `< 64` via `WellFormedLayout`/`IsRealCard`, so every UInt8/UInt8 cast involved
+    stays comfortably below the 128 sign threshold). -/
 theorem SolverInvLocal.flute_not_aces {g : Globals} {p : SolverPosType}
     (h : SolverInvLocal g p) (hwf : WellFormedLayout g) (i : Fin 10) (j : UInt8) :
     (p.pileDepth.get i).toNat > 0 →
@@ -601,9 +586,6 @@ theorem SolverInvLocal.flute_not_aces {g : Globals} {p : SolverPosType}
   -- let `isDefEq`/proof-irrelevance bridge the two instead of `kabstract`.
   have hbound : aces.toNat + (p.pileFlute.get i).toNat ≤ boundary.toNat :=
     (h.pileBase i).flute_not_aces hdi hs
-  -- `aces` carries the same suit as `boundary`, so it's a real (nonnegative) card.
-  have haces_nonneg : (0 : UInt8) ≤ aces :=
-    int8_nonneg_of_suit ((h.aces_kings_valid ⟨(SUIT boundary).toNat, hs⟩).1)
   -- `boundary` itself is a real card (WellFormedLayout), hence < 64.
   have hreal : IsRealCard boundary := hwf.pos2card_real i _
   have hb64 : boundary.toNat < 64 := by
@@ -710,7 +692,7 @@ theorem SolverInvBase.flute_le_value {g : Globals} {p : SolverPosType}
 /-- Every pile of a canonical position is clean. -/
 theorem IsCanonicalPos.pileClean {g : Globals} {p : SolverPosType}
     (h : IsCanonicalPos g p) (i : Fin 10) : PileClean g p i :=
-  ⟨⟨h.pileDepth_bound i, h.pileDepth_nonneg i, h.flute_pos i,
+  ⟨⟨h.pileDepth_bound i, h.flute_pos i,
     h.flute_empty i, h.flute_cards_free i, (h.pileBase i).flute_not_aces⟩,
    h.merge_complete i, h.flute_maximal i, h.busyAces_complete i⟩
 
@@ -737,8 +719,6 @@ theorem IsCanonicalPos.kings_value_pos {g : Globals} {p : SolverPosType}
   by_contra h0
   have hvk0 : (VALUE (p.kings.get s)).toNat = 0 := by omega
   -- `aces ≤ kings` within one suit forces `VALUE(aces) = 0` as well.
-  have hna : (0 : UInt8) ≤ p.aces.get s := int8_nonneg_of_suit hsa
-  have hnk : (0 : UInt8) ≤ p.kings.get s := int8_nonneg_of_suit hsk
   have hle : (p.aces.get s).toNat ≤ (p.kings.get s).toNat :=
     UInt8.le_iff_toNat_le.mp hak
   have hsuits : (p.aces.get s).toNat / 16 = (p.kings.get s).toNat / 16 := by
@@ -1578,12 +1558,13 @@ theorem freePiles_toNat_le {g : Globals} {p : SolverPosType} (h : SolverInvMerge
   have hc : p.freePiles.toInt = (p.freePiles.toNat : Int) := rfl
   omega
 
-/-- **`usedSpace ∈ [0, 52]`**, derived from `usedSpace_def` + the counting
+/-- **`usedSpace ≤ 52`**, derived from `usedSpace_def` + the counting
     injection `cardOf_injective` (no longer a base-invariant field — see
-    `cardOf_injective`'s docstring history). -/
-theorem usedSpace_nonneg {g : Globals} {p : SolverPosType}
+    `cardOf_injective`'s docstring history).  The lower bound `0 ≤ usedSpace`
+    is free: the field is a `uint8_t`. -/
+theorem usedSpace_bounded {g : Globals} {p : SolverPosType}
     (hwf : WellFormedLayout g) (h : SolverInvBase g p) :
-    0 ≤ p.usedSpace.toInt ∧ p.usedSpace.toInt ≤ 52 := by
+    p.usedSpace.toInt ≤ 52 := by
   have hdb := h.pileDepth_bound
   have hak : ∀ s : Fin 4, (VALUE (p.aces.get s)).toNat ≤ 13 :=
     fun s => (h.aces_kings_valid s).2.1
@@ -1623,7 +1604,7 @@ theorem usedSpace_nonneg {g : Globals} {p : SolverPosType}
     intro i
     by_cases hz : p.pileDepth.get i = 0
     · simp [hz]
-    · have hpos := toNatClampNeg_pos (h.pileDepth_nonneg i) hz
+    · have hpos := toNatClampNeg_pos hz
       rw [if_pos (by omega : (p.pileDepth.get i).toNat ≠ 0), if_pos hz]
   have hsum3 : (∑ i : Fin 10, (if (p.pileDepth.get i).toNat ≠ 0 then
         (p.pileFlute.get i).toNat - 1 else 0)) =
@@ -1636,13 +1617,13 @@ theorem usedSpace_nonneg {g : Globals} {p : SolverPosType}
   have hdef := h.usedSpace_def
   omega
 
-/-- **Generalizes `usedSpace_nonneg`'s counting argument.**  Given `n` pairwise
+/-- **Generalizes `usedSpace_bounded`'s counting argument.**  Given `n` pairwise
     distinct, currently-free, real cards that are furthermore known to be
     disjoint from every one of `usedSpace_def`'s three already-counted
     "occupied" families (a pile's resident cards, a foundation's played cards,
     or any pile's flute-interior run — collectively `cardOf`'s range, reusing
     the SAME injection `cardOf_injective`/`cardOf_isReal` that proves
-    `usedSpace_nonneg`), `usedSpace` must have room for all `n` of them too:
+    `usedSpace_bounded`), `usedSpace` must have room for all `n` of them too:
     `n ≤ usedSpace`.  Freeness alone already rules out collision with the
     depth-slot family (`depth_card_not_free`); the caller supplies
     `hdisjoint` to rule out the ace-slot/flute-slot families, since which
@@ -1715,7 +1696,7 @@ theorem usedSpace_ge_of_disjoint_free {g : Globals} {p : SolverPosType}
     intro i
     by_cases hz : p.pileDepth.get i = 0
     · simp [hz]
-    · have hpos := toNatClampNeg_pos (h.pileDepth_nonneg i) hz
+    · have hpos := toNatClampNeg_pos hz
       rw [if_pos (by omega : (p.pileDepth.get i).toNat ≠ 0), if_pos hz]
   have hsum3 : (∑ i : Fin 10, (if (p.pileDepth.get i).toNat ≠ 0 then
         (p.pileFlute.get i).toNat - 1 else 0)) =
@@ -2305,7 +2286,7 @@ theorem IsCanonicalPos_unique (g : Globals) (p q : SolverPosType)
       rw [hp.flute_empty i hd, hq.flute_empty i (hdepth_i ▸ hd)]
     · -- Non-empty pile: use antisymmetry
       have hdp_pos : (p.pileDepth.get i).toNat > 0 :=
-        toNatClampNeg_pos (hp.pileDepth_nonneg i) hd
+        toNatClampNeg_pos hd
       have hdq_pos : (q.pileDepth.get i).toNat > 0 := hdepth_i ▸ hdp_pos
       -- The boundary card is the same for p and q (same pos2card index)
       have hdnc : (p.pileDepth.get i).toNat = (q.pileDepth.get i).toNat :=
@@ -2396,11 +2377,6 @@ theorem IsCanonicalPos_unique (g : Globals) (p q : SolverPosType)
 -- Hash injectivity
 -- ---------------------------------------------------------------------------
 
-/-- An `UInt8` that is nonnegative is determined by `x.toNat`. -/
-theorem UInt8_eq_of_toNat_eq {x y : UInt8} (_hx : (0 : UInt8) ≤ x) (_hy : (0 : UInt8) ≤ y)
-    (h : x.toNat = y.toNat) : x = y :=
-  UInt8.toNat_inj.mp h
-
 /-- **Base-6 hash injectivity, arithmetic core.**  If two base-6 dot products of
     ten digits each in `{0,…,5}` agree as `UInt32`, the digits agree.  The sum is
     at most `6^10 - 1 = 60466175 < 2^32`, so the `UInt32` reduction never wraps and
@@ -2484,10 +2460,8 @@ theorem IsCanonicalPos_hash_inj (g : Globals) (p q : SolverPosType)
   clear hfoldl
   obtain ⟨k0, k1, k2, k3, k4, k5, k6, k7, k8, k9⟩ := key
   -- Each component follows from its digit equality (`k0 … k9`, found by `assumption` once
-  -- `interval_cases` has fixed the index) plus nonnegativity.  `UInt8_eq_of_toNat_eq` does
-  -- the `.toNat → .toInt → UInt8` bridge that `omega` cannot do on `UInt8` directly.
+  -- `interval_cases` has fixed the index); `UInt8.toNat_inj` does the `.toNat → UInt8`
+  -- bridge that `omega` cannot do on `UInt8` directly.
   apply Vector.ext
   intro i hi
-  interval_cases i <;>
-    exact UInt8_eq_of_toNat_eq (hp.pileDepth_nonneg ⟨_, by omega⟩)
-      (hq.pileDepth_nonneg ⟨_, by omega⟩) (by assumption)
+  interval_cases i <;> exact UInt8.toNat_inj.mp (by assumption)

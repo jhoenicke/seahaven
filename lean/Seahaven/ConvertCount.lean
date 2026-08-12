@@ -12,7 +12,7 @@ fit inside the deck:
 
 They do, because they are *disjoint*: a card still resident on a pile is not free
 (`round_trip_inv`), while every card the foundation walk counts is free by
-construction.  The proof is the same cardinality injection `usedSpace_nonneg`
+construction.  The proof is the same cardinality injection `usedSpace_bounded`
 uses, restricted to two families (the third — flute interiors — is empty here,
 every `pileFlute` being `1`).
 -/

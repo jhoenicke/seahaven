@@ -49,12 +49,12 @@ def MoveValid (_g : Globals) (p : SolverPosType) (pile : UInt32) (toPile : UInt8
     projections, so reconstructing field-by-field works. -/
 private theorem pileBase_setFreePiles {g : Globals} {p : SolverPosType} {i : Fin 10}
     (h : PileBase g p i) (x : UInt8) : PileBase g { p with freePiles := x } i :=
-  ⟨h.pileDepth_bound, h.pileDepth_nonneg, h.flute_pos, h.flute_empty,
+  ⟨h.pileDepth_bound, h.flute_pos, h.flute_empty,
    h.flute_cards_free, h.flute_not_aces⟩
 
 private theorem pileBase_setBusyAces {g : Globals} {p : SolverPosType} {i : Fin 10}
     (h : PileBase g p i) (y : UInt8) : PileBase g { p with busyAces := p.busyAces ||| y } i :=
-  ⟨h.pileDepth_bound, h.pileDepth_nonneg, h.flute_pos, h.flute_empty,
+  ⟨h.pileDepth_bound, h.flute_pos, h.flute_empty,
    h.flute_cards_free, h.flute_not_aces⟩
 
 /-- The base layer ignores `freePiles`, so it transfers across a `freePiles` write. -/
@@ -352,14 +352,6 @@ private theorem uint32_ofNat_sub_one {n : Nat} (hn : 1 ≤ n) (hlt : n < 2 ^ 32)
     card value needs to be compared as a plain integer (`haces_lt_B`-style
     arguments) — `Int.bmod_eq_of_le`'s "no wraparound" range is `[0, 128)`. -/
 theorem uint8_toInt8_toInt_of_lt128 {x : UInt8} (_hx : x.toNat < 128) :
-    x.toInt = (x.toNat : Int) := rfl
-
-/-- `x.toInt = x.toNat` for a nonnegative `UInt8` `x`: the unsigned
-    reinterpretation just reads off the (already-nonnegative) value.  Paired
-    with `uint8_toInt8_toInt_of_lt128` to compare an `UInt8` field (e.g.
-    `aces`/`kings`) against a plain `UInt8` card byte via `UInt8.lt_iff_toInt_lt`/
-    `UInt8.le_iff_toInt_le`. -/
-theorem int8_toInt_eq_toUInt8_toNat_of_nonneg {x : UInt8} (_hx : (0 : UInt8) ≤ x) :
     x.toInt = (x.toNat : Int) := rfl
 
 /-- **Split a flute-interior offset `j` (`0 < j.toNat < 1+m+f`) into either a

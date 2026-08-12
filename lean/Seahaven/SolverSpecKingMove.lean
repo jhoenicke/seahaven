@@ -34,7 +34,6 @@ theorem kingMove_pileClean_self (pile : UInt32) (g : Globals) (hpile : pile.toNa
     rw [Vector.getElem_set_self]
   exact {
     pileDepth_bound := by rw [hd0]; decide
-    pileDepth_nonneg := by rw [hd0]; decide
     flute_pos := by rw [hf1]; decide
     flute_empty := fun _ => hf1
     flute_cards_free := fun _ hpos _ _ => absurd hpos (by rw [hd0]; decide)
@@ -201,9 +200,8 @@ theorem kingMove_pileBase_ne (pile : UInt32) (g : Globals) (hpile : pile.toNat <
   have hfeq := kingMove_pileFlute_eq_of_ne pile hpile suit hs4 ph p j hj
   have haeq := kingMove_aces_eq pile hpile suit hs4 ph p
   have hdmono := kingMove_pileDepth_le pile hpile suit hs4 ph p
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · rw [hdeq]; exact hb.pileDepth_bound
-  · rw [hdeq]; exact hb.pileDepth_nonneg
   · rw [hfeq]; exact hb.flute_pos
   · intro h0
     rw [hfeq]
@@ -310,16 +308,8 @@ theorem kingMove_pileMerged_ne (pile : UInt32) (g : Globals) (hpile : pile.toNat
     · left
       rw [hdeq]
       exact hd0
-    · have hdj : (p.pileDepth.get j).toNat > 0 := by
-        have h1 := hb.pileDepth_nonneg
-        rw [UInt8.le_iff_toInt_le, show ((0 : UInt8).toInt = 0) from rfl] at h1
-        have h2 : (p.pileDepth.get j).toInt ≠ 0 := by
-          intro hz
-          apply hd0
-          apply UInt8.toInt_inj.mp
-          rw [hz, show ((0 : UInt8).toInt = 0) from rfl]
-        simp only [UInt8.toInt_eq] at h2
-        omega
+    · have hdj : (p.pileDepth.get j).toNat > 0 :=
+        Nat.pos_of_ne_zero (fun h => hd0 (UInt8.toNat_inj.mp h))
       right
       set boundaryNew := (g.pos2card.get j).get ⟨((kingMove pile hpile suit hs4 ph p
             ).pileDepth.get j).toNat - 1,
@@ -383,8 +373,6 @@ theorem kingMove_pileMerged_ne (pile : UInt32) (g : Globals) (hpile : pile.toNat
           -- special-casing needed anymore).
           left
           refine ⟨hs4', ?_⟩
-          have haces0 : (0 : UInt8) ≤ p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩ :=
-            int8_nonneg_of_suit (hak ⟨(SUIT boundary).toNat, hs4'⟩)
           have hSuitAcesEq :
               SUIT ((p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩)) = SUIT boundary := by
             rw [hak ⟨(SUIT boundary).toNat, hs4'⟩, ← hsuiteq]
@@ -403,19 +391,7 @@ theorem kingMove_pileMerged_ne (pile : UInt32) (g : Globals) (hpile : pile.toNat
           have hacesEqNat :
               (p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toNat = prevCard.toNat :=
             le_antisymm hacesLeNat hacesGeNat
-          have hprevlt128 : prevCard.toNat < 128 := by omega
-          apply UInt8.toInt_inj.mp
-          rw [uint8_toInt8_toInt_of_lt128 hprevlt128]
-          have haces0' : (0 : Int) ≤ (p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toInt := by
-            rw [← show ((0 : UInt8).toInt = 0) from rfl]
-            exact UInt8.le_iff_toInt_le.mp haces0
-          have hcast : ((p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toNat : Int) =
-              (p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toInt := Int.toNat_of_nonneg haces0'
-          have hacesIntEqUInt8Nat :
-              (p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toNat =
-              (p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toNat := by
-            rfl
-          omega
+          exact UInt8.toNat_inj.mp hacesEqNat
         · -- `prevCard` is a genuine real card: it can't equal `K` (the only
           -- card `kingMove` newly reveals), so `¬isFreeCard` transfers via
           -- `kingMove_not_free_of_ne` directly — no need to rule out a whole
@@ -664,8 +640,6 @@ theorem kingMove_suitClean (pile : UInt32) (g : Globals) (hpile : pile.toNat < 1
     have hSacesEqK : SUIT (p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4)) =
         SUIT K := by
       rw [hak (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4), ← hSKeqSval]
-    have hacesnn : (0 : UInt8) ≤ p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4) :=
-      int8_nonneg_of_suit (hak (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4))
     have hkey : p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4) =
           (K - p.pileFlute[pile.toNat]'hpile) ∨
         (p.aces.get (⟨(SUIT K).toUInt32.toNat, hsK⟩ : Fin 4) <
@@ -970,18 +944,8 @@ theorem kingMove_suitClean (pile : UInt32) (g : Globals) (hpile : pile.toNat < 1
             have hSAs : SUIT (p.aces.get s) = s.val.toUInt8 := hsc.aces_kings_valid.1
             have hSs : SUIT (p.kings.get s) = s.val.toUInt8 :=
               hsc.aces_kings_valid.2.2.1
-            have haces_nonneg : (0 : UInt8) ≤ p.aces.get s := int8_nonneg_of_suit hSAs
-            have hkings_nonneg : (0 : UInt8) ≤ p.kings.get s := int8_nonneg_of_suit hSs
-            have hAKlt : (p.aces.get s).toNat < (p.kings.get s).toNat := by
-              have h1 := UInt8.lt_iff_toInt_lt.mp hv1
-              have h2 : (p.aces.get s).toNat = (p.aces.get s).toNat :=
-                rfl
-              have h3 : (p.kings.get s).toNat = (p.kings.get s).toNat :=
-                rfl
-              rw [UInt8.le_iff_toInt_le, show ((0 : UInt8).toInt = 0) from rfl] at haces_nonneg
-              rw [UInt8.le_iff_toInt_le, show ((0 : UInt8).toInt = 0) from rfl] at hkings_nonneg
-              simp only [UInt8.toInt_eq] at h1 haces_nonneg hkings_nonneg
-              omega
+            have hAKlt : (p.aces.get s).toNat < (p.kings.get s).toNat :=
+              UInt8.lt_iff_toNat_lt.mp hv1
             have hb1 := VALUE_toNat (p.aces.get s)
             have hb2 := SUIT_toNat (p.aces.get s)
             have hb3 := congrArg UInt8.toNat hSAs

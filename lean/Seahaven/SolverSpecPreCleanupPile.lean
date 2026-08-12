@@ -199,9 +199,8 @@ theorem preCleanupPile_pileBase_ne (pile : UInt32) (g : Globals) (hpile : pile.t
   have hfeq := preCleanupPile_pileFlute_eq_of_ne pile hpile B ph hs4 p m f j hj
   have haeq := preCleanupPile_aces_eq pile hpile B ph hs4 p m f
   have hdmono := preCleanupPile_pileDepth_le pile hpile B ph hs4 p m f hd5 hm
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · rw [hdeq]; exact hb.pileDepth_bound
-  · rw [hdeq]; exact hb.pileDepth_nonneg
   · rw [hfeq]; exact hb.flute_pos
   · intro h0
     rw [hfeq]
@@ -510,8 +509,6 @@ theorem preCleanupPile_pileBase_self (pile : UInt32) (g : Globals) (p : SolverPo
     omega
   have h1B : (1 : UInt8) ≤ B := by
     rw [UInt8.le_iff_toNat_le]; show 1 ≤ B.toNat; omega
-  have haces0 : (0 : UInt8) ≤ p.aces[(SUIT B).toUInt32.toNat]'hs4 :=
-    int8_nonneg_of_suit (hnf.aces_kings_valid ⟨(SUIT B).toUInt32.toNat, hs4⟩).1
   have h1le : (1 : UInt8) ≤ (p.pileDepth[pile.toNat]'hpile) := by
     rw [UInt8.le_iff_toNat_le]; show 1 ≤ _; omega
   have hsubd : ((p.pileDepth[pile.toNat]'hpile) - 1).toNat =
@@ -699,11 +696,6 @@ theorem preCleanupPile_pileBase_self (pile : UInt32) (g : Globals) (p : SolverPo
           ).toNat ≤ 5
       rw [hpd, hdI8]
       omega
-    pileDepth_nonneg := by
-      show (0 : UInt8) ≤ (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
-          (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth[pile.toNat]'hpile
-      rw [hpd]
-      exact UInt8.le_iff_toInt_le.mpr (by rw [show ((0 : UInt8).toInt = 0) from rfl]; exact UInt8.toInt_nonneg _)
     flute_pos := by
       show 1 ≤ ((preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
           (p.pileDepth[pile.toNat]'hpile) m f p).pileFlute[pile.toNat]'hpile).toNat
@@ -766,11 +758,6 @@ theorem preCleanupPile_pileBase_self (pile : UInt32) (g : Globals) (p : SolverPo
       -- New Nat-based bound: `aces[SUIT B].toUInt8.toNat + f < B.toNat`, tightest
       -- at the largest valid offset (`f = 0` falls back to `haces_lt_B`; `f > 0`
       -- uses the freed-predecessor bound at its largest index `l = f`).
-      have haces_nonneg' : (0 : Int) ≤ (p.aces[(SUIT B).toUInt32.toNat]'hs4).toInt :=
-        UInt8.le_iff_toInt_le.mp haces0
-      have hbUInt8 : (p.aces[(SUIT B).toUInt32.toNat]'hs4).toNat
-          = (p.aces[(SUIT B).toUInt32.toNat]'hs4).toNat :=
-        rfl
       have hAB_lt : (p.aces[(SUIT B).toUInt32.toNat]'hs4).toNat + f < B.toNat := by
         rcases Nat.eq_zero_or_pos f with hf0 | hfpos
         · subst hf0
@@ -845,8 +832,6 @@ theorem preCleanupPile_pileMerged_self (pile : UInt32) (g : Globals) (p : Solver
     omega
   have h1B : (1 : UInt8) ≤ B := by
     rw [UInt8.le_iff_toNat_le]; show 1 ≤ B.toNat; omega
-  have haces0 : (0 : UInt8) ≤ p.aces[(SUIT B).toUInt32.toNat]'hs4 :=
-    int8_nonneg_of_suit (hnf.aces_kings_valid ⟨(SUIT B).toUInt32.toNat, hs4⟩).1
   have h1le : (1 : UInt8) ≤ (p.pileDepth[pile.toNat]'hpile) := by
     rw [UInt8.le_iff_toNat_le]; show 1 ≤ _; omega
   have hsubd : ((p.pileDepth[pile.toNat]'hpile) - 1).toNat =
@@ -1239,16 +1224,8 @@ theorem preCleanupPile_pileMerged_ne (pile : UInt32) (g : Globals) (hpile : pile
     · left
       rw [hdeq]
       exact hd0
-    · have hdj : (p.pileDepth.get j).toNat > 0 := by
-        have h1 := hb.pileDepth_nonneg
-        rw [UInt8.le_iff_toInt_le, show ((0 : UInt8).toInt = 0) from rfl] at h1
-        have h2 : (p.pileDepth.get j).toInt ≠ 0 := by
-          intro hz
-          apply hd0
-          apply UInt8.toInt_inj.mp
-          rw [hz, show ((0 : UInt8).toInt = 0) from rfl]
-        simp only [UInt8.toInt_eq] at h2
-        omega
+    · have hdj : (p.pileDepth.get j).toNat > 0 :=
+        Nat.pos_of_ne_zero (fun h => hd0 (UInt8.toNat_inj.mp h))
       right
       set boundaryNew := (g.pos2card.get j).get ⟨((preCleanupPile pile hpile B ph hs4
             (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth.get j).toNat - 1,
@@ -1314,8 +1291,6 @@ theorem preCleanupPile_pileMerged_ne (pile : UInt32) (g : Globals) (hpile : pile
           -- special-casing needed anymore).
           left
           refine ⟨hs4', ?_⟩
-          have haces0 : (0 : UInt8) ≤ p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩ :=
-            int8_nonneg_of_suit (hak ⟨(SUIT boundary).toNat, hs4'⟩)
           have hSuitAcesEq :
               SUIT ((p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩)) = SUIT boundary := by
             rw [hak ⟨(SUIT boundary).toNat, hs4'⟩, ← hsuiteq]
@@ -1334,19 +1309,7 @@ theorem preCleanupPile_pileMerged_ne (pile : UInt32) (g : Globals) (hpile : pile
           have hacesEqNat :
               (p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toNat = prevCard.toNat :=
             le_antisymm hacesLeNat hacesGeNat
-          have hprevlt128 : prevCard.toNat < 128 := by omega
-          apply UInt8.toInt_inj.mp
-          rw [uint8_toInt8_toInt_of_lt128 hprevlt128]
-          have haces0' : (0 : Int) ≤ (p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toInt := by
-            rw [← show ((0 : UInt8).toInt = 0) from rfl]
-            exact UInt8.le_iff_toInt_le.mp haces0
-          have hcast : ((p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toNat : Int) =
-              (p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toInt := Int.toNat_of_nonneg haces0'
-          have hacesIntEqUInt8Nat :
-              (p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toNat =
-              (p.aces.get ⟨(SUIT boundary).toNat, hs4'⟩).toNat := by
-            rfl
-          omega
+          exact UInt8.toNat_inj.mp hacesEqNat
         · -- `prevCard` is a genuine real card: transfer `¬isFreeCard` across
           -- cleanup via `preCleanupPile_not_free_of_ne_absorbed`, once we've
           -- ruled out `prevCard = B + k` for every `k ≤ m`.
@@ -1701,8 +1664,6 @@ theorem preCleanupPile_suitClean (pile : UInt32) (g : Globals) (p : SolverPosTyp
     omega
   have h1B : (1 : UInt8) ≤ B := by
     rw [UInt8.le_iff_toNat_le]; show 1 ≤ B.toNat; omega
-  have haces0 : (0 : UInt8) ≤ p.aces[(SUIT B).toUInt32.toNat]'hs4 :=
-    int8_nonneg_of_suit (hnf.suitClean ⟨(SUIT B).toUInt32.toNat, hs4⟩).aces_kings_valid.1
   have h1le : (1 : UInt8) ≤ (p.pileDepth[pile.toNat]'hpile) := by
     rw [UInt8.le_iff_toNat_le]; show 1 ≤ _; omega
   have hsubd : ((p.pileDepth[pile.toNat]'hpile) - 1).toNat =
@@ -2123,19 +2084,8 @@ theorem preCleanupPile_suitClean (pile : UInt32) (g : Globals) (p : SolverPosTyp
               (hnf.suitClean s).aces_kings_valid.1
             have hSs : SUIT (p.kings.get s) = s.val.toUInt8 :=
               (hnf.suitClean s).aces_kings_valid.2.2.1
-            have haces_nonneg : (0 : UInt8) ≤ p.aces.get s := int8_nonneg_of_suit hSAs
-            have hkings_nonneg : (0 : UInt8) ≤ p.kings.get s := int8_nonneg_of_suit hSs
-            have hAKlt : (p.aces.get s).toNat < (p.kings.get s).toNat := by
-              have hv1' : p.aces.get s < p.kings.get s := hv1
-              have h1 := UInt8.lt_iff_toInt_lt.mp hv1'
-              have h2 : (p.aces.get s).toNat = (p.aces.get s).toNat :=
-                rfl
-              have h3 : (p.kings.get s).toNat = (p.kings.get s).toNat :=
-                rfl
-              rw [UInt8.le_iff_toInt_le, show ((0 : UInt8).toInt = 0) from rfl] at haces_nonneg
-              rw [UInt8.le_iff_toInt_le, show ((0 : UInt8).toInt = 0) from rfl] at hkings_nonneg
-              simp only [UInt8.toInt_eq] at h1 haces_nonneg hkings_nonneg
-              omega
+            have hAKlt : (p.aces.get s).toNat < (p.kings.get s).toNat :=
+              UInt8.lt_iff_toNat_lt.mp (show p.aces.get s < p.kings.get s from hv1)
             have hb1 := VALUE_toNat (p.aces.get s)
             have hb2 := SUIT_toNat (p.aces.get s)
             have hb3 := congrArg UInt8.toNat hSAs
@@ -2219,7 +2169,7 @@ set_option maxHeartbeats 1000000 in
     `usedSpace_term_foldl_set`); combined with the `f` lost from `usedSpace`
     itself (`preCleanupPile`'s own `usedSpace := p.usedSpace - UInt8.ofNat f`
     field), the ledger balances exactly.  The final `UInt8` arithmetic
-    (`usedSpace - f`) doesn't wrap because `usedSpace_nonneg` bounds
+    (`usedSpace - f`) doesn't wrap because `usedSpace_bounded` bounds
     `p.usedSpace.toInt ∈ [0,52]` and `f ≤ B.toNat - 1 ≤ 60`. -/
 theorem preCleanupPile_usedSpace_def (pile : UInt32) (g : Globals) (p : SolverPosType)
     (hpile : pile.toNat < 10)
@@ -2338,8 +2288,8 @@ theorem preCleanupPile_usedSpace_def (pile : UInt32) (g : Globals) (p : SolverPo
   have hXNat' : ((((p.pileDepth[pile.toNat]'hpile) - UInt8.ofNat m)
       )).toNat =
       (p.pileDepth[pile.toNat]'hpile).toNat - m := hXNat
-  have hspace_bound : 0 ≤ p.usedSpace.toInt ∧ p.usedSpace.toInt ≤ 52 := by
-    have h := usedSpace_nonneg hwf hnf
+  have hspace_bound : p.usedSpace.toInt ≤ 52 := by
+    have h := usedSpace_bounded hwf hnf
     rwa [show (fluteNorm pile hpile p).usedSpace = p.usedSpace from rfl] at h
   have hud2 : p.usedSpace.toInt = (52 : Int)
       - ((p.pileDepth.set pile.toNat
@@ -2411,7 +2361,7 @@ theorem preCleanupPile_usedSpace_def (pile : UInt32) (g : Globals) (p : SolverPo
         ⟨(p.pileDepth.get j).toNat - 1, hidxj⟩ ⟨_, hidx⟩ (heq'.trans hBdef.symm)
       exact hjp (congrArg Fin.val hcontra.1)
   -- The counting argument (`usedSpace_ge_freed_run`, extracted from
-  -- `usedSpace_nonneg`'s disjointness proof): the `f` cards the freed loop
+  -- `usedSpace_bounded`'s disjointness proof): the `f` cards the freed loop
   -- absorbed are all distinct from every card the layout is currently
   -- charging for, so `usedSpace` must already have room for them.
   have hfBound : (f : Int) ≤ p.usedSpace.toInt := by

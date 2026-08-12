@@ -175,8 +175,6 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
     -- (`fluteNorm` only changes `pileFlute`, so all depth/aces facts of `hnf`
     -- transfer to `p` definitionally.)
     right
-    have hnn : (0 : UInt8) ≤ p.pileDepth[pile.toNat]'hpile :=
-      hnf.pileDepth_nonneg ⟨pile.toNat, hpile⟩
     have hd1 : 0 < (p.pileDepth[pile.toNat]'hpile).toNat := by
       have hne : (p.pileDepth[pile.toNat]'hpile).toNat ≠ 0 :=
         fun h => hd (UInt8.toNat_inj.mp h)
@@ -211,9 +209,6 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
       rw [UInt8.le_iff_toNat_le]; show 1 ≤ B.toNat; omega
     have hprev64 : (B - 1).toNat < 64 := by
       rw [UInt8.toNat_sub_of_le _ _ h1B]; omega
-    have haces0 : (0 : UInt8) ≤ p.aces[(SUIT B).toUInt32.toNat]'hs4 :=
-      int8_nonneg_of_suit
-        (hnf.aces_kings_valid ⟨(SUIT B).toUInt32.toNat, hs4⟩).1
     -- The boundary card is still physically in the pile (`boundary_not_free`,
     -- via `depth_card_not_free`), so `foundation_cards_free`'s contrapositive
     -- forces `aces[SUIT B] < B`: if `aces[SUIT B]` had already reached `B`,
@@ -283,7 +278,7 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
         simp only [fluteNorm]
         exact Vector.getElem_set_ne hpile i.isLt (Ne.symm hij)
       have hb := hnf.pileBase i
-      refine ⟨hb.pileDepth_bound, hb.pileDepth_nonneg, ?_, ?_, ?_, ?_⟩
+      refine ⟨hb.pileDepth_bound, ?_, ?_, ?_, ?_⟩
       · rw [← hfeq]; exact hb.flute_pos
       · intro h0; rw [← hfeq]; exact hb.flute_empty h0
       · intro j hdi hj0 hjlt
@@ -294,7 +289,7 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
           rwa [hfeq] at h2
     obtain ⟨m, f, hmg, hmx, hfg, hfx, hrun⟩ :=
       cleanupPile_nonempty_eq pile g p B (pileHashes[pile.toNat]'hpile) hpile rfl
-        hd1 hd5 hidx hBdef.symm hs4 hprev64 hwf.card2pile_lt haces0
+        hd1 hd5 hidx hBdef.symm hs4 hprev64 hwf.card2pile_lt
     -- ------------------------------------------------------------------
     -- Guard-derived arithmetic: bounds on the iteration counts (no wraps).
     -- ------------------------------------------------------------------

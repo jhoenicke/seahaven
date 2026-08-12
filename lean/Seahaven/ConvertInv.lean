@@ -190,8 +190,7 @@ theorem convertPre_pileBase (hwf : WellFormedLayout g) (hpk : ValidDepths pk) (i
     PileBase g (convertPre g pk) i := by
   have hd5 : ((cvDepths pk).get i).toNat ≤ 5 := by rw [cvDepths_get]; exact hpk i
   have hdepi : (convertPre g pk).pileDepth.get i = (cvDepths pk).get i := rfl
-  refine ⟨by rw [hdepi]; exact hd5, ?_, ?_, ?_, ?_, ?_⟩
-  · exact UInt8.le_iff_toNat_le.mpr (Nat.zero_le _)
+  refine ⟨by rw [hdepi]; exact hd5, ?_, ?_, ?_, ?_⟩
   · rw [convertPre_pileFlute]; decide
   · intro _; rw [convertPre_pileFlute]
   · intro j _ hj0 hjlt

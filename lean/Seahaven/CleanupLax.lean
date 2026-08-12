@@ -185,7 +185,6 @@ theorem solverInvLocal_cvRelax {g : Globals} {v : State} {q0 : SolverPosType}
     SolverInvLocal g (cvRelax q0 fl) where
   pileBase i :=
     { pileDepth_bound := hb.pileDepth_bound i
-      pileDepth_nonneg := hb.pileDepth_nonneg i
       flute_pos := hfl.pos i
       flute_empty := fun h0 => hfl.empty i h0
       flute_cards_free := fun j hdi hj0 hjf =>

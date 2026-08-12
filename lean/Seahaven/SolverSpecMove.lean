@@ -366,7 +366,7 @@ private theorem destFrame_pileBase_self (g : Globals) (p q : SolverPosType) (pil
       (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 := by rw [hfr.depthSelf, hsub]
   have hqf : (q.pileFlute.get ⟨pile.toNat, hpile⟩).toNat = 1 := by
     rw [hfr.fluteSelf]; rfl
-  refine ⟨by omega, UInt8.le_iff_toNat_le.mpr (Nat.zero_le _), by omega,
+  refine ⟨by omega, by omega,
     fun _ => hfr.fluteSelf, fun j' _ _ hlt => absurd hlt (by omega), ?_⟩
   intro hdq
   -- `pile`'s new boundary card, still resident at slot `depth − 2`.
@@ -416,7 +416,7 @@ private theorem destFrame_pileBase_ne (g : Globals) (p q : SolverPosType) (pile 
     (hb : PileBase g p j) :
     PileBase g q j := by
   have hdeq := hfr.depthNe j hj
-  refine ⟨by rw [hdeq]; exact hb.pileDepth_bound, by rw [hdeq]; exact hb.pileDepth_nonneg,
+  refine ⟨by rw [hdeq]; exact hb.pileDepth_bound,
     by rw [hfl]; exact hb.flute_pos, by rw [hdeq, hfl]; exact hb.flute_empty, ?_, ?_⟩
   · intro j' hd0 h1 h2
     simp only [hdeq] at hd0
@@ -1195,7 +1195,6 @@ private theorem destFlute_toPile (g : Globals) (p q : SolverPosType) (pile : UIn
     simp only [hBdef] at h; exact h
   have hpb : PileBase g q t := by
     refine ⟨by rw [hdeq]; exact hbase.pileDepth_bound t,
-      by rw [hdeq]; exact hbase.pileDepth_nonneg t,
       by rw [hqfN]; omega, ?_, ?_, ?_⟩
     · intro hz
       rw [hdeq] at hz
@@ -1405,7 +1404,7 @@ private theorem moveDest_ready_noFlute (g : Globals) (p q : SolverPosType) (pile
       exact le_trans hflv h
     have hfl1 : 1 ≤ (p.pileFlute[pile.toNat]'hpile).toNat :=
       hbase.flute_pos ⟨pile.toNat, hpile⟩
-    obtain ⟨hus0, hus52⟩ := usedSpace_nonneg hwf hbase
+    have hus52 := usedSpace_bounded hwf hbase
     have haddN : (p.usedSpace + (p.pileFlute[pile.toNat]'hpile)).toNat
         = p.usedSpace.toNat + (p.pileFlute[pile.toNat]'hpile).toNat := by
       rw [UInt8.toNat_add]

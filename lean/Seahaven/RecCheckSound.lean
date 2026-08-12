@@ -80,7 +80,7 @@ theorem pileDepth_eq_zero_of_hash_zero {g : Globals} {p : SolverPosType}
     (by rw [hfoldl]; decide)
   clear hfoldl
   obtain ⟨k0, k1, k2, k3, k4, k5, k6, k7, k8, k9⟩ := key
-  refine UInt8_eq_of_toNat_eq (h.pileDepth_nonneg i) (by decide) ?_
+  refine UInt8.toNat_inj.mp ?_
   show (p.pileDepth.get i).toNat = (0 : UInt8).toNat
   simp only [show ((0 : UInt8).toNat = 0) from rfl]
   obtain ⟨iv, hiv⟩ := i
