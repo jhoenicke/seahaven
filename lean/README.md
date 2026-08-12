@@ -46,9 +46,7 @@ lake build
   so the solver can be queried repeatedly.
 
 * **[`Seahaven/SolverIsCorrect.lean`](Seahaven/SolverIsCorrect.lean)** — the
-  final assembly `solver_is_correct : Correctness`, gluing the deal bridge
-  (a `Shuffle` really deals the deck `initcard` records) to the invariants
-  and the two directions of the query proof.
+  final assembly proving the theorem `solver_is_correct : Correctness`.
 
 ## Why the proof is hard
 
@@ -58,8 +56,9 @@ the whole proof is about justifying that abstraction.
 
 * **Normalization.**  The solver assumes cards are moved to the foundation as
   soon as possible, and it merges each column's top run of same-suit
-  consecutive cards (a *flute*) into the card below it.  A single solver
-  position therefore stands for many concrete game states.
+  consecutive cards (a *flute*) into the card below it.  The solver only
+  considers normalized solutions and the proof shows that these will not
+  miss any solution.
 
 * **Flute-level moves.**  One solver move relocates an entire flute: park the
   run's upper cards in free cells, move the boundary card to its destination,
@@ -67,18 +66,27 @@ the whole proof is about justifying that abstraction.
   and it is only legal if enough free cells are available — the solver checks
   this with a space count (`usedSpace`, `computeKingSpaces`).
 
-* **King moves can cause cycles.**  Moving a king run between empty columns
+* **Implicit Invariants.** A game position uses counters for `usedSpace` and
+  `emptyPiles` that are updated on-the-fly.  Invariants had to be devised to
+  show that these values are correct and the match the internal accounting of
+  space against the actual free cells in the game state of the specification.
+  Likewise for a reachable game state invariants are proven that the set of
+  cards never change and that a freed card can only be found at certain
+  positions.
+
+* **Memoization.** The solver uses a simple hashtable to cache results.  We
+  prove the whole algorithm, including the hashtable code and it's interaction
+  between multiple consecutive solver calls.
+
+* **Advance King moves.**  Moving a king run between empty columns
   changes nothing measurable and can be undone, so a naive search loops.  The
   solver never makes such moves.  Instead it tracks *king configurations* —
-  which suits own a dedicated empty column — as a bitmask, and its
-  memoization table stores, per position, a bitmask of configurations under
-  which the position is solvable.  Precomputed tables (`subsetTable`,
-  `componentTable`, `computeComponentKingBits`) account for the reshuffling of
-  king runs between cells and empty columns without ever searching it.  As a
-  consequence every solver move strictly decreases the total merged depth
-  `Σ pileDepth`, which gives termination and makes the position hash (a
-  weighted sum of depths, injective on valid depth vectors) a safe
-  memoization key.
+  which suits own a dedicated empty column — as a bitmask, and solves multiple
+  positions simultaneously.  Its memoization table stores, per position,
+  a bitmask of configurations under which the position is solvable.
+  Precomputed tables (`subsetTable`, `componentTable`,
+  `computeComponentKingBits`) account for the reshuffling of king runs between
+  cells and empty columns without ever searching it.
 
 ## Structure of the proof
 
