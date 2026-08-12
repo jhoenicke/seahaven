@@ -6,6 +6,30 @@ import Seahaven.SolverSpecCleanupPile
 `removeFlute` is `cleanupPile`'s composed-flute-removal counterpart; this file
 reduces its `PileBase`/`PileMerged` preservation facts to the `cleanupPile`
 ones via the exact reduction `removeFlute_eq` (from `SolverRealSpec`).
+
+## It moves no cards — and that is why there is no simulation lemma here
+
+`SolverRemoveFlute` decrements the pile's depth, fixes the hash, and calls
+`SolverCleanupPile`.  The flute cards are *already gone* from the state: the flute
+move inside `SolverMove` put them where they belong, and this function only
+reconciles the recorded position with the state as it already is.
+
+Removing the flute as a card operation would be wrong, not merely redundant: the
+source pile's depth still counts the flute while `moveDestPre` has already added it
+to the destination's `pileFlute`, so it would be in two places at once and every
+invariant would break.  The preceding code therefore establishes the base invariant
+for the position with **depth − 1 and the flute reset** — in that sense the flute is
+already removed, just not yet written into the game.
+
+So do not look for (or add) a `Simulates`/`SimulatesNorm` lemma for this function:
+its absence is the design.  The obligation lives in the hypothesis *position*
+instead — `removeFlute_base`/`removeFlute_merged` assume `SolverInvBase`/
+`CleanupReady` at `fluteNorm pile (removeFlutePre pile p)`, not at `p`.  Phase 1
+(`MoveSim`, `Phase1Sim`) is where the card movement is simulated, and its
+`movePre = fluteNorm ∘ removeFlutePre ∘ moveDestPre` names exactly this
+already-removed-but-not-yet-recorded position.  It is also why the strict depth
+decrement is assembled at the composite in `move_merged` rather than per phase: no
+single phase preserves the invariant on its own.
 -/
 
 namespace SolverSpec
