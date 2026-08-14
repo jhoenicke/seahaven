@@ -450,37 +450,53 @@ function moveCard(src, marker) {
 }
 
 /*
+ * Whether the card is the next one its foundation takes.
+ */
+function isFoundationCard(card) {
+    var suit = Math.floor((card - 1) / 13);
+    return card > 0 && aces[suit] + 1 == card - 13 * suit;
+}
+
+/*
  * Make all moves that the current automation level makes by itself.  They go
  * into the log like clicked moves, with a marker that lets undo skip them.
+ *
+ * The foundations are served first, until no card fits on them any more.
+ * Only then are the cells put back on the piles: such a move covers the card
+ * it is put on and uncovers none, and the card itself does not fit on a
+ * foundation or it would have gone there, so it cannot make a new foundation
+ * move possible and the foundations need not be looked at again.  It can
+ * however uncover the next cell card, so it needs a loop of its own.
  */
 function automove() {
-    var stable = false;
-    while (!stable) {
-        stable = true;
-        for (var i = 0; i < 4; i++) {
-            var card = spots[i];
-            if (card == 0) {
-                continue;
+    var stable;
+    if (automation >= AUTO_ACES) {
+        stable = false;
+        while (!stable) {
+            stable = true;
+            for (var i = 0; i < 4; i++) {
+                if (isFoundationCard(spots[i])) {
+                    moveCard(-i - 1, MARK_ACES);
+                    stable = false;
+                }
             }
-            var suit = Math.floor((card - 1) / 13);
-            if (automation >= AUTO_ACES && aces[suit] + 1 == card - 13 * suit) {
-                moveCard(-i - 1, MARK_ACES);
-                stable = false;
-            } else if (automation >= AUTO_FULL && (card % 13) != 0 &&
-                       findDestination(-i - 1, card, 1) >= 0) {
-                moveCard(-i - 1, MARK_CELL);
-                stable = false;
+            for (var col = 0; col < 10; col++) {
+                if (isFoundationCard(cardAt(col))) {
+                    moveCard(col, MARK_ACES);
+                    stable = false;
+                }
             }
         }
-        if (automation >= AUTO_ACES) {
-            for (var col = 0; col < 10; col++) {
-                var card = cardAt(col);
-                if (card == 0) {
-                    continue;
-                }
-                var suit = Math.floor((card - 1) / 13);
-                if (aces[suit] + 1 == card - 13 * suit) {
-                    moveCard(col, MARK_ACES);
+    }
+    if (automation >= AUTO_FULL) {
+        stable = false;
+        while (!stable) {
+            stable = true;
+            for (var i = 0; i < 4; i++) {
+                var card = spots[i];
+                if (card > 0 && (card % 13) != 0 &&
+                    findDestination(-i - 1, card, 1) >= 0) {
+                    moveCard(-i - 1, MARK_CELL);
                     stable = false;
                 }
             }
