@@ -314,8 +314,10 @@ class Card:
                 aw = self.bw
                 p.append(f'<use xlink:href="#SS" height="{tho(aw)}" '
                          f'x="{tho(-cdiv(aw, 2))}" y="{tho(-cdiv(aw, 2))}"></use>')
-                p.append('<a href="https://www.me.uk/cards">')
-                for i, line in enumerate(("www.me.uk", "/cards/")):
+                p.append('<a href="https://cards.revk.uk">')
+                # the tool has two text slots on the ace (--ace1/--ace2) at
+                # fixed heights; only the first one is used
+                for i, line in enumerate(("cards.revk.uk",)):
                     y = cdiv(self.bh, 2) - cdiv(THO * FONTSIZE * (3 - 2 * i), 2)
                     p.append(f'<text font-size="{FONTSIZE}" font-family="Bariol" '
                              f'fill="black" text-anchor="middle" '

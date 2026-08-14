@@ -4,7 +4,7 @@ Copyright 2021-2026, Jochen Hoenicke.
 
 ## Try Online
 
-https://jhoenicke.github.io/seahaven/
+https://jhoenicke.de/seahaven/online.html
 
 ## Screenshot
 
@@ -43,10 +43,9 @@ that the *Options* button opens (or by pressing `o`); while it is open
 * *Full*: It will also move all matching cards from the reserved cells
   back to the tableau piles.
 
-Changing the level is not a move and cannot be undone, but the moves a
-higher level makes by itself are made right away.  They can be undone
-like any other move; switching back to a lower level does not take them
-back.
+When you switch to a higher level, the moves it makes by itself are made
+right away.  They can be undone like any other move; switching back to a
+lower level does not take them back.
 
 The option box also switches the fullscreen mode on and off (or press
 `f`).  It closes again when you click on the *Options* button or
@@ -78,10 +77,8 @@ hide the tick/cross.
 
 About one deal in ten cannot be won at all.  With the *Ensure solvable*
 option of the option box (or `e` while it is open) every new game is
-tested and dealt again until the solver finds a solution.  The cogwheels
-turn while it looks for one, which takes only a few milliseconds.  The
-setting is used for the next new game; the game on the board stays as it
-is.
+tested and dealt again until the solver finds a solution.  The setting
+is used for the next new game; the game on the board stays as it is.
 
 ## Compile and Install
 
