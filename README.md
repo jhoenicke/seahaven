@@ -76,6 +76,13 @@ cross will update for every move.  If you're stuck on the initial
 position that game had no solution.  Click the check button again to
 hide the tick/cross.
 
+About one deal in ten cannot be won at all.  With the *Ensure solvable*
+option of the option box (or `e` while it is open) every new game is
+tested and dealt again until the solver finds a solution.  The cogwheels
+turn while it looks for one, which takes only a few milliseconds.  The
+setting is used for the next new game; the game on the board stays as it
+is.
+
 ## Compile and Install
 
 First get the emscripten compiler.  Then run make in the solver

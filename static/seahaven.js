@@ -55,6 +55,13 @@ var moves = [];
 var solver = null;
 var isChecking = false;
 
+// With this setting a new game is dealt again until the solver says that it
+// can be won.  While it looks for one, isSearching is set and the answer to
+// the question solverRequest decides whether the deal is kept.
+var ensureSolvable = false;
+var isSearching = false;
+var solverRequest = 0;
+
 function shuffle(array) {
     var current, temp, random;
     
@@ -87,6 +94,8 @@ function storeGames() {
     window.localStorage.setItem("seahavenGames", JSON.stringify(games));
     window.localStorage.setItem("seahavenGameIndex", JSON.stringify(gameIndex));
     window.localStorage.setItem("seahavenAutomation", JSON.stringify(automation));
+    window.localStorage.setItem("seahavenEnsureSolvable",
+                                JSON.stringify(ensureSolvable));
 }
 
 // A move is stored as [source, marker].  Games stored by an older version
@@ -174,6 +183,7 @@ function updateOptionsBox() {
     for (var level = 0; level < AUTO_LEVELS; level++) {
         markRow("auto" + level, level == automation);
     }
+    markRow("ensure", ensureSolvable);
     markRow("fullscreen", isFullscreen());
 }
 
@@ -564,23 +574,33 @@ function loadGame(index) {
     reset();
 }
 
+// Deal the cards of the current game again.  With the "ensure solvable"
+// setting the solver is asked whether the deal can be won; its answer arrives
+// while the cogwheels turn and deals again if the game has no solution.
+function dealGame() {
+    shuffleCards();
+    moves = [];
+    numMoves = 0;
+    games[gameIndex] = currentGame();
+    isSearching = ensureSolvable && solver !== null;
+    reset();
+    storeGames();
+}
+
 function newGame() {
     // the games that were taken back with undo are replaced by the new one
     games[gameIndex] = currentGame();
     games.length = gameIndex + 1;
 
-    shuffleCards();
-    moves = [];
-    numMoves = 0;
-    games.push(currentGame());
+    games.push({"shuffle": [], "moves": [], "numMoves": 0});
     gameIndex = games.length - 1;
     while (games.length > MAX_GAMES) {
         // only the last games can be taken back
         games.shift();
         gameIndex--;
     }
-    reset();
-    storeGames();
+    // the empty game is filled with the cards of the new deal
+    dealGame();
 }
 
 function reset() {
@@ -720,6 +740,14 @@ function toggleChecking() {
     checkSolvable();
 }
 
+// The setting is used by the next new game; the game on the board stays as it
+// is, it may well be one that cannot be won.
+function toggleEnsureSolvable() {
+    ensureSolvable = !ensureSolvable;
+    storeGames();
+    updateOptionsBox();
+}
+
 function keypress(e) {
     if (e.which == 'r'.charCodeAt(0)) {
         redo();
@@ -739,6 +767,10 @@ function keypress(e) {
     }
     if (e.which == 'o'.charCodeAt(0)) {
         toggleOptions();
+    }
+    if (e.which == 'e'.charCodeAt(0) && optionsOpen()) {
+        // like the automation levels this is only visible in the option box
+        toggleEnsureSolvable();
     }
     if (e.which == 'a'.charCodeAt(0) && optionsOpen()) {
         // cycle through the automation levels; only while the option box
@@ -861,16 +893,32 @@ function hideCog() {
 }
 
 function handleSolverMessage(msg) {
-    if (msg.data.finalResponse && msg.data.data.length == 12) {
-        if (!isChecking || !isCurrentState(msg.data.data)) {
-            return
+    if (!msg.data.finalResponse || msg.data.data.length != 12
+        || msg.data.callbackId != solverRequest) {
+        // the answer to a question that is already outdated
+        return;
+    }
+    if (isSearching) {
+        if (msg.data.data[11] != 0) {
+            // this deal cannot be won, take the next one
+            dealGame();
+            return;
         }
-        hideCog();
-        if (msg.data.data[11] == 0) {
-            document.getElementById("tick").style.visibility = "visible";
-        } else if (msg.data.data[11] == 2) {
-            document.getElementById("cross").style.visibility = "visible";
+        // a solvable game was found; only the check shows that it is one
+        isSearching = false;
+        if (!isChecking) {
+            hideCog();
+            return;
         }
+    }
+    if (!isChecking || !isCurrentState(msg.data.data)) {
+        return
+    }
+    hideCog();
+    if (msg.data.data[11] == 0) {
+        document.getElementById("tick").style.visibility = "visible";
+    } else if (msg.data.data[11] == 2) {
+        document.getElementById("cross").style.visibility = "visible";
     }
 }
 
@@ -878,7 +926,7 @@ function checkSolvable() {
     document.getElementById("cross").style.visibility = "hidden";
     document.getElementById("tick").style.visibility = "hidden";
 
-    if (isChecking) {
+    if ((isChecking || isSearching) && solver) {
         var data = [...stacks];
         var kingmask = 0;
         for (var suit = 0; suit < 4; suit++) {
@@ -888,7 +936,8 @@ function checkSolvable() {
         }
         data.push(kingmask);
         console.log("solve: "+data);
-        solver.postMessage({"funcName":"solve", "data": data});
+        solver.postMessage({"funcName":"solve", "data": data,
+                            "callbackId": ++solverRequest});
         showCog();
     } else {
         hideCog();
@@ -912,6 +961,7 @@ function init() {
     });
     document.getElementById("optionsbox").onclick =
         (evt => evt.stopPropagation());
+    document.getElementById("ensure").onclick = toggleEnsureSolvable;
     document.getElementById("fullscreen").onclick = toggleFullscreen;
     for (let level = 0; level < AUTO_LEVELS; level++) {
         document.getElementById("auto" + level).onclick =
@@ -936,6 +986,8 @@ function init() {
             && window.localStorage.getItem("seahavenMoves") === null
             ? AUTO_FLUTE : AUTO_FULL;
     }
+    ensureSolvable =
+        JSON.parse(window.localStorage.getItem("seahavenEnsureSolvable")) === true;
 
     games = JSON.parse(window.localStorage.getItem("seahavenGames"));
     gameIndex = JSON.parse(window.localStorage.getItem("seahavenGameIndex"));
