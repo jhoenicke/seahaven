@@ -30,9 +30,9 @@ const DEST_CELL = -1;
 // move is made without being clicked, so undo can skip all moves that the
 // current level makes by itself.
 const MARK_FLUTE = AUTO_FLUTE;   // one card of a flute that is moved at once
-const MARK_ACES = AUTO_ACES;     // automatic move to the foundations
-const MARK_CELL = AUTO_FULL;     // automatic move from a cell to a pile
-const MARK_CLICK = AUTO_LEVELS;  // the move the player clicked: never skipped
+const MARK_ACES = AUTO_ACES;     // move to the foundations
+const MARK_CELL = AUTO_FULL;     // move from a cell to a pile
+const MARK_CLICK = AUTO_LEVELS;  // a move no level makes: never skipped
 
 // The automation level is a setting, not a move.  Changing it may make the
 // moves that are automatic on the new level, but those are logged like any
@@ -342,6 +342,21 @@ function normalize() {
 }
 
 /*
+ * The automation level from which on the given move is made without being
+ * clicked: a move to the foundations from AUTO_ACES on, a move of a card that
+ * is not a king from a cell back to a pile from AUTO_FULL on.
+ */
+function autoLevelOf(src, card, dest) {
+    if (dest == DEST_ACES) {
+        return MARK_ACES;
+    }
+    if (src < 0 && dest >= 0 && (card % 13) != 0) {
+        return MARK_CELL;
+    }
+    return MARK_CLICK;
+}
+
+/*
  * Move the single card at src to the destination that a click without
  * automation chooses and put it into the log.  The marker tells from which
  * automation level on this move is made without being clicked.
@@ -357,6 +372,11 @@ function moveCard(src, marker) {
         return false;
     }
     var suit = Math.floor((card - 1) / 13);
+
+    // A clicked move that a higher level makes by itself gets the marker of
+    // that level, so undo takes it back together with the move that caused it
+    // instead of leaving a state the automation would run away from.
+    marker = Math.min(marker, autoLevelOf(src, card, dest));
 
     undoLog.push(getSnapshot(src));
     logMove(src, marker);
@@ -631,6 +651,15 @@ function undo() {
         restoreSnapshot(undoLog.pop());
         numMoves--;
     } while (numMoves > 0 && markerOf(moves[numMoves]) <= automation);
+    if (numMoves > 0) {
+        // The state that is undone to may still allow moves that the current
+        // level makes by itself, when the moves that follow were made on a
+        // lower level.  Making them replaces the moves that were taken back:
+        // they are a different continuation of the game, so there is nothing
+        // left to redo.  Undoing the whole game is the exception, that always
+        // shows the deal itself.
+        automove();
+    }
     storeGames();
     checkSolvable();
     updateBoard();
