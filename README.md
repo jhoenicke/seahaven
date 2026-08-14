@@ -54,6 +54,11 @@ that caused them.  On a lower level undo walks back card by card, so
 with the automation switched off you can see how a flute was moved
 through the reserved cells.
 
+Starting a new game can be taken back, too: when there is nothing left
+to undo in the current game, undo returns to the game you played before
+it, and redo brings you back.  The last five games are kept, the older
+ones are forgotten.
+
 If you think you're stuck you can check if the game is still solvable.
 It will give you a tick or a cross as an answer.  If you're stuck you
 can undo your moves to a position where the tick appears; the tick or

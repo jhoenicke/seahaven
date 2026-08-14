@@ -42,6 +42,12 @@ var automation = AUTO_FULL;
 // while replaying stored moves they are not appended to the log again
 var recording = true;
 
+// New games can be taken back as well: the last MAX_GAMES games are kept,
+// each with its own move log.
+const MAX_GAMES = 5;
+var games = [];
+var gameIndex = 0;
+
 var highlightedCard = 0;
 var undoLog = [];
 var moves = [];
@@ -76,9 +82,10 @@ function card2html(card, x, y) {
     return html;
 }
 
-function storeMoves() {
-    window.localStorage.setItem("seahavenMoves", JSON.stringify(moves));
-    window.localStorage.setItem("seahavenNumMoves", JSON.stringify(numMoves));
+function storeGames() {
+    games[gameIndex] = currentGame();
+    window.localStorage.setItem("seahavenGames", JSON.stringify(games));
+    window.localStorage.setItem("seahavenGameIndex", JSON.stringify(gameIndex));
     window.localStorage.setItem("seahavenAutomation", JSON.stringify(automation));
 }
 
@@ -484,7 +491,7 @@ function setAutomation(level) {
     automation = level;
     // a higher level makes the moves that are automatic from now on
     automove();
-    storeMoves();
+    storeGames();
     checkSolvable();
     updateBoard();
 }
@@ -494,15 +501,43 @@ function shuffleCards() {
         pos2card[i] = i+1;
     }
     shuffle(pos2card);
-    window.localStorage.setItem("seahavenShuffle", JSON.stringify(Array.from(pos2card)));
+}
+
+// the game that is currently on the board
+function currentGame() {
+    return {
+        "shuffle": Array.from(pos2card),
+        "moves": moves,
+        "numMoves": numMoves
+    };
+}
+
+// put a game of the game list on the board
+function loadGame(index) {
+    gameIndex = index;
+    pos2card.set(games[index].shuffle);
+    moves = games[index].moves;
+    numMoves = games[index].numMoves;
+    reset();
 }
 
 function newGame() {
+    // the games that were taken back with undo are replaced by the new one
+    games[gameIndex] = currentGame();
+    games.length = gameIndex + 1;
+
     shuffleCards();
     moves = [];
     numMoves = 0;
-    storeMoves();
+    games.push(currentGame());
+    gameIndex = games.length - 1;
+    while (games.length > MAX_GAMES) {
+        // only the last games can be taken back
+        games.shift();
+        gameIndex--;
+    }
     reset();
+    storeGames();
 }
 
 function reset() {
@@ -535,7 +570,7 @@ function reset() {
             clickSource(stored[i]);
         }
         automation = setting;
-        storeMoves();
+        storeGames();
     } else {
         // the automatic moves of the deal are in the log like all the others
         moves = stored;
@@ -557,7 +592,7 @@ function reset() {
 
 function makeMove(src) {
     if (clickSource(src)) {
-        storeMoves();
+        storeGames();
         checkSolvable();
         updateBoard();
     }
@@ -582,6 +617,12 @@ function clickboard(evt) {
 
 function undo() {
     if (numMoves == 0) {
+        // the whole game is taken back, go back to the game before it
+        if (gameIndex > 0) {
+            games[gameIndex] = currentGame();
+            loadGame(gameIndex - 1);
+            storeGames();
+        }
         return;
     }
     // the moves that the current level makes by itself are undone together
@@ -590,13 +631,19 @@ function undo() {
         restoreSnapshot(undoLog.pop());
         numMoves--;
     } while (numMoves > 0 && markerOf(moves[numMoves]) <= automation);
-    storeMoves();
+    storeGames();
     checkSolvable();
     updateBoard();
 }
 
 function redo() {
     if (numMoves >= moves.length) {
+        // nothing left in this game, go on with the game after it
+        if (gameIndex < games.length - 1) {
+            games[gameIndex] = currentGame();
+            loadGame(gameIndex + 1);
+            storeGames();
+        }
         return;
     }
     recording = false;
@@ -607,7 +654,7 @@ function redo() {
         }
     } while (numMoves < moves.length && markerOf(moves[numMoves]) <= automation);
     recording = true;
-    storeMoves();
+    storeGames();
     checkSolvable();
     updateBoard();
 }
@@ -804,26 +851,34 @@ function init() {
         solver.onerror = (err => console.log(err));
     }
 
-    shuffledCards = JSON.parse(window.localStorage.getItem("seahavenShuffle"));
-    if (shuffledCards) {
-        pos2card.set(shuffledCards)
-    } else {
-        shuffleCards();
-    }
-    moves = JSON.parse(window.localStorage.getItem("seahavenMoves"));
-    numMoves = JSON.parse(window.localStorage.getItem("seahavenNumMoves"));
     // games stored before the automation levels existed were played with full
     // automation.
     automation = JSON.parse(window.localStorage.getItem("seahavenAutomation"));
     if (automation === null) {
         automation = AUTO_FULL;
     }
-    if (!moves) {
-        moves = [];
-        numMoves = 0;
-        storeMoves();
+
+    games = JSON.parse(window.localStorage.getItem("seahavenGames"));
+    gameIndex = JSON.parse(window.localStorage.getItem("seahavenGameIndex"));
+    if (!games || games.length == 0) {
+        // an older version stored a single game
+        var shuffledCards = JSON.parse(window.localStorage.getItem("seahavenShuffle"));
+        if (shuffledCards) {
+            pos2card.set(shuffledCards);
+        } else {
+            shuffleCards();
+        }
+        games = [{
+            "shuffle": Array.from(pos2card),
+            "moves": JSON.parse(window.localStorage.getItem("seahavenMoves")) || [],
+            "numMoves": JSON.parse(window.localStorage.getItem("seahavenNumMoves")) || 0
+        }];
     }
-    reset();
+    if (typeof gameIndex != "number" || gameIndex < 0 || gameIndex >= games.length) {
+        gameIndex = games.length - 1;
+    }
+    loadGame(gameIndex);
+    storeGames();
 }
 
 init();
