@@ -186,7 +186,7 @@
        <text x="30" y="900"><tspan font-weight="bold">U</tspan>ndo</text>
        <text x="170" y="900"><tspan font-weight="bold">R</tspan>edo</text>
        <text x="310" y="900"><tspan font-weight="bold">N</tspan>ew game</text>
-       <text x="515" y="900"><tspan font-weight="bold">F</tspan>ullscreen</text>
+       <text x="525" y="900"><tspan font-weight="bold">O</tspan>ptions</text>
        <text x="715" y="900"><tspan font-weight="bold">C</tspan>heck Solvable</text>
        <a href="https://jochen-hoenicke.de/seahaven">
 	 <g style="fill:#fff;font-size:20px">
@@ -211,34 +211,37 @@
         <rect id="undo" x="10" y="860" width="115" height="60" rx="10" ry="10" />
         <rect id="redo" x="150" y="860" width="115" height="60" rx="10" ry="10" />
         <rect id="newgame" x="290" y="860" width="180" height="60" rx="10" ry="10" />
-        <rect id="fullscreen" x="495" y="860" width="175" height="60" rx="10" ry="10" />
+        <rect id="options" x="495" y="860" width="175" height="60" rx="10" ry="10" />
         <rect id="check" x="695" y="860" width="250" height="60" rx="10" ry="10" />
       </g>
-      <g id="automation" cursor="pointer"
-         style="font-family:Arial,Helvetica,sans-serif;">
-        <rect x="305" y="10" width="140" height="182" rx="10" ry="10"
-              style="fill:#000;fill-opacity:0.1;stroke:white;stroke-opacity:0.5;stroke-width:2;" />
+      <g id="cards" />
+      <g id="optionsbox" cursor="pointer"
+         style="visibility:hidden;font-family:Arial,Helvetica,sans-serif;">
+        <rect x="485" y="608" width="200" height="242" rx="10" ry="10"
+              style="fill:#004d00;stroke:white;stroke-opacity:0.5;stroke-width:2;" />
         <g style="fill:#000;fill-opacity:0.15;">
-          <rect id="auto0" x="313" y="46" width="124" height="33" rx="6" ry="6">
+          <rect id="auto0" x="493" y="644" width="184" height="33" rx="6" ry="6">
             <title>Move single cards only</title></rect>
-          <rect id="auto1" x="313" y="82" width="124" height="33" rx="6" ry="6">
+          <rect id="auto1" x="493" y="680" width="184" height="33" rx="6" ry="6">
             <title>Move whole flutes</title></rect>
-          <rect id="auto2" x="313" y="118" width="124" height="33" rx="6" ry="6">
+          <rect id="auto2" x="493" y="716" width="184" height="33" rx="6" ry="6">
             <title>Move cards to the foundations automatically</title></rect>
-          <rect id="auto3" x="313" y="154" width="124" height="33" rx="6" ry="6">
+          <rect id="auto3" x="493" y="752" width="184" height="33" rx="6" ry="6">
             <title>Move cards from the cells back to the piles automatically</title></rect>
+          <rect id="fullscreen" x="493" y="812" width="184" height="33" rx="6" ry="6">
+            <title>Play on the whole screen</title></rect>
         </g>
         <g style="fill:#fff;pointer-events:none;text-anchor:middle;">
-          <text x="375" y="36" style="font-size:21px;"><tspan font-weight="bold">A</tspan>utomation</text>
+          <text x="585" y="634" style="font-size:21px;"><tspan font-weight="bold">A</tspan>utomation</text>
           <g style="font-size:24px;">
-            <text x="375" y="70">None</text>
-            <text x="375" y="106">Flutes</text>
-            <text x="375" y="142">Aces</text>
-            <text x="375" y="178">Full</text>
+            <text x="585" y="668">None</text>
+            <text x="585" y="704">Flutes</text>
+            <text x="585" y="740">Aces</text>
+            <text x="585" y="776">Full</text>
+            <text x="585" y="836"><tspan font-weight="bold">F</tspan>ullscreen</text>
           </g>
         </g>
       </g>
-      <g id="cards" />
     </svg>
     <script src="seahaven.js" type="text/javascript"></script>
     <script>

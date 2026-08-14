@@ -158,17 +158,40 @@ function updateBoard() {
         }
     }
     cardContainer.innerHTML = html;
-    updateAutomationBox();
+    updateOptionsBox();
 }
 
-function updateAutomationBox() {
-    for (var level = 0; level < AUTO_LEVELS; level++) {
-        var row = document.getElementById("auto" + level);
-        if (row) {
-            row.style.fill = level == automation ? "#fff" : "#000";
-            row.style.fillOpacity = level == automation ? 0.35 : 0.15;
-        }
+// the row of a setting is bright while the setting is on
+function markRow(id, on) {
+    var row = document.getElementById(id);
+    if (row) {
+        row.style.fill = on ? "#fff" : "#000";
+        row.style.fillOpacity = on ? 0.35 : 0.15;
     }
+}
+
+function updateOptionsBox() {
+    for (var level = 0; level < AUTO_LEVELS; level++) {
+        markRow("auto" + level, level == automation);
+    }
+    markRow("fullscreen", isFullscreen());
+}
+
+function optionsOpen() {
+    return document.getElementById("optionsbox").style.visibility == "visible";
+}
+
+function toggleOptions() {
+    document.getElementById("optionsbox").style.visibility =
+        optionsOpen() ? "hidden" : "visible";
+}
+
+function hideOptions() {
+    if (optionsOpen()) {
+        document.getElementById("optionsbox").style.visibility = "hidden";
+        return true;
+    }
+    return false;
 }
 
 function gameOver() {
@@ -619,6 +642,10 @@ function makeMove(src) {
 }
 
 function clickboard(evt) {
+    if (hideOptions()) {
+        // the click that closes the option box does nothing else
+        return;
+    }
     var pt = svg.createSVGPoint()
     pt.x = evt.clientX;
     pt.y = evt.clientY;
@@ -710,8 +737,12 @@ function keypress(e) {
     if (e.which == 'f'.charCodeAt(0)) {
         toggleFullscreen();
     }
-    if (e.which == 'a'.charCodeAt(0)) {
-        // cycle through the automation levels
+    if (e.which == 'o'.charCodeAt(0)) {
+        toggleOptions();
+    }
+    if (e.which == 'a'.charCodeAt(0) && optionsOpen()) {
+        // cycle through the automation levels; only while the option box
+        // shows them, the level changes nothing that can be seen otherwise
         setAutomation((automation + 1) % AUTO_LEVELS);
     }
     if (e.which == 32) {
@@ -722,6 +753,12 @@ function keypress(e) {
     }
 }
 
+function isFullscreen() {
+    var doc = window.document;
+    return !!(doc.fullscreenElement || doc.mozFullScreenElement
+              || doc.webkitFullscreenElement || doc.msFullscreenElement);
+}
+
 function toggleFullscreen() {
     var doc = window.document;
     var docEl = doc.documentElement;
@@ -729,7 +766,7 @@ function toggleFullscreen() {
     var requestFullScreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
     var cancelFullScreen = doc.exitFullscreen || doc.mozCancelFullScreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
 
-    if(!doc.fullscreenElement && !doc.mozFullScreenElement && !doc.webkitFullscreenElement && !doc.msFullscreenElement) {
+    if (!isFullscreen()) {
         requestFullScreen.call(docEl);
     } else {
         cancelFullScreen.call(doc);
@@ -866,12 +903,22 @@ function init() {
     document.getElementById("undo").onclick = undo;
     document.getElementById("redo").onclick = redo;
     document.getElementById("newgame").onclick = newGame;
-    document.getElementById("fullscreen").onclick = toggleFullscreen;
     document.getElementById("check").onclick = toggleChecking;
+    // the option box stays open while its settings are changed; every click
+    // outside of it closes it again, so it must not reach the board
+    document.getElementById("options").onclick = (evt => {
+        toggleOptions();
+        evt.stopPropagation();
+    });
+    document.getElementById("optionsbox").onclick =
+        (evt => evt.stopPropagation());
+    document.getElementById("fullscreen").onclick = toggleFullscreen;
     for (let level = 0; level < AUTO_LEVELS; level++) {
         document.getElementById("auto" + level).onclick =
             () => setAutomation(level);
     }
+    document.onfullscreenchange = updateOptionsBox;
+    document.onwebkitfullscreenchange = updateOptionsBox;
     window.onkeypress = keypress;
 
     if (window.Worker) {
@@ -880,11 +927,14 @@ function init() {
         solver.onerror = (err => console.log(err));
     }
 
-    // games stored before the automation levels existed were played with full
-    // automation.
+    // The level is stored with every move, so it is only missing for a game
+    // that was stored before the automation levels existed; such a game was
+    // played with full automation.  A new player starts with the flutes.
     automation = JSON.parse(window.localStorage.getItem("seahavenAutomation"));
     if (automation === null) {
-        automation = AUTO_FULL;
+        automation = window.localStorage.getItem("seahavenGames") === null
+            && window.localStorage.getItem("seahavenMoves") === null
+            ? AUTO_FLUTE : AUTO_FULL;
     }
 
     games = JSON.parse(window.localStorage.getItem("seahavenGames"));

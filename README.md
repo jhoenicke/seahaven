@@ -28,8 +28,9 @@ You just have to say which card to move, and the program will
 automatically determine the destination: the foundations, a tableau
 pile, or the reserved cells, in that order.
 
-How much else the program does for you is selected with the automation
-box at the top (or by pressing `a`):
+How much else the program does for you is selected in the option box
+that the *Options* button opens (or by pressing `o`); while it is open
+`a` steps through the levels:
 
 * *None*: Only the lowest card of the clicked pile is moved and
   nothing happens automatically.
@@ -47,12 +48,21 @@ higher level makes by itself are made right away.  They can be undone
 like any other move; switching back to a lower level does not take them
 back.
 
+The option box also switches the fullscreen mode on and off (or press
+`f`).  It closes again when you click on the *Options* button or
+anywhere else on the board.
+
 The game remembers every single card move, also the ones it made for
 you.  Undo takes back one move of the level you have selected: the
 moves the level makes by itself are taken back together with the click
-that caused them.  On a lower level undo walks back card by card, so
-with the automation switched off you can see how a flute was moved
-through the reserved cells.
+that caused them.  A move you clicked yourself counts as such a move as
+soon as the level would make it anyway, so a card you sent to the
+foundations by hand is not left behind when you undo on a level that
+moves it there by itself.  After the undo, the moves of the current
+level are made again; when this happens there is nothing left to redo,
+as the game continues differently from there on.  On a lower level undo
+walks back card by card, so with the automation switched off you can
+see how a flute was moved through the reserved cells.
 
 Starting a new game can be taken back, too: when there is nothing left
 to undo in the current game, undo returns to the game you played before
