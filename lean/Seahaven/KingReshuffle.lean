@@ -3,6 +3,7 @@ import Seahaven.ComponentKingBits
 import Seahaven.SoundnessSkeleton
 
 open Rules
+open Solver
 
 /-!
 # King reshuffling: the component is one mutually reachable class
@@ -152,14 +153,14 @@ affine function of that sum — which is what makes the whole argument linear. -
 
 /-- Cards in suit `su`'s freed king run: `kings su` is the deepest card *not* freed,
 so the run is `kings su + 1 … K`. -/
-def runLen (p : SolverPosType) (su : Suit) : Int :=
+def runLen (p : PosType) (su : Suit) : Int :=
   13 - (VALUE (p.kings.get (finOfSuit su))).toNat
 
 /-- Under `SolverInvBase` no suit is over-freed, so runs have nonnegative length.
 Not needed for the connectivity argument — feasibility of an intermediate is
 always inherited from the component witness — but it is what says that *piling*
 never costs cells, which is why the physical pile step has no side condition. -/
-theorem runLen_nonneg {g : Globals} {p : SolverPosType} (hb : SolverInvBase g p) (su : Suit) :
+theorem runLen_nonneg {g : Globals} {p : PosType} (hb : SolverInvBase g p) (su : Suit) :
     0 ≤ runLen p su := by
   have h := (hb.aces_kings_valid (finOfSuit su)).2.2.2.1
   unfold runLen
@@ -170,7 +171,7 @@ theorem sum_suit (f : Suit → Int) :
   simp [Finset.sum, Finset.univ, Fintype.elems]; ring
 
 /-- **The refund is the total run length of the piled suits.** -/
-theorem kingRefund_eq_sum (p : SolverPosType) (k : Fin 16) :
+theorem kingRefund_eq_sum (p : PosType) (k : Fin 16) :
     kingRefund p k = ∑ su ∈ piledSet k, runLen p su := by
   have hcfg : ∀ su : Suit, (¬ CfgBitSet k su)
       ↔ ((grlex2bits.get k).toNat / 2 ^ suitToNat su % 2 = 0) := by
@@ -186,7 +187,7 @@ theorem kingRefund_eq_sum (p : SolverPosType) (k : Fin 16) :
   ring
 
 /-- `freeCellsOf`, read off the piled set. -/
-theorem freeCellsOf_eq (p : SolverPosType) (k : Fin 16) :
+theorem freeCellsOf_eq (p : PosType) (k : Fin 16) :
     freeCellsOf p k = (4 - p.usedSpace.toInt) + ∑ su ∈ piledSet k, runLen p su := by
   rw [freeCellsOf, kingRefund_eq_sum]
   ring
@@ -194,7 +195,7 @@ theorem freeCellsOf_eq (p : SolverPosType) (k : Fin 16) :
 /-! ## The abstract reshuffle problem
 
 Stated over an arbitrary run-length function and cell budget: nothing below knows
-about `SolverPosType`. -/
+about `PosType`. -/
 
 namespace KingSwap
 
@@ -357,24 +358,24 @@ which side each bit operation lands on: `setCfgBit` (**un**pile) is `erase`, and
 cells.  This is the semantic content of a `componentTable` bit — the loop of
 `computeComponentKingBits` enumerates exactly the configurations that pile one
 suit fewer and still fit (`component_run_eq`). -/
-def InComponent (p : SolverPosType) (k : Fin 16) : Prop :=
+def InComponent (p : PosType) (k : Fin 16) : Prop :=
   ∃ su : Suit, ¬ CfgBitSet k su ∧ 0 ≤ freeCellsOf p (setCfgBit k su)
 
 /-- One reshuffle at configuration level: unpile `x`, pile `y`.  The intermediate
 configuration `setCfgBit k x` — one suit fewer piled, hence one spare column — must
 leave the cells non-negative, since `x`'s run has to go there. -/
-def CfgStep (p : SolverPosType) (k k' : Fin 16) : Prop :=
+def CfgStep (p : PosType) (k k' : Fin 16) : Prop :=
   ∃ x : Suit, ¬ CfgBitSet k x ∧ ∃ y : Suit, CfgBitSet k y ∧
     0 ≤ freeCellsOf p (setCfgBit k x) ∧ k' = clearCfgBit (setCfgBit k x) y
 
 /-- The cell budget with nothing piled. -/
-private def budget (p : SolverPosType) : Int := 4 - p.usedSpace.toInt
+private def budget (p : PosType) : Int := 4 - p.usedSpace.toInt
 
-private theorem feas_iff (p : SolverPosType) (k : Fin 16) :
+private theorem feas_iff (p : PosType) (k : Fin 16) :
     KingSwap.Feas (runLen p) (budget p) (piledSet k) ↔ 0 ≤ freeCellsOf p k := by
   rw [KingSwap.Feas, freeCellsOf_eq, budget]
 
-private theorem inComponent_iff (p : SolverPosType) (k : Fin 16) :
+private theorem inComponent_iff (p : PosType) (k : Fin 16) :
     InComponent p k ↔ KingSwap.Comp (runLen p) (budget p) (piledSet k) := by
   unfold InComponent KingSwap.Comp
   constructor
@@ -385,7 +386,7 @@ private theorem inComponent_iff (p : SolverPosType) (k : Fin 16) :
     exact ⟨su, mem_piledSet.1 hsu,
       (feas_iff p _).1 (by rw [piledSet_setCfgBit]; exact hfeas)⟩
 
-private theorem cfgStep_iff (p : SolverPosType) (k k' : Fin 16) :
+private theorem cfgStep_iff (p : PosType) (k k' : Fin 16) :
     CfgStep p k k' ↔ KingSwap.Step (runLen p) (budget p) (piledSet k) (piledSet k') := by
   unfold CfgStep KingSwap.Step
   constructor
@@ -402,7 +403,7 @@ private theorem cfgStep_iff (p : SolverPosType) (k k' : Fin 16) :
 /-- Transport of an abstract path back to configurations: `piledSet` is onto, so
 every intermediate set is some configuration, and injective, so the endpoints are
 pinned. -/
-private theorem transport_path (p : SolverPosType) {S T : Finset Suit}
+private theorem transport_path (p : PosType) {S T : Finset Suit}
     (h : Relation.ReflTransGen (KingSwap.Step (runLen p) (budget p)) S T)
     (k : Fin 16) (hk : piledSet k = S) :
     ∀ k' : Fin 16, piledSet k' = T → Relation.ReflTransGen (CfgStep p) k k' := by
@@ -421,7 +422,7 @@ private theorem transport_path (p : SolverPosType) {S T : Finset Suit}
 bijection, so the abstract connectivity theorem transports verbatim; the
 cardinality hypothesis is what says the two configurations live in the same
 `closureInfos` block. -/
-theorem cfgStep_reachable_of_component (p : SolverPosType) {k k' : Fin 16}
+theorem cfgStep_reachable_of_component (p : PosType) {k k' : Fin 16}
     (hk : InComponent p k) (hk' : InComponent p k')
     (hcard : (piledSet k).card = (piledSet k').card) :
     Relation.ReflTransGen (CfgStep p) k k' :=
@@ -449,7 +450,7 @@ unchanged: the run's cards are not counted by any field of `p` (`usedSpace`
 already charges them to the cells — that is what the `kingRefund` of the *other*
 configuration says). -/
 def KingUnpileReachable : Prop :=
-  ∀ (g : Globals) (p : SolverPosType) (s : State) (k : Fin 16) (su : Suit),
+  ∀ (g : Globals) (p : PosType) (s : State) (k : Fin 16) (su : Suit),
     WellFormedLayout g → SolverInvMerged g p → StateMatchesKingConfig g s p k →
     ¬ CfgBitSet k su → 0 ≤ freeCellsOf p (setCfgBit k su) →
     KingConfigReachable g p s (setCfgBit k su)
@@ -459,14 +460,14 @@ No affordability condition — piling only *frees* cells (`runLen_nonneg`) — b
 there must be a column left over, which is what the cardinality hypothesis says:
 fewer suits are piled than the position has empty columns. -/
 def KingPileReachable : Prop :=
-  ∀ (g : Globals) (p : SolverPosType) (s : State) (k : Fin 16) (su : Suit),
+  ∀ (g : Globals) (p : PosType) (s : State) (k : Fin 16) (su : Suit),
     WellFormedLayout g → SolverInvMerged g p → StateMatchesKingConfig g s p k →
     CfgBitSet k su → (piledSet k).card < p.freePiles.toNat →
     KingConfigReachable g p s (clearCfgBit k su)
 
 /-- A configuration never claims more king piles than the position has empty
 columns. -/
-theorem card_piledSet_le_freePiles {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
+theorem card_piledSet_le_freePiles {g : Globals} {s : State} {p : PosType} {k : Fin 16}
     (hs : StateMatchesKingConfig g s p k) (hm : SolverInvMerged g p) :
     (piledSet k).card ≤ p.freePiles.toNat :=
   hs.realizes.card_clear_le_freePiles hm
@@ -474,7 +475,7 @@ theorem card_piledSet_le_freePiles {g : Globals} {s : State} {p : SolverPosType}
 /-- **One reshuffle step is physically realizable.**  Unpile, which is what needs
 the cells; then pile, which is what needs the column the unpiling just freed. -/
 theorem CfgStep.reachable (hU : KingUnpileReachable) (hP : KingPileReachable)
-    {g : Globals} {p : SolverPosType} {s : State} {k k' : Fin 16}
+    {g : Globals} {p : PosType} {s : State} {k k' : Fin 16}
     (hwf : WellFormedLayout g) (hm : SolverInvMerged g p)
     (hs : StateMatchesKingConfig g s p k) (hstep : CfgStep p k k') :
     KingConfigReachable g p s k' := by
@@ -497,7 +498,7 @@ theorem CfgStep.reachable (hU : KingUnpileReachable) (hP : KingPileReachable)
 
 /-- A whole reshuffle path is physically realizable. -/
 theorem cfgPath_reachable (hU : KingUnpileReachable) (hP : KingPileReachable)
-    {g : Globals} {p : SolverPosType} {k k' : Fin 16}
+    {g : Globals} {p : PosType} {k k' : Fin 16}
     (hwf : WellFormedLayout g) (hm : SolverInvMerged g p)
     (hpath : Relation.ReflTransGen (CfgStep p) k k') :
     ∀ s : State, StateMatchesKingConfig g s p k → KingConfigReachable g p s k' := by
@@ -515,7 +516,7 @@ of the same block is reachable by legal moves — and it stands for the *same*
 abstract position, since reshuffling king runs between the cells and empty columns
 changes no depth, flute or foundation. -/
 theorem component_configReachable (hU : KingUnpileReachable) (hP : KingPileReachable)
-    {g : Globals} {p : SolverPosType} {s : State} {k k' : Fin 16}
+    {g : Globals} {p : PosType} {s : State} {k k' : Fin 16}
     (hwf : WellFormedLayout g) (hm : SolverInvMerged g p)
     (hs : StateMatchesKingConfig g s p k)
     (hk : InComponent p k) (hk' : InComponent p k')
@@ -547,7 +548,7 @@ theorem card_piledSet_blockCfg (f : Fin 11) (i : Nat)
   omega
 
 /-- Every configuration of `p`'s block piles `numPiledKings p` suits. -/
-theorem card_piledSet_globalCfg (p : SolverPosType) (i : Nat)
+theorem card_piledSet_globalCfg (p : PosType) (i : Nat)
     (hi : i < (closureInfoOf p).numBits.toNat) :
     (piledSet (globalCfg (closureInfoOf p) i)).card = numPiledKings p := by
   have hf : (closureInfoOf p) = closureInfos.get ⟨min p.freePiles.toNat 10, by omega⟩ := rfl
@@ -566,7 +567,7 @@ differ` says precisely that the enumerated block-`f-1` configuration is
 `setCfgBit` of the block-`f` one) plus `freeCellsOf_nonneg_iff` for the loop's
 `usedSpace ≤ 4` test; the cardinality hypothesis is `card_piledSet_globalCfg`. -/
 theorem component_kingConfigReachable (hU : KingUnpileReachable) (hP : KingPileReachable)
-    {g : Globals} {p : SolverPosType} {s : State} {k k' : Fin 16}
+    {g : Globals} {p : PosType} {s : State} {k k' : Fin 16}
     (hwf : WellFormedLayout g) (hm : SolverInvMerged g p)
     (hreach : KingConfigReachable g p s k)
     (hk : InComponent p k) (hk' : InComponent p k')
@@ -591,7 +592,7 @@ one (`ComponentComplete.component_bit_of_inComponent`). -/
 /-- **The three blocks, uniformly.**  A component bit at local index `j` is set
 exactly when the mask `T` contains a block-`f-1` configuration that is `j`'s
 configuration with one suit unpiled. -/
-theorem component_bit_iff (p : SolverPosType) (hfp1 : 1 ≤ p.freePiles.toNat)
+theorem component_bit_iff (p : PosType) (hfp1 : 1 ≤ p.freePiles.toNat)
     (hfp3 : p.freePiles.toNat ≤ 3) (T : Nat) (hT : T < 2 ^ (prevInfo p).numBits.toNat)
     (j : Nat) (hj : j < (closureInfoOf p).numBits.toNat) :
     (componentAt ((prevInfo p).offset.toNat + T)).toNat.testBit j = true ↔
@@ -628,7 +629,7 @@ theorem component_bit_iff (p : SolverPosType) (hfp1 : 1 ≤ p.freePiles.toNat)
 loop's `usedSpace ≤ 4` test is `freeCellsOf ≥ 0` for the enumerated
 one-suit-fewer configuration (`freeCellsOf_nonneg_iff`), which is exactly
 `InComponent`'s witness. -/
-theorem inComponent_of_component_bit {g : Globals} {p : SolverPosType} {comp : UInt8}
+theorem inComponent_of_component_bit {g : Globals} {p : PosType} {comp : UInt8}
     (hb : SolverInvBase g p) (hfp1 : 1 ≤ p.freePiles.toNat) (hfp3 : p.freePiles.toNat ≤ 3)
     (hrun : EStateM.run (computeComponentKingBits p) g = .ok comp g)
     {i : Nat} (hi : i < (closureInfoOf p).numBits.toNat)
@@ -655,7 +656,7 @@ theorem inComponent_of_component_bit {g : Globals} {p : SolverPosType} {comp : U
 
 /-- Outside `1 ≤ freePiles ≤ 3` the guard fails and `computeComponentKingBits`
 returns `0` — no component bits, so the widening is vacuous there. -/
-theorem component_eq_zero_of_range {g : Globals} {p : SolverPosType} {comp : UInt8}
+theorem component_eq_zero_of_range {g : Globals} {p : PosType} {comp : UInt8}
     (hout : p.freePiles.toNat = 0 ∨ 4 ≤ p.freePiles.toNat)
     (hrun : EStateM.run (computeComponentKingBits p) g = .ok comp g) : comp = 0 := by
   have hguard : ((p.freePiles ≥ (1 : UInt8)) && (p.freePiles ≤ (3 : UInt8)))
@@ -700,7 +701,7 @@ block — `componentTable_localBound` read at `f := freePiles - 1`.
 meaningful in-block.) -/
 
 set_option linter.unusedSimpArgs false in
-theorem localMask_component {g : Globals} {p : SolverPosType} {comp : UInt8}
+theorem localMask_component {g : Globals} {p : PosType} {comp : UInt8}
     (hrun : EStateM.run (computeComponentKingBits p) g = .ok comp g) :
     LocalMask p comp.toUInt16 := by
   by_cases hfp : 1 ≤ p.freePiles.toNat ∧ p.freePiles.toNat ≤ 3
@@ -759,7 +760,7 @@ no more suits than `p` has empty columns. -/
 /-- One piling step with a *reachable* configuration on the left instead of a
 matching state — the two `Reach`es compose, as in `component_kingConfigReachable`. -/
 theorem pile_kingConfigReachable (hP : KingPileReachable)
-    {g : Globals} {p : SolverPosType} {s : State} {k : Fin 16} {su : Suit}
+    {g : Globals} {p : PosType} {s : State} {k : Fin 16} {su : Suit}
     (hwf : WellFormedLayout g) (hm : SolverInvMerged g p)
     (hreach : KingConfigReachable g p s k) (hsu : CfgBitSet k su)
     (hcard : (piledSet k).card < p.freePiles.toNat) :
@@ -773,7 +774,7 @@ suits `d` piles and `c` does not; each round moves one more freed king run out o
 the cells onto a spare column, and `d` bounds the number of columns in use
 throughout. -/
 theorem maskSub_kingConfigReachable (hP : KingPileReachable)
-    {g : Globals} {p : SolverPosType} {s : State} {d : Fin 16}
+    {g : Globals} {p : PosType} {s : State} {d : Fin 16}
     (hwf : WellFormedLayout g) (hm : SolverInvMerged g p)
     (hd : (piledSet d).card ≤ p.freePiles.toNat) :
     ∀ (m : Nat) (c : Fin 16), (piledSet d \ piledSet c).card ≤ m →

@@ -1,11 +1,12 @@
 import Seahaven.DestComplete
 
 open Rules
+open Solver
 
 /-!
 # `EXTRA` means the card fits nowhere
 
-`solverGetDestination` returns `EXTRA` when its walk `B+1, B+2, …` — through cards
+`getDestination` returns `EXTRA` when its walk `B+1, B+2, …` — through cards
 that are already *free* — stops at a card that is **not** a pile boundary.  This file
 turns that into the physical statement completeness needs:
 
@@ -29,7 +30,7 @@ run, every card of it is free, and the walk would have to run past the king.
 /-- **A card physically above a column's boundary is free.**  If it were not, it
 would sit at its own dealt slot — necessarily *at or below* its own pile's boundary —
 and a card is in only one column, so the two positions would have to coincide. -/
-theorem free_of_slot_above_boundary {g : Globals} {u : State} {p : SolverPosType}
+theorem free_of_slot_above_boundary {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     (hcount : ∀ c : Card, countState u c = 1) {q : Fin 10} {d : Card} {r : Nat}
@@ -63,7 +64,7 @@ theorem free_of_slot_above_boundary {g : Globals} {u : State} {p : SolverPosType
   omega
 
 /-- The same, read off the column directly. -/
-theorem free_above_boundary {g : Globals} {u : State} {p : SolverPosType}
+theorem free_above_boundary {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     (hcount : ∀ c : Card, countState u c = 1) {q : Fin 10} {r : Nat}
@@ -75,7 +76,7 @@ theorem free_above_boundary {g : Globals} {u : State} {p : SolverPosType}
 
 /-- The code of the card at reverse index `r ≥ depth`, in `Nat` terms: the boundary's
 code plus the distance down to it. -/
-private theorem above_code_nat {g : Globals} {u : State} {p : SolverPosType}
+private theorem above_code_nat {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     {q : Fin 10} (hdpos : 0 < (p.pileDepth.get q).toNat) {r : Nat}
@@ -112,7 +113,7 @@ private theorem above_code_nat {g : Globals} {u : State} {p : SolverPosType}
 /-- **No column accepts the boundary card when the destination is `EXTRA`.**  The
 hypotheses are `DestValid`'s `EXTRA` branch verbatim: the walk `B+1 … B+n` runs
 through free cards, stops at an un-free `B + n`, and `B + n` is no pile's boundary. -/
-theorem no_column_accepts_of_extra {g : Globals} {u : State} {p : SolverPosType}
+theorem no_column_accepts_of_extra {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
@@ -286,7 +287,7 @@ So an unpiled king frontier can only go to a cell or to an *empty* column, and t
 latter is the case `k_t` absorbs by construction (the moved king joins `k_t`).  Hence
 under "unpiled in `k_t`" the move is a park, and the extra cell for
 `possibleKings[fluteLen]` is there. -/
-theorem empty_of_accepts_king_frontier {g : Globals} {u : State} {p : SolverPosType}
+theorem empty_of_accepts_king_frontier {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)

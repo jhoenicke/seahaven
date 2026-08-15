@@ -1,13 +1,15 @@
 import Seahaven.SolverSpecCleanupPile
 import Seahaven.SolverSpecRemoveFlute
 
+open Solver
+
 /-!
-# Spec for `moveAcesLoop` / `SolverMoveAces`
+# Spec for `moveAcesLoop` / `moveAces`
 
 Bit-twiddling helpers (`ctz`, low-nibble facts) feeding `MoveAcesInv`, the
 per-iteration invariant for the ace-advancing loop, culminating in the exact
 symbolic run `moveAcesLoop_run` and the top-level `moveAces_merged` theorem
-(the `SolverMoveAces` step preserves/advances `SolverInvMerged`).
+(the `moveAces` step preserves/advances `SolverInvMerged`).
 -/
 
 namespace SolverSpec
@@ -16,7 +18,7 @@ open SolverModel
 open Lean Lean.Order
 
 -- ---------------------------------------------------------------------------
--- `SolverMoveAces` — the foundation-walk loop invariant and its machinery
+-- `moveAces` — the foundation-walk loop invariant and its machinery
 -- ---------------------------------------------------------------------------
 
 /-! ### `ctz`, specified
@@ -126,7 +128,7 @@ theorem ctz_bit_self (x : UInt8) (hx : x ≠ 0) :
   rw [← hmask, ← UInt8.toNat_and, hzero]
   rfl
 
-/-- **Loop invariant for `SolverMoveAces`'s foundation walk**, carried through
+/-- **Loop invariant for `moveAces`'s foundation walk**, carried through
     every iteration of `moveAcesBody suitU32` on the accumulator
     `(card, forcedKings, found, game)` for the fixed suit `suit`:
 
@@ -139,7 +141,7 @@ theorem ctz_bit_self (x : UInt8) (hx : x ≠ 0) :
     * `suit`'s `busyAces` bit stays set throughout (nothing clears it until
       the walk returns, see `moveAcesExplicit`'s `finish`). -/
 def MoveAcesInv (g : Globals) (suit : Fin 4) (card : UInt8) (found : UInt8)
-    (game : SolverPosType) : Prop :=
+    (game : PosType) : Prop :=
   SolverInvMerged g game ∧
   found.toInt ≤ 13 ∧
   SUIT card = suit.val.toUInt8 ∧
@@ -156,7 +158,7 @@ def MoveAcesInv (g : Globals) (suit : Fin 4) (card : UInt8) (found : UInt8)
     can't be one of the `found`-many already-walked candidates either (the
     invariant's own freeness fact would make it free). -/
 theorem moveAces_lt_of_not_free (g : Globals) (suit : Fin 4) (card : UInt8)
-    (found : UInt8) (game : SolverPosType) (hinv : MoveAcesInv g suit card found game)
+    (found : UInt8) (game : PosType) (hinv : MoveAcesInv g suit card found game)
     (X : UInt8) (hSuitX : SUIT X = suit.val.toUInt8) (hXreal : 1 ≤ (VALUE X).toNat)
     (hXnotfree : ¬ isFreeCard g game X) (hXne : X ≠ card) :
     card.toNat < X.toNat := by
@@ -256,7 +258,7 @@ private theorem uint8_and_ne_zero_of_sub_ne {x : UInt8} (hx : x.toNat < 16) (s t
     is exactly the shape `PileBase.flute_not_aces` needs at a NEW ace value
     `C`, reused by both the `cardDepth == 0` step and `moveAces_merged`'s
     final assembly. -/
-private theorem flute_le_of_lt_and_notfree {g : Globals} {p : SolverPosType}
+private theorem flute_le_of_lt_and_notfree {g : Globals} {p : PosType}
     (hwf : WellFormedLayout g) (hbase : SolverInvBase g p)
     (j : Fin 10) (hdj : (p.pileDepth.get j).toNat > 0)
     (C : UInt8) (hCnotfree : ¬ isFreeCard g p C)
@@ -293,7 +295,7 @@ private theorem flute_le_of_lt_and_notfree {g : Globals} {p : SolverPosType}
     Direct contrapositive of `foundation_cards_free`: if `X.toNat ≤
     aces[t].toNat` (same suit block), `X` would be a foundation-eligible
     card, hence free — contradicting `hXnf`. -/
-private theorem not_free_gt_ace {g : Globals} {p : SolverPosType} (h : SolverInvBase g p)
+private theorem not_free_gt_ace {g : Globals} {p : PosType} (h : SolverInvBase g p)
     (t : Fin 4) (X : UInt8) (hSX : SUIT X = t.val.toUInt8) (hVX : 1 ≤ (VALUE X).toNat)
     (hXnf : ¬ isFreeCard g p X) :
     (p.aces.get t).toNat < X.toNat := by
@@ -313,14 +315,14 @@ private theorem not_free_gt_ace {g : Globals} {p : SolverPosType} (h : SolverInv
 
     At a sync point (`cardDepth = 0`) `card` is exactly `pile`'s current boundary;
     the solver writes `aces[suit] := card` (giving `gameA`) and calls
-    `SolverRemoveFlute pile`, which runs `SolverCleanupPile` from `q`, the
+    `removeFlute pile`, which runs `cleanupPile` from `q`, the
     composed `fluteNorm ∘ removeFlutePre` point.  Everything the loop proof
     establishes about that step on the way is handed over: the walk invariant,
     the boundary identification, the pile's flute (`= found + 1`, the walked run
     plus the boundary), `q`'s fields, `CleanupReady` at `q`, and the run itself.
     The counting steps need no clause — they leave the position untouched. -/
-def MoveAcesSyncStep (g : Globals) (suit : Fin 4) (P : UInt16 → SolverPosType → Prop) : Prop :=
-  ∀ (card found : UInt8) (forcedKings fk : UInt16) (game gameA q p' : SolverPosType)
+def MoveAcesSyncStep (g : Globals) (suit : Fin 4) (P : UInt16 → PosType → Prop) : Prop :=
+  ∀ (card found : UInt8) (forcedKings fk : UInt16) (game gameA q p' : PosType)
     (pile : UInt32) (hpile : pile.toNat < 10),
     MoveAcesInv g suit card found game →
     0 < (game.pileDepth.get ⟨pile.toNat, hpile⟩).toNat →
@@ -337,11 +339,11 @@ def MoveAcesSyncStep (g : Globals) (suit : Fin 4) (P : UInt16 → SolverPosType 
     q.aces.get suit = card →
     (∀ t : Fin 4, t ≠ suit → q.aces.get t = game.aces.get t) →
     CleanupReady g q pile →
-    _root_.SolverRemoveFlute pile (g, gameA) = .ok fk (g, p') →
+    Solver.removeFlute pile (g, gameA) = .ok fk (g, p') →
     P forcedKings game → P (forcedKings &&& fk) p'
 
 set_option maxHeartbeats 4000000 in
-/-- **Exact run of the `SolverMoveAces` foundation walk, with its invariant.**
+/-- **Exact run of the `moveAces` foundation walk, with its invariant.**
     By induction on a `Nat` bounding `14 - VALUE(card)` (which strictly
     decreases on every continuing iteration, since `card` only ever
     increments and the loop stops once `VALUE card > 13`).
@@ -352,12 +354,12 @@ set_option maxHeartbeats 4000000 in
     boundary) is the genuinely novel half. -/
 theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
     (suitU32 : UInt32) (hsuitU32 : suitU32.toNat = suit.val)
-    (P : UInt16 → SolverPosType → Prop) (hsync : MoveAcesSyncStep g suit P) :
-    ∀ (n : Nat) (card : UInt8) (forcedKings : UInt16) (found : UInt8) (game : SolverPosType),
+    (P : UInt16 → PosType → Prop) (hsync : MoveAcesSyncStep g suit P) :
+    ∀ (n : Nat) (card : UInt8) (forcedKings : UInt16) (found : UInt8) (game : PosType),
       14 - (VALUE card).toNat < n →
       MoveAcesInv g suit card found game →
       P forcedKings game →
-      ∃ (card' : UInt8) (forcedKings' : UInt16) (found' : UInt8) (game' : SolverPosType),
+      ∃ (card' : UInt8) (forcedKings' : UInt16) (found' : UInt8) (game' : PosType),
         Loop.forIn Loop.mk
             (⟨card, forcedKings, found, game, g⟩ : MoveAcesAcc) (moveAcesBody suitU32)
             (g, game) =
@@ -377,7 +379,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
   | zero => intro card _ _ _ hmeas _ _; omega
   | succ n ih =>
     intro card forcedKings found game hmeas hinv hP
-    have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × SolverPosType))
+    have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × PosType))
       (l := Loop.mk) (b := (⟨card, forcedKings, found, game, g⟩ : MoveAcesAcc))
       (f := moveAcesBody suitU32)
     obtain ⟨hmerged, hf13, hsuitcard, hval1, hval14, hcardeq, hfoundfree, hbit⟩ := hinv
@@ -524,7 +526,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
         by_cases hcd0 : (cd1.toUInt32.toInt32 + 1 - cd2.toInt32 == 0) = true
         · -- THE KEY STEP (design's "why `SolverInvMerged` needs no ghost").
           -- `card` is exactly `pile`'s current boundary.  Writing
-          -- `aces[suit] := card` then calling `SolverRemoveFlute pile`
+          -- `aces[suit] := card` then calling `removeFlute pile`
           -- restores `MoveAcesInv` at `(card + 1, 0, gameF)` for the
           -- resulting `gameF`, via:
           --  1. `hmerged.pileMerged pile` gives `flute_maximal` at this
@@ -734,7 +736,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
             simp only [hcdpos, hcd0, reduceIte, Vector.setE, dif_pos hsuitU32lt4,
               EStateM.bind, pure, EStateM.pure, get, getThe, MonadStateOf.get, EStateM.get,
               set, EStateM.set]
-            set gameA : SolverPosType :=
+            set gameA : PosType :=
               { game with aces := game.aces.set suitU32.toNat card hsuitU32lt4 } with
               hgameAdef
             have hinvBundle : MoveAcesInv g suit card found game :=
@@ -753,7 +755,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
                 ¬ isFreeCard g game X → X ≠ card → card.toNat < X.toNat :=
               fun X hSX hVX hXnf hXne => moveAces_lt_of_not_free g suit card found game
                 hinvBundle X hSX hVX hXnf hXne
-            set p1 : SolverPosType :=
+            set p1 : PosType :=
               fluteNorm pile.toUInt32 hp10 (removeFlutePre pile.toUInt32 hp10 gameA) with hp1def
             -- Field-by-field access facts for `p1` (the composed
             -- `fluteNorm ∘ removeFlutePre` point `removeFlute_merged` needs).
@@ -1800,7 +1802,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
             have hready : CleanupReady g p1 pile.toUInt32 := ⟨hnf, hframe, hfreePilesEq⟩
             obtain ⟨fk, p', hrunEq, hinvP', hacesEq', hbusyMonoP⟩ :=
               removeFlute_merged pile.toUInt32 g gameA hp10 hwf hready
-            have hrunEq' : _root_.SolverRemoveFlute pile.toUInt32 (g, gameA) =
+            have hrunEq' : Solver.removeFlute pile.toUInt32 (g, gameA) =
                 .ok fk (g, p') := hrunEq
             rw [hrunEq']
             have hp'AcesSuit : p'.aces.get suit = card := by
@@ -1912,7 +1914,7 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
       rw [hunf]
       simp only [moveAcesBody, hgProp', bind, EStateM.bind, pure, EStateM.pure, reduceIte]
 
-/-- **`SolverMoveAces` — one foundation advance.**  The entry state is fully
+/-- **`moveAces` — one foundation advance.**  The entry state is fully
     `SolverInvMerged` (no adjustment); a pending foundation move (`busyAces ≠ 0`)
     is advanced for one suit, returning to a merged state.  Iterating this (the
     `while busyAces ≠ 0` drain) reaches `IsCanonicalPos` — see `drain_canonical`.
@@ -1926,9 +1928,9 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
     `cardDepth = 0` iteration advances `aces` and discharges `removeFlute_merged`'s
     midpoint predicate; the postlude (`usedSpace −= found`, aces write,
     kings-on-13, busyAces clear) restores the unadjusted `SolverInvMerged`. -/
-theorem moveAces_merged (g : Globals) (p : SolverPosType)
+theorem moveAces_merged (g : Globals) (p : PosType)
     (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p) (hbusy : p.busyAces ≠ 0) :
-    ∃ fk p', EStateM.run _root_.SolverMoveAces (g, p) = .ok fk (g, p') ∧
+    ∃ fk p', EStateM.run Solver.moveAces (g, p) = .ok fk (g, p') ∧
       SolverInvMerged g p' ∧
       (∀ s : Fin 4, s.val ≠ ctz p.busyAces → p'.aces.get s = p.aces.get s) ∧
       (∀ s : Fin 4, s.val = ctz p.busyAces →
@@ -1994,7 +1996,7 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
       hloopdich, hloopDepth⟩ :=
     moveAcesLoop_run g hwf suit suitU32 hsuitU32 (fun _ game => DepthLe p game)
       (by
-        -- the walk's one position-changing step is a `SolverRemoveFlute` call, and those
+        -- the walk's one position-changing step is a `removeFlute` call, and those
         -- only ever shrink depths (`removeFlute_depth_le`)
         intro card found _fkAcc fk game gameA q p'' pile' hpile' _hinv hdpos _hbnd _hflute
           hq hqds hqdne _hqfs _hqfne _hqk _hqas _hqane hready hrunRF hP
@@ -2002,7 +2004,7 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
         subst hq
         obtain ⟨fk2, p2, hrun2, hle2⟩ :=
           cleanupPile_depth_le pile' g (removeFlutePre pile' hpile' gameA) hpile' hwf hnfq
-        have hrunRF' : EStateM.run (_root_.SolverRemoveFlute pile') (g, gameA)
+        have hrunRF' : EStateM.run (Solver.removeFlute pile') (g, gameA)
             = .ok fk (g, p'') := hrunRF
         rw [removeFlute_eq pile' g gameA hpile'] at hrunRF'
         injection hrun2.symm.trans hrunRF' with h1 h2
@@ -2282,7 +2284,7 @@ theorem moveAces_merged (g : Globals) (p : SolverPosType)
   -- structure-update literal spanning multiple lines, used as a function
   -- ARGUMENT (not a `let`/`have` body), can mis-parse depending on the
   -- continuation lines' indentation relative to the opening `{`.
-  let gameFinalOf : Vector UInt8 4 → SolverPosType := fun K =>
+  let gameFinalOf : Vector UInt8 4 → PosType := fun K =>
     { gameF with aces := acesFinal, kings := K, usedSpace := gameF.usedSpace - foundF, busyAces := gameF.busyAces - ((1 : UInt8) <<< suit.val.toUInt8) }
   have pileBaseFinal : ∀ K : Vector UInt8 4, ∀ i : Fin 10,
       PileBase g (gameFinalOf K) i := by

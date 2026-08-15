@@ -1,6 +1,7 @@
 import Seahaven.FoundationMax
 
 open Rules
+open Solver
 
 /-!
 # Completing the king piles
@@ -98,7 +99,7 @@ boundary that boundary would be a *higher* card of the same suit, hence itself i
 run and free, which a resident is not; and a solver-empty column holding it would have to
 carry this suit's king, which sits on the pile already. -/
 
-theorem kingRun_card_in_cell {g : Globals} {u : State} {p : SolverPosType}
+theorem kingRun_card_in_cell {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     (hcount : ∀ c : Card, countState u c = 1)
@@ -212,7 +213,7 @@ The column carries a *prefix* of the freed run (`14 - |col| … 13`); it cannot 
 `reach_pile_run` fetches the rest out of the cells, dropping onto a column that is never
 empty — the king is already there — and the run ends at exactly `cvKingVal + 1`. -/
 
-theorem exists_pile_kingRun {g : Globals} {u : State} {p : SolverPosType}
+theorem exists_pile_kingRun {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     (hcount : ∀ c : Card, countState u c = 1)
@@ -321,12 +322,12 @@ can claim this suit without carrying its king. -/
 
 /-- What loop 2 owes a suit: every solver-empty column whose bottom card is that suit's king
 has the length `kings[su] = cvKingVal` claims. -/
-def KingPileDone (g : Globals) (u : State) (p : SolverPosType) (su : Suit) : Prop :=
+def KingPileDone (g : Globals) (u : State) (p : PosType) (su : Suit) : Prop :=
   ∀ q : Fin 10, (p.pileDepth.get q).toNat = 0 → ∀ d ∈ (u.tableau q).getLast?, d.suit = su →
     (u.tableau q).length + cvKingVal g p.pileDepth (suitToNat su) = 13
 
 /-- **The bottom card of a solver-empty column is its own suit's king.** -/
-theorem getLast?_of_pileMatches_zero {g : Globals} {u : State} {p : SolverPosType}
+theorem getLast?_of_pileMatches_zero {g : Globals} {u : State} {p : PosType}
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     {q : Fin 10} (hq0 : (p.pileDepth.get q).toNat = 0) {d : Card}
@@ -340,7 +341,7 @@ theorem getLast?_of_pileMatches_zero {g : Globals} {u : State} {p : SolverPosTyp
   rw [← encodeCard_VALUE, hv]
   rfl
 
-theorem exists_suit_kingPile {g : Globals} {u : State} {p : SolverPosType}
+theorem exists_suit_kingPile {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     (hcount : ∀ c : Card, countState u c = 1)
@@ -419,7 +420,7 @@ cell (`CvEntry.kingNotInCell`, and no move puts a card into a cell), so it is on
 foundation or still a resident — and the column the entry configuration reserved for it is
 by then empty, which is `OwnsPile`'s other branch. -/
 
-theorem KingPileDone.frame {g : Globals} {u t : State} {p : SolverPosType} {su su' : Suit}
+theorem KingPileDone.frame {g : Globals} {u t : State} {p : PosType} {su su' : Suit}
     (h : KingPileDone g u p su) (hne : su' ≠ su)
     (hframe : ∀ q : Fin 10, t.tableau q = u.tableau q ∨
       ((t.tableau q).getLast? = some ⟨su', Rank.king⟩ ∧
@@ -448,7 +449,7 @@ theorem botFrame_of_suitFrame {u t : State} {su : Suit}
 
 /-- **A king in a solver-empty column is at its bottom** — it is the only card of value
 `13` the run can hold. -/
-theorem getLast?_of_king_mem {g : Globals} {u : State} {p : SolverPosType}
+theorem getLast?_of_king_mem {g : Globals} {u : State} {p : PosType}
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     {q : Fin 10} (hq0 : (p.pileDepth.get q).toNat = 0) {su : Suit}
@@ -479,7 +480,7 @@ theorem getLast?_of_king_mem {g : Globals} {u : State} {p : SolverPosType}
 /-- **A suit with no king pile has `cvKingVal = 13`.**  Its king is not in a cell, so it is
 on a foundation — and then the whole suit is, so `cvAceVal = 13` — or still a resident, and
 then nothing of the suit is freed at all. -/
-theorem cvKingVal_eq_13_of_no_pile {g : Globals} {u : State} {p : SolverPosType}
+theorem cvKingVal_eq_13_of_no_pile {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     (hcount : ∀ c : Card, countState u c = 1)

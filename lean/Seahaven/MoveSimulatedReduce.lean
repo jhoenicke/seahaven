@@ -2,11 +2,12 @@ import Seahaven.GetMovableSpec
 import Seahaven.SolverMoveSim
 
 open Rules
+open Solver
 
 /-!
 # `MoveSimulated`, reduced to phase 1
 
-`Simulates.move` already discharges phases 2 and 3 of a `SolverMove` call; what it
+`Simulates.move` already discharges phases 2 and 3 of a `move` call; what it
 takes on trust is `hphase1`, the flute move itself.  This file shows that
 `MoveSimulated`'s hypotheses supply everything *else* that `Simulates.move` wants,
 so the whole obligation collapses to one statement about phase 1:
@@ -14,24 +15,24 @@ so the whole obligation collapses to one statement about phase 1:
 > `Phase1Simulated → MoveSimulated`.
 
 The two hypotheses `MoveSimulated` gained for this — `KingInfoCorrect` and the
-`solverGetDestination` run — are exactly what was missing:
+`getDestination` run — are exactly what was missing:
 
 * `destValid_of_getDest` turns the destination run into the `MoveValid`/`DestValid`
   pair `Simulates.move` consumes.  Without it the obligation is *false*, not merely
-  unproved: `SolverMove` validates nothing, so its run alone admits a successor `p'`
+  unproved: `move` validates nothing, so its run alone admits a successor `p'`
   that no state matches while the conclusion demands `StateMatchesKingConfig … p' …`.
 * `KingInfoCorrect` is what makes the returned `movable` mask mean anything; it is
   what `getMovable_freeCells` reads to produce phase 1's free-cell side conditions.
 -/
 
-/-- **Phase 1 of a `SolverMove`, simulated.**  Everything `Simulates.move` cannot
+/-- **Phase 1 of a `move`, simulated.**  Everything `Simulates.move` cannot
 prove on its own, stated at exactly the hypotheses `MoveSimulated` has.
 
 The configuration is unchanged (`k` on both sides) and the mask is neutral: no
-phase-1 move vacates a king — vacates happen inside `SolverCleanupPile`, which
+phase-1 move vacates a king — vacates happen inside `cleanupPile`, which
 `Simulates.ofRemoveFlute` already covers. -/
 def Phase1Simulated : Prop :=
-  ∀ (g : Globals) (s : State) (p : SolverPosType) (ki : KingInfo) (pile : UInt32)
+  ∀ (g : Globals) (s : State) (p : PosType) (ki : KingInfo) (pile : UInt32)
     (toPile : UInt8) (mv : UInt16) (i : Nat),
     i < (closureInfoOf p).numBits.toNat →
     WellFormedLayout g → IsCanonicalPos g p →
@@ -39,8 +40,8 @@ def Phase1Simulated : Prop :=
     KingInfoCorrect p ki →
     ∀ hpile : pile.toNat < 10,
     0 < (p.pileDepth.get ⟨pile.toNat % 10, by omega⟩).toNat →
-    EStateM.run (solverGetDestination p pile) g = .ok toPile g →
-    EStateM.run (solverGetMovable ki (closureInfoOf p).shiftValue
+    EStateM.run (getDestination p pile) g = .ok toPile g →
+    EStateM.run (getMovable ki (closureInfoOf p).shiftValue
         (p.pileFlute.get ⟨pile.toNat % 10, by omega⟩) toPile) g = .ok mv g →
     BitSet mv ⟨min i 15, by omega⟩ →
     ∃ v : State, Simulates g s p (globalCfg (closureInfoOf p) i) v

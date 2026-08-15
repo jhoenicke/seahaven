@@ -1,9 +1,11 @@
 import Seahaven.ConvertCount
 
+open Solver
+
 /-!
 # The prologue establishes the base invariant
 
-`convertPre g pk` — the position `SolverConvertFromPilesKings`'s first two loops
+`convertPre g pk` — the position `convertFromPilesKings`'s first two loops
 produce — satisfies `MergedUpTo g · 0`, the entry condition of the per-pile
 cleanup loop: `SolverInvBase` globally, `freePiles` counting the (empty) processed
 prefix, and every pile still carrying the default `pileFlute = 1`.

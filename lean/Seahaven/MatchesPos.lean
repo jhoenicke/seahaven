@@ -3,9 +3,10 @@ import Seahaven.LayoutProofs
 import Seahaven.SolverInvariant
 
 open Rules
+open Solver
 
 /-!
-# Matching a `Rules.State` against a `SolverPosType`
+# Matching a `Rules.State` against a `PosType`
 
 `StateMatchesLayout` only ties a `State` to the static deal (`g.pos2card`).  This
 file adds the missing half: a relation between a `State` and an abstract
@@ -24,7 +25,7 @@ concrete state actually determines:
 Nothing here presupposes `SolverInvBase`/`IsCanonicalPos`; those stay on the
 solver side, where they are already proved to be preserved.  The consequence is
 that this relation still holds at the intermediate, non-canonical positions that
-`SolverMoveAces` and `SolverCleanupPile` pass through — which is exactly what a
+`moveAces` and `cleanupPile` pass through — which is exactly what a
 simulation argument needs.
 -/
 
@@ -46,7 +47,7 @@ theorem encodeFoundation_some (su : Suit) (r : Rank) :
 /-- `StateMatchesSolverPos g s p` : the concrete state `s` is one of the states
 the abstract position `p` stands for.  See the module docstring for why this is
 many-to-many. -/
-structure StateMatchesSolverPos (g : Globals) (s : State) (p : SolverPosType) : Prop where
+structure StateMatchesSolverPos (g : Globals) (s : State) (p : PosType) : Prop where
   /-- Full deck, no duplicates: every card is on a foundation, in a cell, or in
       the tableau, exactly once. -/
   cards_count : ∀ c : Card, countState s c = 1
@@ -82,17 +83,17 @@ structure StateMatchesSolverPos (g : Globals) (s : State) (p : SolverPosType) : 
 /-! ## Immediate consequences -/
 
 theorem StateMatchesSolverPos.toStateMatchesLayout {g : Globals} {s : State}
-    {p : SolverPosType} (h : StateMatchesSolverPos g s p) : StateMatchesLayout g s where
+    {p : PosType} (h : StateMatchesSolverPos g s p) : StateMatchesLayout g s where
   piles_match i := ⟨⟨(p.pileDepth.get i).toNat, h.depth_lt6 i⟩, h.depth_match i⟩
   cards_count := h.cards_count
 
-theorem StateMatchesSolverPos.noDup {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.noDup {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) : NoDupState s :=
   fun c => le_of_eq (h.cards_count c)
 
 /-- The foundation readout, in `Rules` terms. -/
 theorem StateMatchesSolverPos.foundation_value {g : Globals} {s : State}
-    {p : SolverPosType} (h : StateMatchesSolverPos g s p) (su : Suit) :
+    {p : PosType} (h : StateMatchesSolverPos g s p) (su : Suit) :
     (VALUE (p.aces.get (finOfSuit su))).toNat = optRankToNat (s.foundations su) := by
   have hr : optRankToNat (s.foundations su) ≤ 13 := by
     cases hf : s.foundations su with
@@ -149,7 +150,7 @@ theorem rankToNat_pos (r : Rank) : 1 ≤ rankToNat r := by cases r <;> simp [ran
 
 /-- Every card of the flute, indexed from the top of the column, carries the
 boundary's suit and a value that climbs by one towards the boundary. -/
-theorem flute_elem {g : Globals} {s : State} {p : SolverPosType}
+theorem flute_elem {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10)
     (hd : 0 < (p.pileDepth.get i).toNat)
     (b : Fin 5) (hb : b.val = (p.pileDepth.get i).toNat - 1) :
@@ -206,7 +207,7 @@ theorem flute_elem {g : Globals} {s : State} {p : SolverPosType}
 `top ++ boundary :: rest`, where `top` is the physical flute above the boundary
 (`pileFlute - 1` cards), `rest` is what stays put (`pileDepth - 1` cards), and
 `top ++ [boundary]` is a run — exactly the shape `run_fluteMoves` consumes. -/
-theorem StateMatchesSolverPos.flute_split {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.flute_split {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10)
     (hd : 0 < (p.pileDepth.get i).toNat) :
     ∃ (top rest : Column) (c : Card),
@@ -255,7 +256,7 @@ theorem reverse_getElem_zero_of_getLast? {α : Type} {l : List α} {a : α}
   exact Option.some.inj h1
 
 /-- The `pileDepth = 0` branch of `depth_match`, unpacked. -/
-theorem StateMatchesSolverPos.king_pile_run {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.king_pile_run {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10)
     (hd : (p.pileDepth.get i).toNat = 0) :
     ∃ su : UInt8, IsSameSuitDescending su 13 ((s.tableau i).reverse.map encodeCard) := by
@@ -266,7 +267,7 @@ theorem StateMatchesSolverPos.king_pile_run {g : Globals} {s : State} {p : Solve
 
 /-- **The run on a solver-empty pile belongs to its deepest card's suit**, and
 descends from the king: reading from the bottom, `CARD su 13, CARD su 12, …`. -/
-theorem StateMatchesSolverPos.empty_pile_suit {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.empty_pile_suit {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10)
     (hd : (p.pileDepth.get i).toNat = 0) {d : Card}
     (hlast : (s.tableau i).getLast? = some d) :
@@ -289,7 +290,7 @@ theorem StateMatchesSolverPos.empty_pile_suit {g : Globals} {s : State} {p : Sol
 
 /-- The deepest card of a solver-empty pile is a king: nothing of its suit above
 it has been freed. -/
-theorem StateMatchesSolverPos.empty_pile_king {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.empty_pile_king {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10)
     (hd : (p.pileDepth.get i).toNat = 0) {d : Card}
     (hlast : (s.tableau i).getLast? = some d) : d.rank = Rank.king := by
@@ -311,7 +312,7 @@ theorem StateMatchesSolverPos.empty_pile_king {g : Globals} {s : State} {p : Sol
 `CARD su (13 - j)`.  This is the precise reading of `king_pile`'s length
 equation, and it is what lets a state's king configuration be read off its
 columns. -/
-theorem StateMatchesSolverPos.king_pile_contents {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.king_pile_contents {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10)
     (hd : (p.pileDepth.get i).toNat = 0) {d : Card}
     (hlast : (s.tableau i).getLast? = some d) :
@@ -381,7 +382,7 @@ theorem NoDupState.pile_unique {s : State} (h : NoDupState s) {c : Card} {i j : 
 
 /-- **At most one pile carries a given suit's king stack.**  Both candidate piles
 would have that suit's king as their deepest card. -/
-theorem StateMatchesSolverPos.empty_pile_unique {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.empty_pile_unique {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) {i j : Fin 10}
     (hi : (p.pileDepth.get i).toNat = 0) (hj : (p.pileDepth.get j).toNat = 0)
     {d e : Card} (hdi : (s.tableau i).getLast? = some d) (hej : (s.tableau j).getLast? = some e)

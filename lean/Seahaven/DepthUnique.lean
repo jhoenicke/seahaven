@@ -1,6 +1,7 @@
 import Seahaven.MaximalCfg
 
 open Rules
+open Solver
 
 /-!
 # The depth is a function of the column
@@ -13,8 +14,8 @@ by the state.
 
 This is what makes step 4 of the completeness argument depth arithmetic.  After the
 critical move the play reaches some state; whichever canonical position that state
-matches, its depths are *forced*, so it is the position the solver's `SolverMove` +
-`SolverCleanupPile` computed (`IsCanonicalPos_unique`).  No reasoning about the merge
+matches, its depths are *forced*, so it is the position the solver's `move` +
+`cleanupPile` computed (`IsCanonicalPos_unique`).  No reasoning about the merge
 loop's history is needed.
 
 The mechanism is `PileMatches.succ_below`: at or above the boundary the column
@@ -39,7 +40,7 @@ def MergeStop (g : Globals) (i : Fin 10) (d : Nat) (hd : d ≤ 5) : Prop :=
   d ≤ 1 ∨ (g.pos2card.get i).get ⟨d - 2, by omega⟩
             ≠ (g.pos2card.get i).get ⟨d - 1, by omega⟩ + 1
 
-theorem PileMerged.mergeStop {g : Globals} {p : SolverPosType} {i : Fin 10}
+theorem PileMerged.mergeStop {g : Globals} {p : PosType} {i : Fin 10}
     {hd : (p.pileDepth.get i).toNat ≤ 5} (h : PileMerged g p i hd) :
     MergeStop g i (p.pileDepth.get i).toNat hd := by
   rcases h.merge_complete with hle | hne
@@ -86,7 +87,7 @@ theorem le_of_pileMatches_of_mergeCond {g : Globals} {col : Column} {i : Fin 10}
 /-- The `depth ≤ 1` corner, isolated: at depth `1` the single dealt card is not a king.
 (Cleanup's lone-king branch vacates such a pile to depth `0`, so the solver never emits
 one; this states the fact without relying on that development.) -/
-def NoLoneKing (g : Globals) (p : SolverPosType) : Prop :=
+def NoLoneKing (g : Globals) (p : PosType) : Prop :=
   ∀ i : Fin 10, (p.pileDepth.get i).toNat = 1 →
     (VALUE ((g.pos2card.get i).get ⟨0, by omega⟩)).toNat ≠ 13
 
@@ -131,7 +132,7 @@ theorem pileMatches_depth_unique {g : Globals} {col : Column} {i : Fin 10} {n m 
 
 /-- **The depth vector is determined by the state.**  Both positions are merged, so
 each pile's depth is the least one its column matches. -/
-theorem pileDepth_eq_of_matches {g : Globals} {s : State} {p q : SolverPosType}
+theorem pileDepth_eq_of_matches {g : Globals} {s : State} {p q : PosType}
     (hwf : WellFormedLayout g)
     (hbp : SolverInvBase g p) (hbq : SolverInvBase g q)
     (hpm : ∀ i : Fin 10, PileMerged g p i (hbp.pileDepth_bound i))
@@ -157,7 +158,7 @@ theorem pileDepth_eq_of_matches {g : Globals} {s : State} {p q : SolverPosType}
 function of the depth vector.  This is what makes step 4 of the completeness argument
 pure depth arithmetic — whatever canonical position the post-move state matches *is*
 the one the solver computed. -/
-theorem canonical_eq_of_matches {g : Globals} {s : State} {p q : SolverPosType}
+theorem canonical_eq_of_matches {g : Globals} {s : State} {p q : PosType}
     (hwf : WellFormedLayout g) (hp : IsCanonicalPos g p) (hq : IsCanonicalPos g q)
     (hmp : StateMatchesSolverPos g s p) (hmq : StateMatchesSolverPos g s q)
     (hlp : NoLoneKing g p) (hlq : NoLoneKing g q) : p = q :=

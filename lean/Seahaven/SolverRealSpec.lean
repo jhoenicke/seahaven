@@ -1,13 +1,15 @@
 import Seahaven.Solver
 import Seahaven.UInt8Lemmas
 
+open Solver
+
 /-!
 # Specs proved directly against the real solver (no fuel model)
 
 On Lean 4.31 the real solver's `while` loops are no longer opaque (see the
 `MonadTail` instances in `Seahaven.EStateMOrder`), so we can state and prove
 specifications directly about
-`_root_.SolverCleanupPile` etc., instead of going through the `SolverModel` fuel
+`Solver.cleanupPile` etc., instead of going through the `SolverModel` fuel
 twin and a (fragile, fuel-dependent) `model = real` equality.
 
 This file seeds that approach.  `cleanupPile_empty` is a *complete* proof (only
@@ -15,34 +17,34 @@ the standard `propext/Classical.choice/Quot.sound` axioms — no `sorry`) about 
 real function: it is the base case of the convert cleanup loop.
 -/
 
--- **Base case of `SolverCleanupPile`.**  Cleaning an already-empty pile
+-- **Base case of `cleanupPile`.**  Cleaning an already-empty pile
 -- (`pileDepth[pile] = 0`) succeeds without running either `while` loop: it leaves
 -- `globals` unchanged, bumps `freePiles`, rewrites the (unchanged) depth/flute of
 -- `pile`, and returns `0xffff`.
 set_option linter.unusedSimpArgs false in
-theorem cleanupPile_empty_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem cleanupPile_empty_eq (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10)
     (hd : p.pileDepth[pile.toNat]'(by omega) = 0) :
-    EStateM.run (_root_.SolverCleanupPile pile) (g, p) = .ok 0xffff
+    EStateM.run (Solver.cleanupPile pile) (g, p) = .ok 0xffff
       (g, { p with
         freePiles := p.freePiles + 1,
         pileDepth := p.pileDepth.set pile.toNat 0 (by omega),
         pileFlute := p.pileFlute.set pile.toNat 1 (by omega) }) := by
-  unfold SolverCleanupPile
+  unfold cleanupPile
   simp only [EStateM.run, bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get,
     set, EStateM.set, EStateM.pure, Vector.getE, Vector.setE, getElem?_pos, hpile, hd, dif_pos]
   rfl
 
-theorem cleanupPile_empty (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem cleanupPile_empty (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10)
     (hd : p.pileDepth[pile.toNat]'(by omega) = 0) :
-    ∃ p', EStateM.run (_root_.SolverCleanupPile pile) (g, p) = .ok 0xffff (g, p') :=
+    ∃ p', EStateM.run (Solver.cleanupPile pile) (g, p) = .ok 0xffff (g, p') :=
   ⟨_, cleanupPile_empty_eq pile g p hpile hd⟩
 
 /-!
 ## Loop-bearing cases
 
-The merge/freed `while` loops of `SolverCleanupPile` are reasoned about by induction
+The merge/freed `while` loops of `cleanupPile` are reasoned about by induction
 on their decreasing measures.  `mergeBody`/`freedBody` mirror the loops (`Solver.lean`);
 `mergeLoop_ok`/`freedLoop_ok` prove they terminate state-purely (complete, no `sorry`).
 Each case unfolds one loop step via `Lean.Loop.forIn_eq_of_monadTail`; the `getE`s
@@ -56,11 +58,11 @@ For the freed loop the guard itself supplies the lower bound: `aces[suit] ≥ 0`
 open Lean Lean.Order
 
 /-- Accumulator of the merge loop: `(card, depth, flute, game)`. -/
-abbrev MergeAcc := MProd UInt8 (MProd UInt8 (MProd UInt8 SolverPosType))
+abbrev MergeAcc := MProd UInt8 (MProd UInt8 (MProd UInt8 PosType))
 
 /-- Body of the corrected merge `while` loop (state-pure; reads only `globals`). -/
 def mergeBody (g : Globals) (pile pilehash : UInt32) :
-    Unit → MergeAcc → EStateM Error (Globals × SolverPosType) (ForInStep MergeAcc) :=
+    Unit → MergeAcc → EStateM Error (Globals × PosType) (ForInStep MergeAcc) :=
   fun _ r => do
     if (← (do return decide (r.snd.fst > 1)) <&&>
       (do return (← (← g.pos2card.getE pile).getE (r.snd.fst - 2).toUInt32)
@@ -71,7 +73,7 @@ def mergeBody (g : Globals) (pile pilehash : UInt32) :
 /-- The merge loop terminates without touching the state, by induction on a `Nat`
     bounding `depth` (which strictly decreases each iteration; `depth ≤ 5`). -/
 theorem mergeLoop_ok (g : Globals) (pile pilehash : UInt32) (hpile : pile.toNat < 10) :
-    ∀ (n : Nat) (r : MergeAcc) (s : Globals × SolverPosType),
+    ∀ (n : Nat) (r : MergeAcc) (s : Globals × PosType),
       r.snd.fst.toNat < n → r.snd.fst.toNat ≤ 5 →
       ∃ res, Loop.forIn Loop.mk r (mergeBody g pile pilehash) s = .ok res s := by
   intro n
@@ -79,7 +81,7 @@ theorem mergeLoop_ok (g : Globals) (pile pilehash : UInt32) (hpile : pile.toNat 
   | zero => intro r s h1 _; exact absurd h1 (Nat.not_lt_zero _)
   | succ n ih =>
     intro r s h1 h2
-    have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × SolverPosType))
+    have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × PosType))
       (l := Loop.mk) (b := r) (f := mergeBody g pile pilehash)
     by_cases hgt : r.snd.fst > 1
     · -- depth > 1: evaluate the two `getE`s (bounds from `pile < 10` and
@@ -147,7 +149,7 @@ def mergeGuard (g : Globals) (pile : UInt32) (r : MergeAcc) : Prop :=
 /-- **Exact run of the merge loop**: it performs some number `m` of `mergeStep`s
     (state untouched), with the guard true before each step and false at exit. -/
 theorem mergeLoop_run (g : Globals) (pile pilehash : UInt32) (hpile : pile.toNat < 10) :
-    ∀ (n : Nat) (r : MergeAcc) (s : Globals × SolverPosType),
+    ∀ (n : Nat) (r : MergeAcc) (s : Globals × PosType),
       r.snd.fst.toNat < n → r.snd.fst.toNat ≤ 5 →
       ∃ m : Nat,
         Loop.forIn Loop.mk r (mergeBody g pile pilehash) s
@@ -159,7 +161,7 @@ theorem mergeLoop_run (g : Globals) (pile pilehash : UInt32) (hpile : pile.toNat
   | zero => intro r s h1 _; exact absurd h1 (Nat.not_lt_zero _)
   | succ n ih =>
     intro r s h1 h2
-    have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × SolverPosType))
+    have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × PosType))
       (l := Loop.mk) (b := r) (f := mergeBody g pile pilehash)
     by_cases hgt : r.snd.fst > 1
     · have hgt' : 1 < r.snd.fst.toNat := UInt8.lt_iff_toNat_lt.mp hgt
@@ -227,12 +229,12 @@ theorem mergeIter_eq (ph : UInt32) (m : Nat) (r : MergeAcc) :
     · rw [uint32_sub_sub, UInt32.add_comm ph]
 
 /-- Accumulator of the freed-predecessor loop: `(flute, game, prevCard)`. -/
-abbrev FreedAcc := MProd UInt8 (MProd SolverPosType UInt8)
+abbrev FreedAcc := MProd UInt8 (MProd PosType UInt8)
 
-/-- Body of the freed-predecessor `while` loop of `SolverCleanupPile` (state-pure;
+/-- Body of the freed-predecessor `while` loop of `cleanupPile` (state-pure;
     reads only `globals` and the accumulator's game). -/
 def freedBody (g : Globals) (suit : UInt8) :
-    Unit → FreedAcc → EStateM Error (Globals × SolverPosType) (ForInStep FreedAcc) :=
+    Unit → FreedAcc → EStateM Error (Globals × PosType) (ForInStep FreedAcc) :=
   fun _ r => do
     if (← ((do return decide ((← r.snd.fst.aces.getE suit.toUInt32) < r.snd.snd)) <&&>
       (do return ((← g.card2depth.getE r.snd.snd.toUInt32).toNat >=
@@ -249,7 +251,7 @@ def freedBody (g : Globals) (suit : UInt8) :
     `prevCard - 1` never wraps and the index bounds are maintained. -/
 theorem freedLoop_ok (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat < 4)
     (hpiles : ∀ (i : Nat) (h : i < 64), (g.card2pile[i]'h).toNat < 10) :
-    ∀ (n : Nat) (r : FreedAcc) (s : Globals × SolverPosType),
+    ∀ (n : Nat) (r : FreedAcc) (s : Globals × PosType),
       r.snd.snd.toNat < n → r.snd.snd.toNat < 64 →
       ∃ res, Loop.forIn Loop.mk r (freedBody g suit) s = .ok res s := by
   intro n
@@ -257,7 +259,7 @@ theorem freedLoop_ok (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat <
   | zero => intro r s h1 _; exact absurd h1 (Nat.not_lt_zero _)
   | succ n ih =>
     intro r s h1 h64
-    have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × SolverPosType))
+    have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × PosType))
       (l := Loop.mk) (b := r) (f := freedBody g suit)
     have hc64 : r.snd.snd.toUInt32.toNat < 64 := by rw [UInt8.toNat_toUInt32]; exact h64
     by_cases hg1 : r.snd.fst.aces[suit.toUInt32.toNat]'hsuit < r.snd.snd
@@ -295,29 +297,29 @@ theorem freedLoop_ok (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat <
         EStateM.pure, Vector.getE, getElem?_pos, hsuit, Bool.false_eq_true, reduceIte]
 
 /-!
-### Explicit-loop twin of `SolverCleanupPile`
+### Explicit-loop twin of `cleanupPile`
 
-`cleanupPileExplicit` is `SolverCleanupPile` with the two `while` loops written as
+`cleanupPileExplicit` is `cleanupPile` with the two `while` loops written as
 explicit `Loop.forIn Loop.mk … mergeBody/freedBody` calls and the join points
 inlined.  All differences from the real elaboration (mut-var threading, join
 lambdas, `pure`-`bind` sequencing) are definitional, so the equality is `rfl` —
 this gives spec proofs a syntactic handle on the loops without matching against
 the `while` elaboration.
 -/
-def cleanupPileExplicit (pile : UInt32) : EStateM Error (Globals × SolverPosType) UInt16 := do
+def cleanupPileExplicit (pile : UInt32) : EStateM Error (Globals × PosType) UInt16 := do
   let ⟨globals, game⟩ ← get
   let forcedKings : UInt16 := 0xffff
   let pilehash ← pileHashes.getE pile
   let depth := ← game.pileDepth.getE pile
   let flute : UInt8 := 1
   -- final writes, shared by all paths (the elaborator's outer join point)
-  let finish : UInt8 → UInt8 → UInt16 → SolverPosType →
-      EStateM Error (Globals × SolverPosType) UInt16 :=
+  let finish : UInt8 → UInt8 → UInt16 → PosType →
+      EStateM Error (Globals × PosType) UInt16 :=
     fun depth flute forcedKings game => do
       let newDepth ← game.pileDepth.setE pile depth
       let newFlute ← game.pileFlute.setE pile flute
       set (⟨globals, { game with pileDepth := newDepth, pileFlute := newFlute }⟩ :
-        Globals × SolverPosType)
+        Globals × PosType)
       pure forcedKings
   if depth == 0 then
     finish depth flute forcedKings { game with freePiles := game.freePiles + 1 }
@@ -331,7 +333,7 @@ def cleanupPileExplicit (pile : UInt32) : EStateM Error (Globals × SolverPosTyp
     let ⟨flute, game, prevCard⟩ := r2
     let acesS ← game.aces.getE suit.toUInt32
     -- lone-king branch, shared by both `busyAces` outcomes (the inner join point)
-    let kingCheck : SolverPosType → EStateM Error (Globals × SolverPosType) UInt16 :=
+    let kingCheck : PosType → EStateM Error (Globals × PosType) UInt16 :=
       fun game =>
         if depth == 1 && VALUE card == 13 then do
           let game := { game with freePiles := game.freePiles + 1 }
@@ -349,7 +351,7 @@ def cleanupPileExplicit (pile : UInt32) : EStateM Error (Globals × SolverPosTyp
       kingCheck game
 
 /-- The explicit-loop twin is definitionally the real function. -/
-theorem cleanupPile_eq_explicit : _root_.SolverCleanupPile = cleanupPileExplicit := rfl
+theorem cleanupPile_eq_explicit : Solver.cleanupPile = cleanupPileExplicit := rfl
 
 /-!
 ### Exact run characterization of the freed loop (mirrors `mergeLoop_run`)
@@ -395,19 +397,19 @@ theorem freedIter_eq (f : Nat) (r : FreedAcc) :
     · rw [UInt8.sub_sub, UInt8.add_comm 1]
     · rw [UInt8.sub_sub, UInt8.add_comm 1]
 
-/-- The `(forcedKings, game)` result of a non-empty `SolverCleanupPile` run, given
+/-- The `(forcedKings, game)` result of a non-empty `cleanupPile` run, given
     the boundary card `B`, the pile hash `ph`, the entry depth `d32`, and the two
     loops' iteration counts `m` (merge) and `f` (freed).  Mirrors the tail of the
     function after both loops: the `busyAces` check, the lone-king branch, and the
     final depth/flute writes. -/
 def cleanupRunResult (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (d : UInt8) (m f : Nat) (p : SolverPosType) : UInt16 × SolverPosType :=
+    (d : UInt8) (m f : Nat) (p : PosType) : UInt16 × PosType :=
   let card1 := B + UInt8.ofNat m
   let depth1 := d - UInt8.ofNat m
   let flute2 := 1 + UInt8.ofNat m + UInt8.ofNat f
   let prev2 := B - 1 - UInt8.ofNat f
-  let game2 : SolverPosType :=
+  let game2 : PosType :=
     { p with hash := p.hash - UInt32.ofNat m * ph, usedSpace := p.usedSpace - (UInt8.ofNat f) }
   let game3 :=
     if p.aces[(SUIT B).toUInt32.toNat]'hs4 == prev2 then
@@ -431,7 +433,7 @@ def cleanupRunResult (pile : UInt32) (hpile : pile.toNat < 10)
        pileDepth := game3.pileDepth.set pile.toNat depth1 hpile,
        pileFlute := game3.pileFlute.set pile.toNat flute2 hpile })
 
-/-- **`SolverCleanupPile`'s non-empty tail, always taking the "ordinary" (no
+/-- **`cleanupPile`'s non-empty tail, always taking the "ordinary" (no
     lone-king) branch** — i.e. `cleanupRunResult`'s `else` branch, unconditionally,
     returning just the position (the `UInt16` result is only meaningful in the
     lone-king branch, where it reports the merge-forced kings).
@@ -444,7 +446,7 @@ def cleanupRunResult (pile : UInt32) (hpile : pile.toNat < 10)
     about `m`/`f`/the loops at all — see `cleanupRunResult_eq`. -/
 def preCleanupPile (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (d : UInt8) (m f : Nat) (p : SolverPosType) : SolverPosType :=
+    (d : UInt8) (m f : Nat) (p : PosType) : PosType :=
   let depth1 := d - UInt8.ofNat m
   let flute2 := 1 + UInt8.ofNat m + UInt8.ofNat f
   let prev2 := B - 1 - UInt8.ofNat f
@@ -465,7 +467,7 @@ def preCleanupPile (pile : UInt32) (hpile : pile.toNat < 10)
     rather than threading `m`/`f` through, so it applies to any clean position,
     not just a fresh `preCleanupPile` result. -/
 def kingMove (pile : UInt32) (hpile : pile.toNat < 10) (suit : UInt8)
-    (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : SolverPosType) : SolverPosType :=
+    (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : PosType) : PosType :=
   { p with
     freePiles := p.freePiles + 1,
     usedSpace := p.usedSpace + (p.pileFlute[pile.toNat]'hpile),
@@ -481,7 +483,7 @@ def kingMove (pile : UInt32) (hpile : pile.toNat < 10) (suit : UInt8)
     (now a plain `UInt8` computation, so the equality is `rfl` per branch). -/
 theorem cleanupRunResult_eq (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (d : UInt8) (m f : Nat) (p : SolverPosType) :
+    (d : UInt8) (m f : Nat) (p : PosType) :
     cleanupRunResult pile hpile B ph hs4 d m f p =
       if d - UInt8.ofNat m == 1 && VALUE (B + UInt8.ofNat m) == 13 then
         (0xffff &&& kingOnPileMap[(SUIT B).toUInt32.toNat]'hs4,
@@ -500,7 +502,7 @@ theorem cleanupRunResult_eq (pile : UInt32) (hpile : pile.toNat < 10)
     before each and false after, state untouched. -/
 theorem freedLoop_run (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat < 4)
     (hpiles : ∀ (i : Nat) (h : i < 64), (g.card2pile[i]'h).toNat < 10) :
-    ∀ (n : Nat) (r : FreedAcc) (s : Globals × SolverPosType),
+    ∀ (n : Nat) (r : FreedAcc) (s : Globals × PosType),
       r.snd.snd.toNat < n → r.snd.snd.toNat < 64 →
       ∃ f : Nat,
         Loop.forIn Loop.mk r (freedBody g suit) s = .ok (freedIter f r) s ∧
@@ -511,7 +513,7 @@ theorem freedLoop_run (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat 
   | zero => intro r s h1 _; exact absurd h1 (Nat.not_lt_zero _)
   | succ n ih =>
     intro r s h1 h64
-    have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × SolverPosType))
+    have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × PosType))
       (l := Loop.mk) (b := r) (f := freedBody g suit)
     have hc64 : r.snd.snd.toUInt32.toNat < 64 := by rw [UInt8.toNat_toUInt32]; exact h64
     by_cases hg1 : r.snd.fst.aces[suit.toUInt32.toNat]'hsuit < r.snd.snd
@@ -555,14 +557,14 @@ theorem freedLoop_run (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat 
         EStateM.pure, Vector.getE, getElem?_pos, hsuit, Bool.false_eq_true, reduceIte,
         freedIter]
 
-/-- **Exact run of a non-empty `SolverCleanupPile`.**  There are iteration counts
+/-- **Exact run of a non-empty `cleanupPile`.**  There are iteration counts
     `m` (merge loop) and `f` (freed loop) such that both loops' guards held
     before every iteration and fail at exit, and the run returns exactly
     `cleanupRunResult … m f p` with `globals` untouched.  Preconditions supply
     the index bounds: `0 < depth ≤ 5`, the boundary card `B` (with `SUIT B < 4`
     and `B - 1 < 64` for the freed loop's reads), and every `card2pile` entry a
     valid pile index. -/
-theorem cleanupPile_nonempty_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem cleanupPile_nonempty_eq (pile : UInt32) (g : Globals) (p : PosType)
     (B : UInt8) (ph : UInt32)
     (hpile : pile.toNat < 10)
     (hph : pileHashes[pile.toNat]'hpile = ph)
@@ -583,7 +585,7 @@ theorem cleanupPile_nonempty_eq (pile : UInt32) (g : Globals) (p : SolverPosType
         ⟨1 + UInt8.ofNat m, { p with hash := p.hash - UInt32.ofNat m * ph }, B - 1⟩)) ∧
       ¬ freedGuard g (SUIT B) (freedIter f
         ⟨1 + UInt8.ofNat m, { p with hash := p.hash - UInt32.ofNat m * ph }, B - 1⟩) ∧
-      EStateM.run (_root_.SolverCleanupPile pile) (g, p) =
+      EStateM.run (Solver.cleanupPile pile) (g, p) =
         .ok (cleanupRunResult pile hpile B ph hs4
               (p.pileDepth[pile.toNat]'hpile) m f p).1
           (g, (cleanupRunResult pile hpile B ph hs4
@@ -620,51 +622,51 @@ theorem cleanupPile_nonempty_eq (pile : UInt32) (g : Globals) (p : SolverPosType
     simp only [Bool.false_eq_true, reduceIte] <;> rfl
 
 /-!
-### `SolverRemoveFlute` — exact reduction to `SolverCleanupPile`
+### `removeFlute` — exact reduction to `cleanupPile`
 
-`SolverRemoveFlute` has no loops of its own: it decrements the pile's depth,
-subtracts the pile hash, and tail-calls `SolverCleanupPile`.  Its exact run is
+`removeFlute` has no loops of its own: it decrements the pile's depth,
+subtracts the pile hash, and tail-calls `cleanupPile`.  Its exact run is
 therefore the cleanup run at the modified position, which composes with
 `cleanupPile_empty_eq` / `cleanupPile_nonempty_eq`.
 -/
 
-/-- The entry-state modification `SolverRemoveFlute` performs before calling
-    `SolverCleanupPile`: `pileDepth[pile] -= 1`, `hash -= pileHashes[pile]`. -/
-def removeFlutePre (pile : UInt32) (hpile : pile.toNat < 10) (p : SolverPosType) :
-    SolverPosType :=
+/-- The entry-state modification `removeFlute` performs before calling
+    `cleanupPile`: `pileDepth[pile] -= 1`, `hash -= pileHashes[pile]`. -/
+def removeFlutePre (pile : UInt32) (hpile : pile.toNat < 10) (p : PosType) :
+    PosType :=
   { p with
     pileDepth := p.pileDepth.set pile.toNat (p.pileDepth[pile.toNat]'hpile - 1) hpile,
     hash := p.hash - pileHashes[pile.toNat]'hpile }
 
-/-- **Exact run of `SolverRemoveFlute`**: the cleanup run at the pre-modified
+/-- **Exact run of `removeFlute`**: the cleanup run at the pre-modified
     position. -/
-theorem removeFlute_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem removeFlute_eq (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10) :
-    EStateM.run (_root_.SolverRemoveFlute pile) (g, p) =
-    EStateM.run (_root_.SolverCleanupPile pile) (g, removeFlutePre pile hpile p) := by
-  unfold SolverRemoveFlute removeFlutePre
+    EStateM.run (Solver.removeFlute pile) (g, p) =
+    EStateM.run (Solver.cleanupPile pile) (g, removeFlutePre pile hpile p) := by
+  unfold removeFlute removeFlutePre
   simp only [EStateM.run, bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get,
     set, EStateM.set, Vector.getE, Vector.setE, getElem?_pos, dif_pos, hpile]
   rfl
 
 /-!
-### Explicit-loop twin of `SolverMoveAces`
+### Explicit-loop twin of `moveAces`
 
 Same technique as `cleanupPileExplicit`.  The foundation-walk loop is
 *state-effectful* (the `cardDepth = 0` branch writes `aces`, calls
-`SolverRemoveFlute`, and re-reads the state), so its exact-run characterization
+`removeFlute`, and re-reads the state), so its exact-run characterization
 will need an invariant-carrying loop rule rather than the state-pure
 `mergeLoop_run` pattern — but the `rfl` twin already gives spec proofs the
 syntactic `Loop.forIn`/`moveAcesBody` handle.
 -/
 
-/-- Accumulator of the `SolverMoveAces` foundation walk:
+/-- Accumulator of the `moveAces` foundation walk:
     `(card, forcedKings, found, game, globals)`. -/
-abbrev MoveAcesAcc := MProd UInt8 (MProd UInt16 (MProd UInt8 (MProd SolverPosType Globals)))
+abbrev MoveAcesAcc := MProd UInt8 (MProd UInt16 (MProd UInt8 (MProd PosType Globals)))
 
-/-- Body of the `SolverMoveAces` `while` loop. -/
+/-- Body of the `moveAces` `while` loop. -/
 def moveAcesBody (suitU32 : UInt32) :
-    Unit → MoveAcesAcc → EStateM Error (Globals × SolverPosType) (ForInStep MoveAcesAcc) :=
+    Unit → MoveAcesAcc → EStateM Error (Globals × PosType) (ForInStep MoveAcesAcc) :=
   fun _ r => do
     let card := r.fst
     let forcedKings := r.snd.fst
@@ -681,8 +683,8 @@ def moveAcesBody (suitU32 : UInt32) :
       else if cardDepth == 0 then
         let newAces ← game.aces.setE suitU32 card
         let game := { game with aces := newAces }
-        set (⟨globals, game⟩ : Globals × SolverPosType)
-        let fk ← SolverRemoveFlute pile.toUInt32
+        set (⟨globals, game⟩ : Globals × PosType)
+        let fk ← removeFlute pile.toUInt32
         let s ← get
         return .yield ⟨card + 1, forcedKings &&& fk, 0, s.snd, s.fst⟩
       else
@@ -690,7 +692,7 @@ def moveAcesBody (suitU32 : UInt32) :
     else
       return .done ⟨card, forcedKings, found, game, globals⟩
 
-def moveAcesExplicit : EStateM Error (Globals × SolverPosType) UInt16 := do
+def moveAcesExplicit : EStateM Error (Globals × PosType) UInt16 := do
   let forcedKings : UInt16 := 0xffff
   let ⟨globals, game⟩ ← get
   let suit := ctz game.busyAces
@@ -704,11 +706,11 @@ def moveAcesExplicit : EStateM Error (Globals × SolverPosType) UInt16 := do
   let newAces ← game.aces.setE suitU32 card
   let game := { game with aces := newAces }
   -- busyAces clear + final write, shared by both branches (the join point)
-  let finish : SolverPosType → EStateM Error (Globals × SolverPosType) UInt16 :=
+  let finish : PosType → EStateM Error (Globals × PosType) UInt16 :=
     fun game => do
       set (⟨globals,
         { game with busyAces := game.busyAces - (1 : UInt8) <<< UInt8.ofNat suit }⟩ :
-        Globals × SolverPosType)
+        Globals × PosType)
       pure forcedKings
   if VALUE card == 13 then
     let newKings ← game.kings.setE suitU32 card
@@ -717,35 +719,35 @@ def moveAcesExplicit : EStateM Error (Globals × SolverPosType) UInt16 := do
     finish game
 
 /-- The explicit-loop twin is definitionally the real function. -/
-theorem moveAces_eq_explicit : _root_.SolverMoveAces = moveAcesExplicit := rfl
+theorem moveAces_eq_explicit : Solver.moveAces = moveAcesExplicit := rfl
 
 /-!
-### Explicit-loop twin of `SolverMove`
+### Explicit-loop twin of `move`
 
-`SolverMove` = destination bookkeeping (three-way branch) + `SolverRemoveFlute`
+`move` = destination bookkeeping (three-way branch) + `removeFlute`
 + the `while busyAces ≠ 0` drain.  `drainBody` (accumulator: bare `forcedKings`)
-is shared with `SolverConvertFromPilesKings`'s final drain.
+is shared with `convertFromPilesKings`'s final drain.
 -/
 
-/-- Body of the `while busyAces ≠ 0 do SolverMoveAces` drain loop. -/
-def drainBody : Unit → UInt16 → EStateM Error (Globals × SolverPosType) (ForInStep UInt16) :=
+/-- Body of the `while busyAces ≠ 0 do moveAces` drain loop. -/
+def drainBody : Unit → UInt16 → EStateM Error (Globals × PosType) (ForInStep UInt16) :=
   fun _ r => do
     let s ← get
     if s.snd.busyAces != 0 then
-      let fk ← SolverMoveAces
+      let fk ← moveAces
       return .yield (r &&& fk)
     else
       return .done r
 
 def moveExplicit (pile : UInt32) (toPile : UInt8) :
-    EStateM Error (Globals × SolverPosType) UInt16 := do
+    EStateM Error (Globals × PosType) UInt16 := do
   let ⟨globals, game⟩ ← get
   let fluteLen ← game.pileFlute.getE pile
   -- set + RemoveFlute + drain, shared by all branches (the outer join point)
-  let finish : SolverPosType → EStateM Error (Globals × SolverPosType) UInt16 :=
+  let finish : PosType → EStateM Error (Globals × PosType) UInt16 :=
     fun game => do
-      set (⟨globals, game⟩ : Globals × SolverPosType)
-      let forcedKings ← SolverRemoveFlute pile
+      set (⟨globals, game⟩ : Globals × PosType)
+      let forcedKings ← removeFlute pile
       let r ← Loop.forIn Loop.mk forcedKings drainBody
       pure r
   if toPile < 10 then
@@ -754,7 +756,7 @@ def moveExplicit (pile : UInt32) (toPile : UInt8) :
     finish { game with pileFlute := newFlute }
   else
     -- usedSpace bump, shared by the two sub-branches (the inner join point)
-    let finish2 : SolverPosType → EStateM Error (Globals × SolverPosType) UInt16 :=
+    let finish2 : PosType → EStateM Error (Globals × PosType) UInt16 :=
       fun game => finish { game with usedSpace := game.usedSpace + fluteLen }
     if toPile < 14 then
       let kingIdx := (toPile - 10).toUInt32
@@ -765,4 +767,4 @@ def moveExplicit (pile : UInt32) (toPile : UInt8) :
       finish2 game
 
 /-- The explicit-loop twin is definitionally the real function. -/
-theorem move_eq_explicit : _root_.SolverMove = moveExplicit := rfl
+theorem move_eq_explicit : Solver.move = moveExplicit := rfl

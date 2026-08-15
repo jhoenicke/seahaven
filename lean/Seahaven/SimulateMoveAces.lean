@@ -1,14 +1,15 @@
 import Seahaven.KingConfigSim
 
 open Rules
+open Solver
 
 /-!
-# Simulating the `busyAces` drain (`SolverMoveAces`)
+# Simulating the `busyAces` drain (`moveAces`)
 
-`SolverMoveAces` walks up from `aces[suit] + 1`, counting *already free* cards in
+`moveAces` walks up from `aces[suit] + 1`, counting *already free* cards in
 `found` without touching the state, and re-syncs the position only when it reaches a
 card exposed at its pile's boundary (`cardDepth = 0`, which writes `aces` and calls
-`SolverRemoveFlute`).
+`removeFlute`).
 
 On the `Rules` side the plays are therefore **deferred** to those sync points: during
 the counting steps the position does not change at all, so a `Simulates` carries over
@@ -31,7 +32,7 @@ foundations — the pending run so far.  Any *free* card that is next up for its
 foundation is then either in a cell or already exposed: whatever sat above it in
 its column was same-suit and lower (`column_above`), hence already on that
 foundation, hence — the deck being intact — no longer in the column. -/
-theorem accessible_of_pending {g : Globals} {s u : State} {p : SolverPosType}
+theorem accessible_of_pending {g : Globals} {s u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
     (hdrop : ∀ q : Fin 10, ∃ k : Nat, u.tableau q = (s.tableau q).drop k)
     (hcount : ∀ d : Card, countState u d = 1)
@@ -104,7 +105,7 @@ result is again a state that differs from `s` only by cards taken off column top
 The bound `j` is why this is a hand-rolled induction rather than an instance of
 `exists_playsAll_runFrom`: that driver needs *every* subsequent card to be
 accessible, whereas the drain stops after the counted ones. -/
-theorem exists_playsAll_pending {g : Globals} {s : State} {p : SolverPosType}
+theorem exists_playsAll_pending {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
     (su : Suit) :
     ∀ (j : Nat) (u : State),
@@ -212,7 +213,7 @@ flute interior of the pile is among the `found` cards the walk counted, so playi
 the pending run plus the boundary leaves exactly `pileDepth - 1` cards in the
 column — which is what the cleanup's entry position (`fluteNorm` of
 `removeFlutePre`, with `pileFlute := 1`) claims. -/
-theorem StateMatchesSolverPos.flute_walked {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.flute_walked {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (j : Fin 10)
     (hdj : 0 < (p.pileDepth.get j).toNat)
     (b : Fin 5) (hb : b.val = (p.pileDepth.get j).toNat - 1)
@@ -272,7 +273,7 @@ plays them straight off that one column with `playsAll_column`, and no other pil
 or cell is touched. -/
 
 /-- **The flute at a sync point is exactly the walked run plus the boundary.** -/
-theorem flute_eq_of_walk {g : Globals} {p : SolverPosType} (hb : SolverInvBase g p)
+theorem flute_eq_of_walk {g : Globals} {p : PosType} (hb : SolverInvBase g p)
     (i : Fin 10) (hm : PileMerged g p i (hb.pileDepth_bound i))
     (hd : 0 < (p.pileDepth.get i).toNat)
     (hidx : (p.pileDepth.get i).toNat - 1 < 5)
@@ -330,11 +331,11 @@ theorem flute_eq_of_walk {g : Globals} {p : SolverPosType} (hb : SolverInvBase g
 its boundary onto the foundation leaves the state matching the position with
 `pileDepth[i]` decremented, `pileFlute[i] = 1`, and `aces` re-read off the new
 foundations — which is exactly `fluteNorm i (removeFlutePre i …)`, the position
-`SolverCleanupPile` is entered at, so `Simulates.ofCleanupRun` takes over from here.
+`cleanupPile` is entered at, so `Simulates.ofCleanupRun` takes over from here.
 
 `k` is the flute-interior count, pinned to `found` by `flute_eq_of_walk`; the column
 surgery is `PileMatches_drop_flute`. -/
-theorem StateMatchesSolverPos.syncPile {g : Globals} {s w : State} {p q : SolverPosType}
+theorem StateMatchesSolverPos.syncPile {g : Globals} {s w : State} {p q : PosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10) {k : Nat}
     (hd : 0 < (p.pileDepth.get i).toNat)
     (hcol : w.tableau i = (s.tableau i).drop (k + 1))
@@ -401,7 +402,7 @@ theorem StateMatchesSolverPos.syncPile {g : Globals} {s w : State} {p q : Solver
 /-- **`aces` after the sync step's plays.**  The solver writes `aces[su] := bc`; on
 the state side `su`'s foundation now holds `bc`'s rank and no other foundation
 moved, so `aces_match` transfers — this is `syncPile`'s last hypothesis. -/
-theorem StateMatchesSolverPos.aces_match_play {g : Globals} {s w : State} {p q : SolverPosType}
+theorem StateMatchesSolverPos.aces_match_play {g : Globals} {s w : State} {p q : PosType}
     (h : StateMatchesSolverPos g s p) {su : Suit} {bc : Card} (hsu : bc.suit = su)
     (hqsu : q.aces.get (finOfSuit su) = encodeCard bc)
     (hqne : ∀ su' : Suit, su' ≠ su → q.aces.get (finOfSuit su') = p.aces.get (finOfSuit su'))
@@ -430,7 +431,7 @@ now empty, and the position's `aces`/`kings` writes are what re-establish matchi
 (`busyAces` matching never reads). -/
 
 /-- **The tail's matching side.** -/
-theorem StateMatchesSolverPos.tailPile {g : Globals} {s w : State} {p q : SolverPosType}
+theorem StateMatchesSolverPos.tailPile {g : Globals} {s w : State} {p q : PosType}
     (h : StateMatchesSolverPos g s p)
     (hcount : ∀ c : Card, countState w c = 1)
     (hframe : ∀ j : Fin 10, w.tableau j = s.tableau j ∨
@@ -494,7 +495,7 @@ theorem natToRank_rankToNat (r : Rank) : natToRank (rankToNat r) = some r := by
   cases r <;> rfl
 
 /-- **The sync step plays the flute and the boundary off the column.** -/
-theorem StateMatchesSolverPos.playSyncRun {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.playSyncRun {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10) {su : Suit} {found : Nat}
     (hd : 0 < (p.pileDepth.get i).toNat)
     (hidx : (p.pileDepth.get i).toNat - 1 < 5)
@@ -550,7 +551,7 @@ theorem StateMatchesSolverPos.playSyncRun {g : Globals} {s : State} {p : SolverP
 holds the boundary card, and no other foundation moved.  This is `aces_match_play`'s
 last hypothesis. -/
 theorem StateMatchesSolverPos.syncRun_foundations {g : Globals} {s w : State}
-    {p : SolverPosType} (h : StateMatchesSolverPos g s p) (i : Fin 10)
+    {p : PosType} (h : StateMatchesSolverPos g s p) (i : Fin 10)
     {su : Suit} {bc : Card} {found : Nat}
     (hd : 0 < (p.pileDepth.get i).toNat)
     (hidx : (p.pileDepth.get i).toNat - 1 < 5)
@@ -632,8 +633,8 @@ only pile touched either stays non-empty or ends up with a physically empty colu
 `Simulates.ofCleanupRun` then composes onto this with `Simulates.trans`. -/
 
 /-- **The drain's foundation plays are simulated**, landing exactly at the position
-`SolverCleanupPile` is entered at. -/
-theorem SimulatesNorm.syncPlays {g : Globals} {s : State} {p q : SolverPosType} {k : Fin 16}
+`cleanupPile` is entered at. -/
+theorem SimulatesNorm.syncPlays {g : Globals} {s : State} {p q : PosType} {k : Fin 16}
     (hk : StateMatchesKingConfig g s p k) (i : Fin 10)
     {su : Suit} {bc : Card} {found : Nat}
     (hd : 0 < (p.pileDepth.get i).toNat)
@@ -696,7 +697,7 @@ sends `whnf` into the weeds).  Equalities between codes are moved by rewriting t
 subterm in a hypothesis instead. -/
 
 /-- **No flute gives up a played card at the walk's end.** -/
-theorem StateMatchesSolverPos.no_flute_at_exit {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.no_flute_at_exit {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
     {su : Suit} {V : Nat} {stop : UInt8} (j : Fin 10)
     (hdj : 0 < (p.pileDepth.get j).toNat)
@@ -792,7 +793,7 @@ theorem StateMatchesSolverPos.no_flute_at_exit {g : Globals} {s : State} {p : So
 case, and a king-run card would put the stop card above the suit's frontier, where
 `king_frontier` makes it free.  So when the walk stops at a card that is neither free
 nor a boundary, every played card came out of a *cell*. -/
-theorem StateMatchesSolverPos.no_played_in_column {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.no_played_in_column {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
     {su : Suit} {V : Nat} {stop : UInt8} (j : Fin 10)
     (hnotfree : ∀ c : UInt8, (SUIT c).toNat = suitToNat su → ¬ isFreeCard g p c →
@@ -878,7 +879,7 @@ theorem column_nil_of_all_played {w : State} (hcount : ∀ c : Card, countState 
 /-- **At a suit-complete exit no non-empty pile gives up a played card.**  Every card
 of the suit above the foundation top is free once the walk has run to the king, and a
 pile's boundary is never free — so the boundary above a played flute card cannot exist. -/
-theorem StateMatchesSolverPos.no_flute_at_complete {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.no_flute_at_complete {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
     {su : Suit} (j : Fin 10) (hdj : 0 < (p.pileDepth.get j).toNat)
     (hnotfree : ∀ c : UInt8, (SUIT c).toNat = suitToNat su → ¬ isFreeCard g p c →
@@ -951,7 +952,7 @@ theorem rank_mem_runFrom : ∀ (n : Nat) (c₀ c : Card), c ∈ runFrom (some c�
 /-- **At a non-completing exit the tail plays entirely out of the cells.**  Every card
 of the walked run lies in the window, so `no_played_in_column` forbids it from sitting
 in any column; the tableau therefore comes through untouched. -/
-theorem StateMatchesSolverPos.tailPlaysCells {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.tailPlaysCells {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
     {su : Suit} {found : Nat} {stop : UInt8}
     (hfree : ∀ d ∈ runFrom (nextFoundationCard s su) found, isFreeCard g p (encodeCard d))
@@ -994,7 +995,7 @@ cells, so the tableau is untouched: `tailPile` gets `Or.inl` at every pile and
 `frameAll` carries the configuration.  The only thing the caller still owes is that the
 position's `aces` really read off the new foundations — which is exactly what the
 solver's `aces[su] := card - 1` write establishes. -/
-theorem SimulatesNorm.tailPlays {g : Globals} {s : State} {p q : SolverPosType} {k : Fin 16}
+theorem SimulatesNorm.tailPlays {g : Globals} {s : State} {p q : PosType} {k : Fin 16}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hk : StateMatchesKingConfig g s p k) {su : Suit} {found : Nat} {stop : UInt8}
     (hfree : ∀ d ∈ runFrom (nextFoundationCard s su) found, isFreeCard g p (encodeCard d))
@@ -1029,7 +1030,7 @@ king, a non-empty pile still gives up nothing (`no_flute_at_complete`), and the 
 king pile — every card of which is now on the foundation — is emptied outright
 (`column_nil_of_all_played`).  The completeness premise is left to the caller since it
 speaks about the resulting state. -/
-theorem StateMatchesSolverPos.tailPlaysComplete {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.tailPlaysComplete {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
     {su : Suit} {found : Nat}
     (hfree : ∀ d ∈ runFrom (nextFoundationCard s su) found, isFreeCard g p (encodeCard d))

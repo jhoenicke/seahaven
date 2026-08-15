@@ -1,8 +1,10 @@
 import Seahaven.RecStepSound
 import Seahaven.KingMoveSim
 
+open Solver
+
 /-!
-# Soundness of `solverRecCheckSolvable`'s pile loop
+# Soundness of `recCheckSolvable`'s pile loop
 
 The loop accumulates `solvable := solvable ||| movable''` over the ten piles
 (`Solver.lean:436-456`), and its invariant is exactly
@@ -29,9 +31,9 @@ over the pile list.
 
 `recBody` below is the explicit twin of the loop body, with the recursive call
 abstracted as a parameter `rec` — the same device `componentExplicit`/`drainBody`
-use elsewhere.  `solverRecCheckSolvable` is defined by `partial_fixpoint`, so it
+use elsewhere.  `recCheckSolvable` is defined by `partial_fixpoint`, so it
 *does* have an unfolding equation, and `recCheck_eq` below identifies its pile
-loop with `recBody solverRecCheckSolvable …`; the twin is what lets the loop
+loop with `recBody recCheckSolvable …`; the twin is what lets the loop
 lemmas be stated and proved before that identification.
 -/
 
@@ -56,7 +58,7 @@ theorem exists_bitSet {w : UInt16} (h : w ≠ 0) : ∃ j : Fin 16, BitSet w j :=
         _ ≤ 2 ^ i := Nat.pow_le_pow_right (by omega) (by omega))
 
 /-- A local mask only sets bits inside its block. -/
-theorem lt_numBits_of_bitSet {p : SolverPosType} {v : UInt16} (hloc : LocalMask p v) {j : Fin 16}
+theorem lt_numBits_of_bitSet {p : PosType} {v : UInt16} (hloc : LocalMask p v) {j : Fin 16}
     (hj : BitSet v j) : j.val < (closureInfoOf p).numBits.toNat := by
   by_contra hc
   rw [BitSet_toNat] at hj
@@ -71,7 +73,7 @@ theorem lt_numBits_of_bitSet {p : SolverPosType} {v : UInt16} (hloc : LocalMask 
 `cs` the recursive call's answer. -/
 
 /-- The `movable'` of `Solver.lean:450-452`. -/
-def movablePrime (p p' : SolverPosType) (mv cs fk : UInt16) : UInt16 :=
+def movablePrime (p p' : PosType) (mv cs fk : UInt16) : UInt16 :=
   mv &&& (subsetAt ((closureInfoOf p').offset.toNat +
     (cs &&& (fk >>> (closureInfoOf p').shiftValue.toUInt16)).toNat)
       >>> (closureInfoOf p).shiftValue.toUInt16)
@@ -80,15 +82,15 @@ def movablePrime (p p' : SolverPosType) (mv cs fk : UInt16) : UInt16 :=
 def movableComp (mv' comp : UInt16) : UInt16 :=
   if mv' &&& comp ≠ 0 then mv' ||| comp else mv'
 
-theorem localMask_movablePrime {p p' : SolverPosType} {mv cs fk : UInt16} (h : LocalMask p mv) :
+theorem localMask_movablePrime {p p' : PosType} {mv cs fk : UInt16} (h : LocalMask p mv) :
     LocalMask p (movablePrime p p' mv cs fk) := LocalMask.and_left _ h
 
-theorem localMask_or {p : SolverPosType} {a b : UInt16}
+theorem localMask_or {p : PosType} {a b : UInt16}
     (ha : LocalMask p a) (hb : LocalMask p b) : LocalMask p (a ||| b) := by
   rw [LocalMask, UInt16.toNat_or]
   exact Nat.or_lt_two_pow ha hb
 
-theorem localMask_movableComp {p : SolverPosType} {mv' comp : UInt16}
+theorem localMask_movableComp {p : PosType} {mv' comp : UInt16}
     (h : LocalMask p mv') (hc : LocalMask p comp) : LocalMask p (movableComp mv' comp) := by
   unfold movableComp
   split
@@ -107,7 +109,7 @@ Otherwise bit `i` came from `component`, and `componentSound` transports the
 reachability to a bit `j` that *is* in `movable'` — which exists precisely because
 the code only ORs `component` in when `movable' &&& component ≠ 0`. -/
 theorem contribution_sound (hSS : SubsetSound) (hMS : MoveSimulated)
-    {g : Globals} {p p' : SolverPosType} {pile : UInt32} {toPile : UInt8}
+    {g : Globals} {p p' : PosType} {pile : UInt32} {toPile : UInt8}
     {mv cs fk : UInt16} {comp : UInt8} {kingInfo : KingInfo}
     (hwf : WellFormedLayout g) (hcanon : IsCanonicalPos g p)
     (hmvloc : LocalMask p mv)
@@ -115,10 +117,10 @@ theorem contribution_sound (hSS : SubsetSound) (hMS : MoveSimulated)
     (hkic : KingInfoCorrect p kingInfo)
     (hpile : pile.toNat < 10)
     (hdepth : 0 < (p.pileDepth.get ⟨pile.toNat % 10, by omega⟩).toNat)
-    (hdest : EStateM.run (solverGetDestination p pile) g = .ok toPile g)
-    (hmv : EStateM.run (solverGetMovable kingInfo (closureInfoOf p).shiftValue
+    (hdest : EStateM.run (getDestination p pile) g = .ok toPile g)
+    (hmv : EStateM.run (getMovable kingInfo (closureInfoOf p).shiftValue
         (p.pileFlute.get ⟨pile.toNat % 10, by omega⟩) toPile) g = .ok mv g)
-    (hrun : EStateM.run (SolverMove pile toPile) (g, p) = .ok fk (g, p'))
+    (hrun : EStateM.run (move pile toPile) (g, p) = .ok fk (g, p'))
     (hcs : LocalMask p' cs) (hchild : SoundBits g p' cs) :
     SoundBits g p (movableComp (movablePrime p p' mv cs fk) comp.toUInt16) := by
   intro s k hs hbit
@@ -159,13 +161,13 @@ theorem contribution_sound (hSS : SubsetSound) (hMS : MoveSimulated)
 
 /-! ## The loop invariant -/
 
-/-- **The invariant of `solverRecCheckSolvable`'s pile loop.**  The last two
+/-- **The invariant of `recCheckSolvable`'s pile loop.**  The last two
 fields are the invariant proper — *a set bit really means solvable*, and the
 accumulator stays inside its block so that the expansion is meaningful.  The
 first three are what the loop reads and the recursive call must not disturb:
 they are constant across the loop because the only state the call writes is the
 memo table. -/
-structure LoopInv (p : SolverPosType) (comp : UInt8) (v : UInt16) (g : Globals) : Prop where
+structure LoopInv (p : PosType) (comp : UInt8) (v : UInt16) (g : Globals) : Prop where
   wf : WellFormedLayout g
   canon : IsCanonicalPos g p
   comprun : EStateM.run (computeComponentKingBits p) g = .ok comp g
@@ -174,7 +176,7 @@ structure LoopInv (p : SolverPosType) (comp : UInt8) (v : UInt16) (g : Globals) 
 
 /-- **The invariant holds at entry**: `solvable` starts at `0`, whose expansion is
 empty. -/
-theorem LoopInv.zero {p : SolverPosType} {comp : UInt8} {g : Globals}
+theorem LoopInv.zero {p : PosType} {comp : UInt8} {g : Globals}
     (hwf : WellFormedLayout g) (hcanon : IsCanonicalPos g p)
     (hcomprun : EStateM.run (computeComponentKingBits p) g = .ok comp g) :
     LoopInv p comp 0 g where
@@ -191,7 +193,7 @@ theorem LoopInv.zero {p : SolverPosType} {comp : UInt8} {g : Globals}
 (`setSlot`, `Solver.lean:252-256`), and every clause of `LoopInv` reads only the
 deal arrays — `SoundBits`/`StateMatchesKingConfig` through `pos2card`
 (`StateMatchesSolverPos.hashmap_iff`), `computeComponentKingBits` not at all. -/
-def LoopFrame (p : SolverPosType) (comp : UInt8) (g g' : Globals) : Prop :=
+def LoopFrame (p : PosType) (comp : UInt8) (g g' : Globals) : Prop :=
   (WellFormedLayout g → WellFormedLayout g') ∧
   (IsCanonicalPos g p → IsCanonicalPos g' p) ∧
   (EStateM.run (computeComponentKingBits p) g = .ok comp g →
@@ -201,26 +203,26 @@ def LoopFrame (p : SolverPosType) (comp : UInt8) (g g' : Globals) : Prop :=
 /-- **What one iteration of the pile loop does to the accumulator.**  Either
 nothing — the pile is empty, or `movable` adds no bit the accumulator lacks, or
 the loop is about to stop — or it ORs in the `movable''` of one real move, whose
-data this records: the destination, the mask `solverGetMovable` returned, the
-successor position `SolverMove` produced and the answer the recursion gave for
+data this records: the destination, the mask `getMovable` returned, the
+successor position `move` produced and the answer the recursion gave for
 it.
 
 Everything but the frame is stated at the iteration's *entry* globals: the move
 and the mask are computed before the recursive call, and the call is the only
 thing in the body that writes state. -/
-def Contributes (p : SolverPosType) (kingInfo : KingInfo) (comp : UInt8)
+def Contributes (p : PosType) (kingInfo : KingInfo) (comp : UInt8)
     (v : UInt16) (g : Globals) (v' : UInt16) (g' : Globals) : Prop :=
   (v' = v ∧ g' = g) ∨
-  ∃ (p' : SolverPosType) (pile : UInt32) (toPile : UInt8) (mv cs fk : UInt16),
+  ∃ (p' : PosType) (pile : UInt32) (toPile : UInt8) (mv cs fk : UInt16),
     LocalMask p mv ∧
     pile.toNat < 10 ∧
     0 < (p.pileDepth.get ⟨pile.toNat % 10, by omega⟩).toNat ∧
-    EStateM.run (solverGetDestination p pile) g = .ok toPile g ∧
-    EStateM.run (solverGetMovable kingInfo (closureInfoOf p).shiftValue
+    EStateM.run (getDestination p pile) g = .ok toPile g ∧
+    EStateM.run (getMovable kingInfo (closureInfoOf p).shiftValue
       (p.pileFlute.get ⟨pile.toNat % 10, by omega⟩) toPile) g = .ok mv g ∧
-    EStateM.run (SolverMove pile toPile) (g, p) = .ok fk (g, p') ∧
+    EStateM.run (move pile toPile) (g, p) = .ok fk (g, p') ∧
     LocalMask p' cs ∧ SoundBits g p' cs ∧
-    (∃ g'' : Globals, EStateM.run (solverRecCheckSolvable p') g = .ok cs g'') ∧
+    (∃ g'' : Globals, EStateM.run (recCheckSolvable p') g = .ok cs g'') ∧
     v' = v ||| movableComp (movablePrime p p' mv cs fk) comp.toUInt16 ∧
     LoopFrame p comp g g'
 
@@ -229,7 +231,7 @@ def Contributes (p : SolverPosType) (kingInfo : KingInfo) (comp : UInt8)
 (frame), the new contribution is sound (`contribution_sound`), and both are
 local. -/
 theorem LoopInv.step (hSS : SubsetSound) (hMS : MoveSimulated)
-    {p : SolverPosType} {kingInfo : KingInfo} {comp : UInt8} {v v' : UInt16} {g g' : Globals}
+    {p : PosType} {kingInfo : KingInfo} {comp : UInt8} {v v' : UInt16} {g g' : Globals}
     (hcomploc : LocalMask p comp.toUInt16) (hkic : KingInfoCorrect p kingInfo)
     (h : LoopInv p comp v g) (hc : Contributes p kingInfo comp v g v' g') :
     LoopInv p comp v' g' := by
@@ -289,7 +291,7 @@ ORs in a sound contribution, so the value the loop returns satisfies the
 invariant: *a set bit in its `subsetTable` expansion means the state really is
 solvable*. -/
 theorem recLoop_sound (hSS : SubsetSound) (hMS : MoveSimulated)
-    {p : SolverPosType} {kingInfo : KingInfo} {comp : UInt8}
+    {p : PosType} {kingInfo : KingInfo} {comp : UInt8}
     (hcomploc : LocalMask p comp.toUInt16) (hkic : KingInfoCorrect p kingInfo)
     {body : Nat → UInt16 → EStateM Error Globals (ForInStep UInt16)} {l : List Nat}
     (hbody : ∀ a ∈ l, ∀ (v : UInt16) (g : Globals) (r : ForInStep UInt16) (g' : Globals),
@@ -303,7 +305,7 @@ theorem recLoop_sound (hSS : SubsetSound) (hMS : MoveSimulated)
 
 /-- **From an empty accumulator**, which is how the loop starts. -/
 theorem recLoop_sound_zero (hSS : SubsetSound) (hMS : MoveSimulated)
-    {p : SolverPosType} {kingInfo : KingInfo} {comp : UInt8}
+    {p : PosType} {kingInfo : KingInfo} {comp : UInt8}
     (hcomploc : LocalMask p comp.toUInt16) (hkic : KingInfoCorrect p kingInfo)
     {body : Nat → UInt16 → EStateM Error Globals (ForInStep UInt16)} {l : List Nat}
     (hbody : ∀ a ∈ l, ∀ (v : UInt16) (g : Globals) (r : ForInStep UInt16) (g' : Globals),
@@ -316,14 +318,14 @@ theorem recLoop_sound_zero (hSS : SubsetSound) (hMS : MoveSimulated)
   let h := recLoop_sound hSS hMS hcomploc hkic hbody (LoopInv.zero hwf hcanon hcomprun) hrun
   ⟨h.sound, h.isLocal⟩
 
-/-! ## The loop body of `solverRecCheckSolvable`
+/-! ## The loop body of `recCheckSolvable`
 
 `recBody` is the explicit twin of the pile loop's body (`Solver.lean:449-473`),
 with the recursive call abstracted as `rec` — the device
 `componentExplicit`/`drainBody` use elsewhere.  `recCheck_eq` below instantiates
-it with `solverRecCheckSolvable` itself. -/
+it with `recCheckSolvable` itself. -/
 
-def recBody (rec : SolverPosType → EStateM Error Globals UInt16) (game : SolverPosType)
+def recBody (rec : PosType → EStateM Error Globals UInt16) (game : PosType)
     (ci : ClosureInfo) (kingInfo : KingInfo) (component allkings : UInt16) :
     Nat → UInt16 → EStateM Error Globals (ForInStep UInt16) :=
   fun pile solvable => do
@@ -331,11 +333,11 @@ def recBody (rec : SolverPosType → EStateM Error Globals UInt16) (game : Solve
     if (← game.pileDepth.getE pileU32) == 0 then
       return .yield solvable
     let fluteLen ← game.pileFlute.getE pileU32
-    let toPile ← solverGetDestination game pileU32
-    let movable ← solverGetMovable kingInfo ci.shiftValue fluteLen toPile
+    let toPile ← getDestination game pileU32
+    let movable ← getMovable kingInfo ci.shiftValue fluteLen toPile
     if movable &&& ~~~solvable != 0 then
       let globals ← get
-      match EStateM.run (SolverMove pileU32 toPile) (globals, game) with
+      match EStateM.run (move pileU32 toPile) (globals, game) with
       | .ok forcedKings (newGlobals, childGame) =>
         set newGlobals
         let nci ← closureInfos.getE childGame.freePiles.toInt32.toUInt32
@@ -352,11 +354,11 @@ def recBody (rec : SolverPosType → EStateM Error Globals UInt16) (game : Solve
       return .yield solvable
 
 /-- **The real function, one level unfolded**, with its pile loop presented as
-`forIn … (recBody solverRecCheckSolvable …)` so that `recLoop_body_sound` applies
+`forIn … (recBody recCheckSolvable …)` so that `recLoop_body_sound` applies
 to it.
 
 This is what `partial_fixpoint` buys: a `partial def` has no unfolding equation at
-all, so no statement about `solverRecCheckSolvable` was provable.  With the
+all, so no statement about `recCheckSolvable` was provable.  With the
 equation in hand, the recursion is handled exactly as the `busyAces` drain loop is
 (`SolverSpec.drainBody_run`): induct on a `Nat` bounding the measure — here
 `DepthSum game`, which `move_merged` shows strictly drops at every child — and
@@ -364,9 +366,9 @@ rewrite with this lemma once per level.  The measure therefore never appears at
 the definition site, which is why `Solver.lean` can stay a verbatim transcription.
 
 `conv_lhs` is needed because a bare `rw` would also unfold the copy of
-`solverRecCheckSolvable` on the right-hand side. -/
-theorem recCheck_eq (game : SolverPosType) :
-    solverRecCheckSolvable game = (do
+`recCheckSolvable` on the right-hand side. -/
+theorem recCheck_eq (game : PosType) :
+    recCheckSolvable game = (do
       if game.hash == 0 then return 1
       let closureInfo ← closureInfos.getE game.freePiles.toInt32.toUInt32
       let cachedValue ← getSlot game.hash
@@ -376,10 +378,10 @@ theorem recCheck_eq (game : SolverPosType) :
       let allkings := (← kingInfo.possibleKings.getE 0).toUInt16
       let component := (← computeComponentKingBits game).toUInt16
       let solvable ← forIn (List.range 10) (0 : UInt16)
-        (recBody solverRecCheckSolvable game closureInfo kingInfo component allkings)
+        (recBody recCheckSolvable game closureInfo kingInfo component allkings)
       setSlot game.hash solvable
       return solvable) := by
-  conv_lhs => rw [solverRecCheckSolvable.eq_def]
+  conv_lhs => rw [recCheckSolvable.eq_def]
   rfl
 
 /-- **The one syntactic obligation left**: reading the body off the code.  Every
@@ -389,10 +391,10 @@ branch of `recBody` either returns the accumulator unchanged or ORs in the
 Discharging it is monadic bookkeeping, and needs exactly five run lemmas, none of
 them about solvability:
 
-* `solverGetDestination` and `solverGetMovable` leave `Globals` alone (they only
+* `getDestination` and `getMovable` leave `Globals` alone (they only
   read tables), so their results are available in the `.ok v g` form
   `MoveSimulated` wants;
-* `SolverMove` leaves `Globals` alone — it threads `(globals, game)` and writes
+* `move` leaves `Globals` alone — it threads `(globals, game)` and writes
   back the same `globals` (`Solver.lean:381-390`), and the phase specs
   `removeFlute_merged` / `drain_canonical_of` already return it unchanged;
 * `closureInfos.getE childGame.freePiles… = closureInfoOf childGame`, from
@@ -404,8 +406,8 @@ them about solvability:
 The recursion's own contribution — `SoundBits`, `LocalMask` and `LoopFrame` for
 the child call — is the induction hypothesis of the eventual well-founded
 induction, and enters here as `hrec`. -/
-def RecBodyContributes (rec : SolverPosType → EStateM Error Globals UInt16)
-    (p : SolverPosType) (kingInfo : KingInfo) (comp : UInt8) (allkings : UInt16) : Prop :=
+def RecBodyContributes (rec : PosType → EStateM Error Globals UInt16)
+    (p : PosType) (kingInfo : KingInfo) (comp : UInt8) (allkings : UInt16) : Prop :=
   ∀ (pile : Nat), pile < 10 → ∀ (v : UInt16) (g : Globals) (r : ForInStep UInt16) (g' : Globals),
     recBody rec p (closureInfoOf p) kingInfo comp.toUInt16 allkings pile v g = .ok r g' →
     Contributes p kingInfo comp v g r.value g'
@@ -414,13 +416,13 @@ def RecBodyContributes (rec : SolverPosType → EStateM Error Globals UInt16)
 loop, run to the end: every configuration in the `subsetTable` expansion of the
 returned mask really is solvable, and the mask stays inside its block.
 
-This is the statement `solverRecCheckSolvable`'s memo write and return value need
+This is the statement `recCheckSolvable`'s memo write and return value need
 (`SolvableBits`' soundness half), with the loop reduced to its three inputs: the
 per-contribution soundness proved here, the body-reading obligation above, and
 the induction hypothesis inside it. -/
 theorem recLoop_body_sound (hSS : SubsetSound) (hMS : MoveSimulated)
-    {rec : SolverPosType → EStateM Error Globals UInt16}
-    {p : SolverPosType} {kingInfo : KingInfo} {comp : UInt8} {allkings : UInt16}
+    {rec : PosType → EStateM Error Globals UInt16}
+    {p : PosType} {kingInfo : KingInfo} {comp : UInt8} {allkings : UInt16}
     (hcomploc : LocalMask p comp.toUInt16) (hkic : KingInfoCorrect p kingInfo)
     (hbody : RecBodyContributes rec p kingInfo comp allkings)
     {v' : UInt16} {g g' : Globals}

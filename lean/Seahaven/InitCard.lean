@@ -1,5 +1,7 @@
 import Seahaven.RecCheckSound
 
+open Solver
+
 /-!
 # `initcard` establishes the global invariants
 
@@ -15,7 +17,7 @@ Two things have to come out of it:
   (`IsDeal`): injectivity keeps a later card from overwriting an earlier one's
   `card2pile`/`card2depth` entry, and surjectivity (derived from injectivity by
   pigeonhole) is what makes every real card appear in `pos2card`.
-* **`HashmapCorrect` / `HashmapSound`** — trivial: `SolverInit` zeroes the table,
+* **`HashmapCorrect` / `HashmapSound`** — trivial: `init` zeroes the table,
   and a zero word never matches a key's 9-bit tag (which is `≥ 1`), so every
   slot reads back as `FREESLOT`.
 -/
@@ -51,7 +53,7 @@ def initBody (cardshuffle : Vector UInt8 52) (i : Nat) (_r : PUnit) :
 set_option maxHeartbeats 1000000 in
 /-- The `rfl`-twin: `initcard` with its `for` loop presented as `forIn … initBody`. -/
 theorem initcard_eq (sh : Vector UInt8 52) :
-    initcard sh = (do SolverInit; forIn (List.range 52) PUnit.unit (initBody sh); pure PUnit.unit) :=
+    initcard sh = (do init; forIn (List.range 52) PUnit.unit (initBody sh); pure PUnit.unit) :=
   rfl
 
 /-! ## Decoding a shuffle entry
@@ -432,7 +434,7 @@ theorem mkVector_getElem {α : Type} (n : Nat) (x : α) (i : Nat) (h : i < n) :
   simp [mkVector]
 
 theorem solverInit_run (g : Globals) :
-    SolverInit g = .ok () { g with hashmap := mkVector BIG_HASH_SIZE (UInt16.ofNat 0) } := rfl
+    init g = .ok () { g with hashmap := mkVector BIG_HASH_SIZE (UInt16.ofNat 0) } := rfl
 
 /-- **`initcard` establishes the global invariants.**  On a genuine deal it
 succeeds, and the globals it produces are a well-formed layout with an empty —
@@ -457,7 +459,7 @@ theorem initcard_ok {sh : Vector UInt8 52} (hdeal : IsDeal sh) (g : Globals)
   refine ⟨g', ?_, wellFormedLayout_of_initInv hdeal hinv,
     hashmapCorrect_of_zero hinv.memo_zero, hashmapSound_of_zero hinv.memo_zero⟩
   rw [initcard_eq]
-  show (SolverInit >>= fun _ =>
+  show (init >>= fun _ =>
     forIn (List.range 52) PUnit.unit (initBody sh) >>= fun _ => pure PUnit.unit) g = _
   simp only [bind, EStateM.bind, solverInit_run, List.range_eq_range', hrun, pure, EStateM.pure]
 
@@ -480,7 +482,7 @@ theorem initcard_ok' {sh : Vector UInt8 52} (hdeal : IsDeal sh) (g : Globals)
   refine ⟨g', ?_, wellFormedLayout_of_initInv hdeal hinv,
     hashmapCorrect_of_zero hinv.memo_zero, hashmapSound_of_zero hinv.memo_zero, hinv⟩
   rw [initcard_eq]
-  show (SolverInit >>= fun _ =>
+  show (init >>= fun _ =>
     forIn (List.range 52) PUnit.unit (initBody sh) >>= fun _ => pure PUnit.unit) g = _
   simp only [bind, EStateM.bind, solverInit_run, List.range_eq_range', hrun, pure, EStateM.pure]
 

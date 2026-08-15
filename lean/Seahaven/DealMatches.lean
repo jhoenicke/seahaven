@@ -2,6 +2,7 @@ import Seahaven.SolveSound
 import Seahaven.InitCard
 
 open Rules
+open Solver
 
 /-!
 # The dealt state matches the solver's view of a fresh deal
@@ -12,7 +13,7 @@ open Rules
 = 10 * row + col`) uses the same indexing — so the two agree position by position.
 
 This file builds the `Rules`-side deal from the shuffle and shows that the dealt
-state matches the position `SolverConvertFromPilesKings` computes for the
+state matches the position `convertFromPilesKings` computes for the
 all-fives depth vector.
 -/
 
@@ -320,7 +321,7 @@ theorem solve_deal_sound {sh : Vector UInt8 52} (hdeal : IsDeal sh) {g g' : Glob
     (htab : ∀ i : Fin 10, w.tableau i = (dealState sh).tableau i)
     (haces : ∀ su : Suit,
       cvAceVal g (cvDepths fullPk) (suitToNat su) = optRankToNat (w.foundations su))
-    (hrun : EStateM.run (_root_.solve fullPk) g = .ok 0 g') :
+    (hrun : EStateM.run (Solver.solve fullPk) g = .ok 0 g') :
     Solvable (dealState sh) := by
   have hcount : ∀ c : Card, countState w c = 1 := by
     intro c

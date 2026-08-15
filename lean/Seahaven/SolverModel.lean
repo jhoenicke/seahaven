@@ -1,5 +1,7 @@
 import Seahaven.Solver
 
+open Solver
+
 /-!
 # Parallel provable model of the solver's canonicalization functions
 
@@ -29,26 +31,26 @@ namespace SolverModel
 
 open scoped Classical
 
-/-- Merge loop of `SolverCleanupPile`: fold consecutive same-suit cards below the
+/-- Merge loop of `cleanupPile`: fold consecutive same-suit cards below the
     new top into the flute.  Carries `(depth, flute, card)`; mutates `game.hash`. -/
 def mergeLoop (fuel : Nat) (pile pilehash : UInt32) (depth flute : UInt8) (card : UInt8) :
-    EStateM Error (Globals × SolverPosType) (UInt8 × UInt8 × UInt8) := do
+    EStateM Error (Globals × PosType) (UInt8 × UInt8 × UInt8) := do
   match fuel with
   | 0 => return (depth, flute, card)
   | fuel + 1 =>
     let ⟨globals, game⟩ ← get
     if (← (do return decide (depth > 1)) <&&>
       (do return (← (← globals.pos2card.getE pile).getE (depth - 2).toUInt32) == card + 1)) then
-      set (⟨globals, { game with hash := game.hash - pilehash }⟩ : Globals × SolverPosType)
+      set (⟨globals, { game with hash := game.hash - pilehash }⟩ : Globals × PosType)
       mergeLoop fuel pile pilehash (depth - 1) (flute + 1) (card + 1)
     else
       return (depth, flute, card)
 
-/-- Freed-predecessor loop of `SolverCleanupPile`: extend the flute with
+/-- Freed-predecessor loop of `cleanupPile`: extend the flute with
     predecessor cards already freed from their piles.  Carries `(flute, prevCard)`;
     mutates `game.usedSpace`. -/
 def freedLoop (fuel : Nat) (suit : UInt8) (flute : UInt8) (prevCard : UInt8) :
-    EStateM Error (Globals × SolverPosType) (UInt8 × UInt8) := do
+    EStateM Error (Globals × PosType) (UInt8 × UInt8) := do
   match fuel with
   | 0 => return (flute, prevCard)
   | fuel + 1 =>
@@ -56,15 +58,15 @@ def freedLoop (fuel : Nat) (suit : UInt8) (flute : UInt8) (prevCard : UInt8) :
     if (← (do return decide ((← game.aces.getE suit.toUInt32) < prevCard)) <&&>
       do return (← globals.card2depth.getE prevCard.toUInt32).toNat >=
           (← game.pileDepth.getE (← globals.card2pile.getE prevCard.toUInt32).toUInt32).toNat) then
-      set (⟨globals, { game with usedSpace := game.usedSpace - 1 }⟩ : Globals × SolverPosType)
+      set (⟨globals, { game with usedSpace := game.usedSpace - 1 }⟩ : Globals × PosType)
       freedLoop fuel suit (flute + 1) (prevCard - 1)
     else
       return (flute, prevCard)
 
-/-- Model of `Solver.SolverCleanupPile` with the two `while` loops replaced by
+/-- Model of `Solver.cleanupPile` with the two `while` loops replaced by
     `mergeLoop`/`freedLoop`.  Precondition (unchanged): `game.pileDepth[pile]` and
     `game.hash` already reflect the removal of the old flute boundary. -/
-def SolverCleanupPile (pile : UInt32) : EStateM Error (Globals × SolverPosType) UInt16 := do
+def cleanupPile (pile : UInt32) : EStateM Error (Globals × PosType) UInt16 := do
   let mut ⟨globals, game⟩ ← get
   let mut forcedKings : UInt16 := 0xffff
   let pilehash := ← pileHashes.getE pile
@@ -98,28 +100,28 @@ def SolverCleanupPile (pile : UInt32) : EStateM Error (Globals × SolverPosType)
     pileDepth := ← game.pileDepth.setE pile depth
     pileFlute := ← game.pileFlute.setE pile flute
   }
-  set (⟨globals, game⟩ : Globals × SolverPosType)
+  set (⟨globals, game⟩ : Globals × PosType)
   return forcedKings
 
 -- `CleanupPileEquals` (model = real) was dropped: on Lean 4.31 the real solver's
 -- `while` loops are no longer opaque (see `Seahaven.EStateMOrder`), so specs are proved
--- directly against `_root_.SolverCleanupPile` (see the `SolverSpec*` files) rather than
+-- directly against `Solver.cleanupPile` (see the `SolverSpec*` files) rather than
 -- via this fuel model.  (An unconditional model=real equality would also be false as
 -- written: the model's `freedLoop 60` caps the freed-flute loop, which the real
 -- unbounded `while` can run up to ~65 times.)
 
-/-- Model of `Solver.SolverRemoveFlute` (no loops of its own; delegates to the
-    model `SolverCleanupPile`). -/
-def SolverRemoveFlute (pile : UInt32) : EStateM Error (Globals × SolverPosType) UInt16 := do
+/-- Model of `Solver.removeFlute` (no loops of its own; delegates to the
+    model `cleanupPile`). -/
+def removeFlute (pile : UInt32) : EStateM Error (Globals × PosType) UInt16 := do
   let mut ⟨globals, game⟩ ← get
   game := { game with pileDepth := ← game.pileDepth.setE pile ((← game.pileDepth.getE pile) - 1) }
   game := { game with hash := game.hash - (← pileHashes.getE pile) }
-  set (⟨globals, game⟩ : Globals × SolverPosType)
-  SolverCleanupPile pile
+  set (⟨globals, game⟩ : Globals × PosType)
+  cleanupPile pile
 
-/-- `repeat` loop of `solverGetDestination`: walk up the successor chain until a
+/-- `repeat` loop of `getDestination`: walk up the successor chain until a
     card sits at position-from-top `> 0`. -/
-def getDestLoop (fuel : Nat) (game : SolverPosType) (card : UInt8) :
+def getDestLoop (fuel : Nat) (game : PosType) (card : UInt8) :
     EStateM Error Globals UInt8 := do
   match fuel with
   | 0 => return 14  -- EXTRA (fuel exhausted; unreachable with sufficient fuel)
@@ -134,8 +136,8 @@ def getDestLoop (fuel : Nat) (game : SolverPosType) (card : UInt8) :
     else
       getDestLoop fuel game card
 
-/-- Model of `Solver.solverGetDestination`. -/
-def solverGetDestination (game : SolverPosType) (pile : UInt32) : EStateM Error Globals UInt8 := do
+/-- Model of `Solver.getDestination`. -/
+def getDestination (game : PosType) (pile : UInt32) : EStateM Error Globals UInt8 := do
   let globals ← get
   let depth ← game.pileDepth.getE pile
   let card := ← (← globals.pos2card.getE pile).getE (depth - 1).toUInt32
@@ -144,10 +146,10 @@ def solverGetDestination (game : SolverPosType) (pile : UInt32) : EStateM Error 
     return 10 + suit  -- KINGPILE + suit
   getDestLoop 16 game card
 
-/-- Main `while` loop of `SolverMoveAces`: advance the foundation for one suit,
+/-- Main `while` loop of `moveAces`: advance the foundation for one suit,
     removing flutes as freed cards are exposed.  Carries `(card, found, forcedKings)`. -/
 def moveAcesLoop (fuel : Nat) (suitU32 : UInt32) (card : UInt8) (found : UInt8) (forcedKings : UInt16) :
-    EStateM Error (Globals × SolverPosType) (UInt8 × UInt8 × UInt16) := do
+    EStateM Error (Globals × PosType) (UInt8 × UInt8 × UInt16) := do
   match fuel with
   | 0 => return (card, found, forcedKings)
   | fuel + 1 =>
@@ -160,16 +162,16 @@ def moveAcesLoop (fuel : Nat) (suitU32 : UInt32) (card : UInt8) (found : UInt8) 
         moveAcesLoop fuel suitU32 (card + 1) (found + 1) forcedKings
       else if cardDepth == 0 then
         let game := { game with aces := ← game.aces.setE suitU32 card }
-        set (⟨globals, game⟩ : Globals × SolverPosType)
-        let fk ← SolverRemoveFlute pile.toUInt32
+        set (⟨globals, game⟩ : Globals × PosType)
+        let fk ← removeFlute pile.toUInt32
         moveAcesLoop fuel suitU32 (card + 1) 0 (forcedKings &&& fk)
       else
         return (card, found, forcedKings)
     else
       return (card, found, forcedKings)
 
-/-- Model of `Solver.SolverMoveAces`. -/
-def SolverMoveAces : EStateM Error (Globals × SolverPosType) UInt16 := do
+/-- Model of `Solver.moveAces`. -/
+def moveAces : EStateM Error (Globals × PosType) UInt16 := do
   let s0 ← get
   let suit := ctz s0.2.busyAces
   let suitU32 := UInt32.ofNat suit
@@ -182,23 +184,23 @@ def SolverMoveAces : EStateM Error (Globals × SolverPosType) UInt16 := do
   if VALUE card == 13 then
     game := { game with kings := ← game.kings.setE suitU32 card }
   game := { game with busyAces := game.busyAces - ((1 : UInt8) <<< UInt8.ofNat suit) }
-  set (⟨globals, game⟩ : Globals × SolverPosType)
+  set (⟨globals, game⟩ : Globals × PosType)
   return forcedKings
 
-/-- `while busyAces ≠ 0 do SolverMoveAces` drain, shared by `SolverMove` and
-    `SolverConvertFromPilesKings`.  Threads and accumulates `forcedKings`. -/
-def drainLoop (fuel : Nat) (forcedKings : UInt16) : EStateM Error (Globals × SolverPosType) UInt16 := do
+/-- `while busyAces ≠ 0 do moveAces` drain, shared by `move` and
+    `convertFromPilesKings`.  Threads and accumulates `forcedKings`. -/
+def drainLoop (fuel : Nat) (forcedKings : UInt16) : EStateM Error (Globals × PosType) UInt16 := do
   match fuel with
   | 0 => return forcedKings
   | fuel + 1 =>
     if (← get).2.busyAces != 0 then
-      let fk ← SolverMoveAces
+      let fk ← moveAces
       drainLoop fuel (forcedKings &&& fk)
     else
       return forcedKings
 
-/-- Model of `Solver.SolverMove`. -/
-def SolverMove (pile : UInt32) (toPile : UInt8) : EStateM Error (Globals × SolverPosType) UInt16 := do
+/-- Model of `Solver.move`. -/
+def move (pile : UInt32) (toPile : UInt8) : EStateM Error (Globals × PosType) UInt16 := do
   let mut ⟨globals, game⟩ ← get
   let fluteLen := ← game.pileFlute.getE pile
   if toPile < 10 then  -- pile to pile
@@ -208,14 +210,14 @@ def SolverMove (pile : UInt32) (toPile : UInt8) : EStateM Error (Globals × Solv
       let kingIdx := (toPile - 10).toUInt32
       game := { game with kings := ← game.kings.setE kingIdx ((← game.kings.getE kingIdx) - fluteLen) }
     game := { game with usedSpace := game.usedSpace + fluteLen }
-  set (⟨globals, game⟩ : Globals × SolverPosType)
-  let forcedKings ← SolverRemoveFlute pile
+  set (⟨globals, game⟩ : Globals × PosType)
+  let forcedKings ← removeFlute pile
   drainLoop 64 forcedKings
 
-/-- Ace-walk of `SolverConvertFromPilesKings`: advance the foundation candidate
+/-- Ace-walk of `convertFromPilesKings`: advance the foundation candidate
     while the current card is already freed. -/
-def aceWalk (fuel : Nat) (game : SolverPosType) (ace card : UInt8) :
-    EStateM Error (Globals × SolverPosType) UInt8 := do
+def aceWalk (fuel : Nat) (game : PosType) (ace card : UInt8) :
+    EStateM Error (Globals × PosType) UInt8 := do
   match fuel with
   | 0 => return ace
   | fuel + 1 =>
@@ -227,10 +229,10 @@ def aceWalk (fuel : Nat) (game : SolverPosType) (ace card : UInt8) :
     else
       return ace
 
-/-- King-walk of `SolverConvertFromPilesKings`: count down from the king past
+/-- King-walk of `convertFromPilesKings`: count down from the king past
     freed cards to the first un-freed one. -/
-def kingWalk (fuel : Nat) (game : SolverPosType) (card : UInt8) :
-    EStateM Error (Globals × SolverPosType) UInt8 := do
+def kingWalk (fuel : Nat) (game : PosType) (card : UInt8) :
+    EStateM Error (Globals × PosType) UInt8 := do
   match fuel with
   | 0 => return card
   | fuel + 1 =>
@@ -241,11 +243,11 @@ def kingWalk (fuel : Nat) (game : SolverPosType) (card : UInt8) :
     else
       return card
 
-/-- Model of `Solver.SolverConvertFromPilesKings`.  The three `while` loops (two
+/-- Model of `Solver.convertFromPilesKings`.  The three `while` loops (two
     per-suit walks and the final foundation drain) are replaced by
     `aceWalk`/`kingWalk`/`drainLoop`; the two `for … in List.range` loops are kept. -/
-def SolverConvertFromPilesKings (pilesking : Vector UInt8 11) :
-    EStateM Error (Globals × SolverPosType) UInt16 := do
+def convertFromPilesKings (pilesking : Vector UInt8 11) :
+    EStateM Error (Globals × PosType) UInt16 := do
   let mut ⟨globals, game⟩ ← get
   let mut forcedKings : UInt16 := 0xffff
 
@@ -272,19 +274,19 @@ def SolverConvertFromPilesKings (pilesking : Vector UInt8 11) :
     let card ← (if ace < card0 then kingWalk 16 game card0 else pure card0)
     game := { game with kings := ← game.kings.setE suitU32 card }
 
-  set (⟨globals, game⟩ : Globals × SolverPosType)
+  set (⟨globals, game⟩ : Globals × PosType)
 
   for i in List.range 10 do
-    forcedKings := forcedKings &&& (← SolverCleanupPile (UInt32.ofNat i))
+    forcedKings := forcedKings &&& (← cleanupPile (UInt32.ofNat i))
 
   drainLoop 64 forcedKings
 
 -- ---------------------------------------------------------------------------
 -- Behavioural equivalence check (vs `Solver.lean`) by `#eval`
 --
--- Both the real and model `SolverConvertFromPilesKings` are run on the same
+-- Both the real and model `convertFromPilesKings` are run on the same
 -- `Globals` (built from a concrete deal via `initcard`) and the same pile-depth
--- vector; the resulting `(forcedKings, SolverPosType)` values are compared by
+-- vector; the resulting `(forcedKings, PosType)` values are compared by
 -- their `Repr` strings.  Equal ⇒ the model matches the solver on this input.
 -- ---------------------------------------------------------------------------
 
@@ -294,18 +296,18 @@ def sampleShuffle : Vector UInt8 52 := Vector.ofFn (fun i => UInt8.ofNat (i.val 
 
 /-- Run a convert function on the identity deal with the given pile depths and
     return the `Repr` string of `(forcedKings, resulting game)`. -/
-def runConvert (conv : Vector UInt8 11 → EStateM Error (Globals × SolverPosType) UInt16)
+def runConvert (conv : Vector UInt8 11 → EStateM Error (Globals × PosType) UInt16)
     (pk : Vector UInt8 11) : String :=
   match EStateM.run (initcard sampleShuffle) emptyGlobals with
   | .error e _ => s!"initcard error: {repr e}"
   | .ok _ g =>
-    match EStateM.run (conv pk) (g, emptySolverPosType) with
+    match EStateM.run (conv pk) (g, emptyPosType) with
     | .error e _ => s!"convert error: {repr e}"
     | .ok fk (_, game) => s!"{fk} {repr game}"
 
 /-- Compare real vs model convert on a pile-depth vector. -/
 def convertMatches (pk : Vector UInt8 11) : Bool :=
-  runConvert _root_.SolverConvertFromPilesKings pk == runConvert SolverModel.SolverConvertFromPilesKings pk
+  runConvert Solver.convertFromPilesKings pk == runConvert SolverModel.convertFromPilesKings pk
 
 -- A handful of pile-depth configurations to exercise the code paths.
 #eval convertMatches ⟨#[5,5,5,5,5,5,5,5,5,5, 0], by simp⟩  -- full initial deal

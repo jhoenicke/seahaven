@@ -3,15 +3,16 @@ import Seahaven.SolverSpecMove
 import Seahaven.SolverSpecDrain
 
 open Rules
+open Solver
 
 /-!
-# A whole `SolverMove` call, simulated
+# A whole `move` call, simulated
 
-`SolverMove` is three phases (`moveDest_run_eq`):
+`move` is three phases (`moveDest_run_eq`):
 
 1. the destination bookkeeping write — `moveDestPre`, whose `Rules`-side realization is
    `fluteMoves`/`parkMoves` (`MoveSim.lean`, `StateMatchesKingConfig.movePre_run*`);
-2. `SolverRemoveFlute pile` — `Simulates.ofRemoveFlute`, entered at exactly
+2. `removeFlute pile` — `Simulates.ofRemoveFlute`, entered at exactly
    `SolverSpec.movePre pile toPile hpile p`, the composed
    `fluteNorm ∘ removeFlutePre ∘ moveDestPre` point;
 3. the `while busyAces ≠ 0` drain — `Simulates.moveAces` per iteration, carried through
@@ -28,14 +29,14 @@ Two things are still needed to discharge it, and neither is in this file:
   statement about those move lists, not new semantic work.
 * with the frame in hand, a two-column variant of `StateMatchesKingConfig.framePile`.
   The configuration is *preserved* by every destination — no phase-1 move vacates a king
-  (the vacate happens inside `SolverCleanupPile`, which `ofRemoveFlute` already covers):
+  (the vacate happens inside `cleanupPile`, which `ofRemoveFlute` already covers):
   the source pile has depth ≥ 1 so no suit owns it, and it either keeps depth ≥ 1 or ends
   up with a physically empty column; a column destination keeps depth ≥ 1; and a king
   destination lands on the column its suit already owns (whose *deepest* card, hence
   `OwnsPile`, is untouched) or, when the suit is unpiled, in the cells — where `no_pile`
   is exactly what licenses the `kings[su]` write.
 
-The free-cell side conditions of phase 1 are what `solverGetMovable`'s spec supplies;
+The free-cell side conditions of phase 1 are what `getMovable`'s spec supplies;
 that spec is what `MoveSimulated` will feed in.
 -/
 
@@ -43,10 +44,10 @@ open Lean Lean.Order
 
 /-- **Extending a simulation backwards by a phase that keeps the configuration.**  Dual
 to `Simulates.extend`: here the *first* phase's mask is dropped and the second's kept,
-which is what the composition of `SolverMove` needs — phase 1 contributes no mask of its
-own (the solver does not intersect anything before `SolverRemoveFlute` returns), while
+which is what the composition of `move` needs — phase 1 contributes no mask of its
+own (the solver does not intersect anything before `removeFlute` returns), while
 phases 2 and 3 contribute the returned `forcedKings`. -/
-theorem Simulates.prependNorm {g : Globals} {s w v : State} {p q r : SolverPosType}
+theorem Simulates.prependNorm {g : Globals} {s w v : State} {p q r : PosType}
     {k k' : Fin 16} {FK FK' : Finset Suit} {fk fk' : UInt16}
     (h : Simulates g s p k w q k FK fk) (h' : SimulatesNorm g w q k v r k' FK' fk') :
     Simulates g s p k v r k' FK' fk' where
@@ -56,13 +57,13 @@ theorem Simulates.prependNorm {g : Globals} {s w v : State} {p q r : SolverPosTy
   bound := h'.bound
 
 /-- **The `busyAces` drain loop is simulated.**  One `Simulates.moveAces` per iteration;
-the loop's accumulator `forcedKings := forcedKings &&& (← SolverMoveAces)` is exactly
+the loop's accumulator `forcedKings := forcedKings &&& (← moveAces)` is exactly
 what `Simulates.trans` does to the masks, so the mask of the result is the mask the loop
 returns. -/
-theorem SimulatesNorm.drain {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
-    (hwf : WellFormedLayout g) {q : SolverPosType} {fk0 : UInt16}
+theorem SimulatesNorm.drain {g : Globals} {s : State} {p : PosType} {k : Fin 16}
+    (hwf : WellFormedLayout g) {q : PosType} {fk0 : UInt16}
     (hmerged : SolverInvMerged g q) (hP : MoveAcesSim g s p k fk0 q) :
-    ∃ (fk : UInt16) (q' : SolverPosType),
+    ∃ (fk : UInt16) (q' : PosType),
       Loop.forIn Loop.mk fk0 drainBody (g, q) = .ok fk (g, q') ∧
       IsCanonicalPos g q' ∧ MoveAcesSim g s p k fk q' := by
   refine SolverSpec.drain_canonical_of g q fk0 hwf hmerged (MoveAcesSim g s p k) ?_ hP
@@ -70,7 +71,7 @@ theorem SimulatesNorm.drain {g : Globals} {s : State} {p : SolverPosType} {k : F
   obtain ⟨w, kk, FK, hsimW⟩ := hPacc
   obtain ⟨fk2, p2, hrun2, s2, k2, FK2, hsim2⟩ := SimulatesNorm.moveAces hwf hm hbz hsimW.cfg
   -- the solver's own run pins the mask and the successor position
-  have hrun' : EStateM.run _root_.SolverMoveAces (g, game) = .ok fk (g, game1) := hrun
+  have hrun' : EStateM.run Solver.moveAces (g, game) = .ok fk (g, game1) := hrun
   injection hrun2.symm.trans hrun' with h1 h2
   injection h2 with _hg hp2
   subst h1
@@ -81,15 +82,15 @@ theorem SimulatesNorm.drain {g : Globals} {s : State} {p : SolverPosType} {k : F
 `MoveAcesSim`; this is the form route B uses, where the state matching the merged,
 post-cleanup position comes from the play rather than from a simulation of phase 1.
 
-The accumulator `fk0` is the mask `SolverRemoveFlute` returned, so it need not be
+The accumulator `fk0` is the mask `removeFlute` returned, so it need not be
 neutral; `hFK` is what licenses starting there — the configuration already piles every
 suit the cleanup's vacate forced, which it does because that king is physically on the
 freed column. -/
-theorem SimulatesNorm.drainFrom {g : Globals} {v : State} {q : SolverPosType} {k : Fin 16}
+theorem SimulatesNorm.drainFrom {g : Globals} {v : State} {q : PosType} {k : Fin 16}
     (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g q)
     (hv : StateMatchesKingConfig g v q k) {FK0 : Finset Suit} {fk0 : UInt16}
     (hvac : KingVacates FK0 fk0) (hFK : ∀ su ∈ FK0, ¬ CfgBitSet k su) :
-    ∃ (fk : UInt16) (q' : SolverPosType) (s' : State) (k' : Fin 16) (FK : Finset Suit),
+    ∃ (fk : UInt16) (q' : PosType) (s' : State) (k' : Fin 16) (FK : Finset Suit),
       Loop.forIn Loop.mk fk0 drainBody (g, q) = .ok fk (g, q') ∧
       IsCanonicalPos g q' ∧ SimulatesNorm g v q k s' q' k' FK fk := by
   obtain ⟨fk, q', hrun, hcan, hP⟩ :=
@@ -98,7 +99,7 @@ theorem SimulatesNorm.drainFrom {g : Globals} {v : State} {q : SolverPosType} {k
   exact ⟨fk, q', s', k', FK, hrun, hcan, hsim⟩
 
 set_option maxHeartbeats 1000000 in
-/-- **Phases 2 and 3 of a `SolverMove`, as a *normalizing* simulation.**  From a state
+/-- **Phases 2 and 3 of a `move`, as a *normalizing* simulation.**  From a state
 matching the flute move's target position `movePre …`, the cleanup's freed-predecessor
 drops and the `busyAces` drain are all foundation plays and cell→pile drops — so the
 entry and exit states are **equi-solvable** (`SimulatesNorm.solvable_iff`).
@@ -106,7 +107,7 @@ entry and exit states are **equi-solvable** (`SimulatesNorm.solvable_iff`).
 This is the completeness-facing form: the state matching `movePre` is the play's own
 post-critical-move state, normalized, and the conclusion hands the induction hypothesis
 a solvable state matching the child position. -/
-theorem SimulatesNorm.moveTail {g : Globals} {v : State} {p : SolverPosType} {k : Fin 16}
+theorem SimulatesNorm.moveTail {g : Globals} {v : State} {p : PosType} {k : Fin 16}
     (pile : UInt32) (toPile : UInt8) (hwf : WellFormedLayout g) (hcanon : IsCanonicalPos g p)
     (hvalid : SolverSpec.MoveValid g p pile toPile) (hpile : pile.toNat < 10)
     (hidx5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5) (B : UInt8)
@@ -114,8 +115,8 @@ theorem SimulatesNorm.moveTail {g : Globals} {v : State} {p : SolverPosType} {k 
       ⟨(p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1, hidx5⟩ = B)
     (hdv : SolverSpec.DestValid g p B toPile)
     (hv : StateMatchesKingConfig g v (SolverSpec.movePre pile toPile hpile p) k) :
-    ∃ (fk : UInt16) (p' : SolverPosType) (s' : State) (k' : Fin 16) (FK : Finset Suit),
-      EStateM.run (_root_.SolverMove pile toPile) (g, p) = .ok fk (g, p') ∧
+    ∃ (fk : UInt16) (p' : PosType) (s' : State) (k' : Fin 16) (FK : Finset Suit),
+      EStateM.run (Solver.move pile toPile) (g, p) = .ok fk (g, p') ∧
       IsCanonicalPos g p' ∧
       SimulatesNorm g v (SolverSpec.movePre pile toPile hpile p) k s' p' k' FK fk := by
   obtain ⟨-, htoPile14, hd0⟩ := hvalid
@@ -126,10 +127,10 @@ theorem SimulatesNorm.moveTail {g : Globals} {v : State} {p : SolverPosType} {k 
   have hmerged := hcanon.toSolverInvMerged
   have hready := SolverSpec.moveDest_cleanupReady g p pile toPile hpile hwf hmerged hd1 B
     hidx5 hBdef hdv
-  -- phase 2: the `SolverRemoveFlute` call
+  -- phase 2: the `removeFlute` call
   obtain ⟨fk1, p1, hrun1, hmerged1, -, -⟩ :=
     SolverSpec.removeFlute_merged pile g (SolverSpec.moveDestPre pile toPile hpile p) hpile hwf hready
-  have hrun1' : _root_.SolverRemoveFlute pile (g, SolverSpec.moveDestPre pile toPile hpile p)
+  have hrun1' : Solver.removeFlute pile (g, SolverSpec.moveDestPre pile toPile hpile p)
       = .ok fk1 (g, p1) := hrun1
   obtain ⟨v2, k2, FK2, hsim2⟩ := SimulatesNorm.ofRemoveFlute hwf hpile hready hv hrun1'
   -- phase 3: the drain
@@ -139,22 +140,22 @@ theorem SimulatesNorm.moveTail {g : Globals} {v : State} {p : SolverPosType} {k 
   refine ⟨fk2, p2, s2, k3, FK3, ?_, hcanon2, hsim3⟩
   -- and the two phases really are the whole call
   rw [SolverSpec.moveDest_run_eq pile toPile g p hpile htoPile14]
-  show (_root_.SolverRemoveFlute pile >>= fun fk =>
+  show (Solver.removeFlute pile >>= fun fk =>
       Loop.forIn Loop.mk fk drainBody >>= fun r => pure r)
     (g, SolverSpec.moveDestPre pile toPile hpile p) = .ok fk2 (g, p2)
   simp only [bind, EStateM.bind, hrun1', pure, EStateM.pure]
   rw [hrun2]
 
-/-- **A whole `SolverMove` call is simulated.**  Phase 1 — the flute move — enters as
+/-- **A whole `move` call is simulated.**  Phase 1 — the flute move — enters as
 `hphase1` and stays a plain `Simulates` (it is not normalizing); phases 2 and 3 come
 from `SimulatesNorm.moveTail`, whose `solvable_iff` remains available separately to the
 completeness side.
 
-The mask is the one `SolverMove` returns, so this composes into
-`solverRecCheckSolvable`'s `forcedKings` handling directly (`kingStep_transport`), and the
+The mask is the one `move` returns, so this composes into
+`recCheckSolvable`'s `forcedKings` handling directly (`kingStep_transport`), and the
 resulting position is canonical — which is what the next recursion level's
 `StateMatchesKingConfig` hypothesis needs. -/
-theorem Simulates.move {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
+theorem Simulates.move {g : Globals} {s : State} {p : PosType} {k : Fin 16}
     (pile : UInt32) (toPile : UInt8) (hwf : WellFormedLayout g) (hcanon : IsCanonicalPos g p)
     (hvalid : SolverSpec.MoveValid g p pile toPile) (hpile : pile.toNat < 10)
     (hidx5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5) (B : UInt8)
@@ -163,8 +164,8 @@ theorem Simulates.move {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16
     (hdv : SolverSpec.DestValid g p B toPile)
     (hphase1 : ∃ v : State,
       Simulates g s p k v (SolverSpec.movePre pile toPile hpile p) k ∅ 0xffff) :
-    ∃ (fk : UInt16) (p' : SolverPosType) (s' : State) (k' : Fin 16) (FK : Finset Suit),
-      EStateM.run (_root_.SolverMove pile toPile) (g, p) = .ok fk (g, p') ∧
+    ∃ (fk : UInt16) (p' : PosType) (s' : State) (k' : Fin 16) (FK : Finset Suit),
+      EStateM.run (Solver.move pile toPile) (g, p) = .ok fk (g, p') ∧
       IsCanonicalPos g p' ∧ Simulates g s p k s' p' k' FK fk := by
   obtain ⟨v, hsim1⟩ := hphase1
   obtain ⟨fk, p', s', k', FK, hrun, hcanon', htail⟩ :=
@@ -174,14 +175,14 @@ theorem Simulates.move {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16
 /-- **The completeness reading of `moveTail`**, with the fields projected out.
 
 Given the play's post-critical-move state, normalized so that it matches the flute
-move's target position `movePre …` at `k`, the solver's own `SolverMove` reaches a
+move's target position `movePre …` at `k`, the solver's own `move` reaches a
 canonical child `p'` and a state `s'` matching it at `k'`, with
 
 * `Solvable v ↔ Solvable s'` — so the play's solvability reaches the induction
   hypothesis, and
 * `piled k' = piled k ∪ FK` together with `KingVacates FK fk` — so `k'` survives the
   `&&& forcedKings` intersection (`Simulates.bitSet_fk`). -/
-theorem exists_child_match_of_movePre {g : Globals} {v : State} {p : SolverPosType}
+theorem exists_child_match_of_movePre {g : Globals} {v : State} {p : PosType}
     {k : Fin 16} (pile : UInt32) (toPile : UInt8) (hwf : WellFormedLayout g)
     (hcanon : IsCanonicalPos g p) (hvalid : SolverSpec.MoveValid g p pile toPile)
     (hpile : pile.toNat < 10)
@@ -190,8 +191,8 @@ theorem exists_child_match_of_movePre {g : Globals} {v : State} {p : SolverPosTy
       ⟨(p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1, hidx5⟩ = B)
     (hdv : SolverSpec.DestValid g p B toPile)
     (hv : StateMatchesKingConfig g v (SolverSpec.movePre pile toPile hpile p) k) :
-    ∃ (fk : UInt16) (p' : SolverPosType) (s' : State) (k' : Fin 16) (FK : Finset Suit),
-      EStateM.run (_root_.SolverMove pile toPile) (g, p) = .ok fk (g, p') ∧
+    ∃ (fk : UInt16) (p' : PosType) (s' : State) (k' : Fin 16) (FK : Finset Suit),
+      EStateM.run (Solver.move pile toPile) (g, p) = .ok fk (g, p') ∧
       IsCanonicalPos g p' ∧ StateMatchesKingConfig g s' p' k' ∧
       (Solvable v ↔ Solvable s') ∧ KingVacates FK fk ∧ BitSet fk k' ∧
       (∀ su : Suit, ¬ CfgBitSet k' su ↔ (¬ CfgBitSet k su ∨ su ∈ FK)) := by

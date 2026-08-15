@@ -7,6 +7,7 @@ import Seahaven.DealMatches
 import Seahaven.SolverCorrectness
 
 open Rules
+open Solver
 
 /-!
 # `solver_is_correct`
@@ -289,7 +290,7 @@ def ReachableAnswer : Prop :=
   ∀ (sh : Shuffle) (g : Globals), Inv1 sh g →
     ∀ s : State, isReachable (Rules.init sh.perm) s →
       ∀ (r : UInt8) (g' : Globals),
-        EStateM.run (_root_.solve (pilesKingsFromState s)) g = .ok r g' →
+        EStateM.run (Solver.solve (pilesKingsFromState s)) g = .ok r g' →
         (r = UInt8.ofNat SUCCESS ↔ isSolvable s)
 
 /-- **Obligation 2a: a reachable state matches its own encoding.**  The `Rules`-side
@@ -307,7 +308,7 @@ entry state (`CvEntry`):
 def ReachableEntry : Prop :=
   ∀ (sh : Shuffle) (g : Globals), Inv1 sh g →
     ∀ s : State, isReachable (Rules.init sh.perm) s →
-      ∃ game' : SolverPosType,
+      ∃ game' : PosType,
         CvEntry g (pilesKingsFromState s) s game'
           (kingCfgOf (pilesKingsFromState s) (pilesKings_get10_lt16 s))
 

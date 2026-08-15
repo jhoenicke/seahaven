@@ -1,18 +1,20 @@
 import Seahaven.SolverSpecDrain
 import Seahaven.SolverSpecSolverCleanupPile
 
-/-!
-# The prologue of `SolverConvertFromPilesKings`, mirrored
+open Solver
 
-`SolverConvertFromPilesKings` is four loops:
+/-!
+# The prologue of `convertFromPilesKings`, mirrored
+
+`convertFromPilesKings` is four loops:
 
 1. `for i in List.range 10` — install the pile depths from the input vector and
    recompute `pileFlute`/`usedSpace`/`hash` from scratch;
 2. `for suit in List.range 4` — the per-suit foundation (`aces`) and king-frontier
    (`kings`) walks, each a `while` over the freed cards;
-3. `for i in List.range 10` — `SolverCleanupPile` on every pile;
+3. `for i in List.range 10` — `cleanupPile` on every pile;
 4. `while busyAces ≠ 0` — the foundation drain (`drainBody`, shared with
-   `SolverMove`).
+   `move`).
 
 Loops 1 and 2 never touch the monadic state: they thread the position through the
 `forIn` accumulator and `set` it only afterwards.  So the whole *prologue* (loops 1
@@ -28,25 +30,25 @@ open Lean Lean.Order
 /-! ## The loop bodies, mirrored -/
 
 /-- Body of the depth-installation loop (loop 1). -/
-def cvDepthBody (pilesking : Vector UInt8 11) (i : Nat) (r : SolverPosType) :
-    EStateM Error (Globals × SolverPosType) (ForInStep SolverPosType) :=
+def cvDepthBody (pilesking : Vector UInt8 11) (i : Nat) (r : PosType) :
+    EStateM Error (Globals × PosType) (ForInStep PosType) :=
   have game := r
   have iU32 := UInt32.ofNat i
   do
     let d : UInt8 ← pilesking.getE iU32
     let __do_lift ← game.pileDepth.setE iU32 d
-    have game : SolverPosType := { game with pileDepth := __do_lift }
+    have game : PosType := { game with pileDepth := __do_lift }
     let __do_lift ← game.pileFlute.setE iU32 1
-    have game : SolverPosType := { game with pileFlute := __do_lift }
-    have game : SolverPosType := { game with usedSpace := game.usedSpace - d }
+    have game : PosType := { game with pileFlute := __do_lift }
+    have game : PosType := { game with usedSpace := game.usedSpace - d }
     let __do_lift ← pileHashes.getE iU32
-    have game : SolverPosType := { game with hash := game.hash + __do_lift * d.toUInt32 }
+    have game : PosType := { game with hash := game.hash + __do_lift * d.toUInt32 }
     pure PUnit.unit
     pure (ForInStep.yield game)
 
 /-- Body of the foundation walk (loop 2, first `while`). -/
-def cvAceBody (globals : Globals) (game : SolverPosType) (card : UInt8) :
-    Unit → UInt8 → EStateM Error (Globals × SolverPosType) (ForInStep UInt8) :=
+def cvAceBody (globals : Globals) (game : PosType) (card : UInt8) :
+    Unit → UInt8 → EStateM Error (Globals × PosType) (ForInStep UInt8) :=
   fun _ r =>
     have ace := r
     do
@@ -63,8 +65,8 @@ def cvAceBody (globals : Globals) (game : SolverPosType) (card : UInt8) :
       else pure (ForInStep.done ace)
 
 /-- Body of the king-frontier walk (loop 2, second `while`). -/
-def cvKingBody (globals : Globals) (game : SolverPosType) :
-    Unit → UInt8 → EStateM Error (Globals × SolverPosType) (ForInStep UInt8) :=
+def cvKingBody (globals : Globals) (game : PosType) :
+    Unit → UInt8 → EStateM Error (Globals × PosType) (ForInStep UInt8) :=
   fun _ r =>
     have card := r
     do
@@ -79,8 +81,8 @@ def cvKingBody (globals : Globals) (game : SolverPosType) :
       else pure (ForInStep.done card)
 
 /-- Body of the per-suit loop (loop 2). -/
-def cvSuitBody (globals : Globals) (suit : Nat) (r : SolverPosType) :
-    EStateM Error (Globals × SolverPosType) (ForInStep SolverPosType) :=
+def cvSuitBody (globals : Globals) (suit : Nat) (r : PosType) :
+    EStateM Error (Globals × PosType) (ForInStep PosType) :=
   have game := r
   have suitU32 := UInt32.ofNat suit
   have card := CARD (UInt8.ofNat suit) (UInt8.ofNat 13)
@@ -90,13 +92,13 @@ def cvSuitBody (globals : Globals) (suit : Nat) (r : SolverPosType) :
     have ace : UInt8 := r
     have ace : UInt8 := ace - 1
     let __do_lift ← game.aces.setE suitU32 ace
-    have game : SolverPosType := { game with aces := __do_lift }
-    have game : SolverPosType := { game with usedSpace := game.usedSpace - VALUE ace }
-    have __do_jp : UInt8 → SolverPosType → PUnit →
-        EStateM Error (Globals × SolverPosType) (ForInStep SolverPosType) :=
+    have game : PosType := { game with aces := __do_lift }
+    have game : PosType := { game with usedSpace := game.usedSpace - VALUE ace }
+    have __do_jp : UInt8 → PosType → PUnit →
+        EStateM Error (Globals × PosType) (ForInStep PosType) :=
       fun card game _y => do
         let __do_lift ← game.kings.setE suitU32 card
-        have game : SolverPosType := { game with kings := __do_lift }
+        have game : PosType := { game with kings := __do_lift }
         pure PUnit.unit
         pure (ForInStep.yield game)
     if ace < card then do
@@ -110,29 +112,29 @@ def cvSuitBody (globals : Globals) (suit : Nat) (r : SolverPosType) :
 
 /-- Body of the cleanup loop (loop 3). -/
 def cvCleanupBody (i : Nat) (r : UInt16) :
-    EStateM Error (Globals × SolverPosType) (ForInStep UInt16) :=
+    EStateM Error (Globals × PosType) (ForInStep UInt16) :=
   have forcedKings := r
   do
-    let __do_lift ← _root_.SolverCleanupPile (UInt32.ofNat i)
+    let __do_lift ← Solver.cleanupPile (UInt32.ofNat i)
     have forcedKings : UInt16 := forcedKings &&& __do_lift
     pure PUnit.unit
     pure (ForInStep.yield forcedKings)
 
 set_option maxHeartbeats 1000000 in
-/-- The `rfl`-twin: `SolverConvertFromPilesKings` with all four loops presented
+/-- The `rfl`-twin: `convertFromPilesKings` with all four loops presented
     through the mirrored bodies above. -/
 theorem convert_eq_explicit (pk : Vector UInt8 11) :
-    _root_.SolverConvertFromPilesKings pk = (do
+    Solver.convertFromPilesKings pk = (do
       let s ← get
       have globals := s.1
       have game := s.2
-      have game : SolverPosType :=
+      have game : PosType :=
         { game with busyAces := 0, usedSpace := 52, freePiles := 0, hash := 0 }
       let r ← forIn (List.range 10) game (cvDepthBody pk)
-      have game : SolverPosType := r
+      have game : PosType := r
       let r ← forIn (List.range 4) game (cvSuitBody globals)
-      have game : SolverPosType := r
-      set ((globals, game) : Globals × SolverPosType)
+      have game : PosType := r
+      set ((globals, game) : Globals × PosType)
       let r ← forIn (List.range 10) (0xffff : UInt16) cvCleanupBody
       have forcedKings : UInt16 := r
       let r ← Loop.forIn Loop.mk forcedKings drainBody
@@ -142,8 +144,8 @@ theorem convert_eq_explicit (pk : Vector UInt8 11) :
 /-! ## Loop 1: installing the pile depths -/
 
 /-- One iteration of the depth loop, as a pure state transformer. -/
-def cvDepthStep (pk : Vector UInt8 11) (i : Nat) (hi : i < 10) (game : SolverPosType) :
-    SolverPosType :=
+def cvDepthStep (pk : Vector UInt8 11) (i : Nat) (hi : i < 10) (game : PosType) :
+    PosType :=
   { game with
     pileDepth := game.pileDepth.set i (pk[i]'(by omega)) hi
     pileFlute := game.pileFlute.set i 1 hi
@@ -153,7 +155,7 @@ def cvDepthStep (pk : Vector UInt8 11) (i : Nat) (hi : i < 10) (game : SolverPos
 set_option linter.unusedSimpArgs false in
 /-- The depth-loop body never touches the state and never fails. -/
 theorem cvDepthBody_run (pk : Vector UInt8 11) (i : Nat) (hi : i < 10)
-    (game : SolverPosType) (s : Globals × SolverPosType) :
+    (game : PosType) (s : Globals × PosType) :
     cvDepthBody pk i game s = .ok (.yield (cvDepthStep pk i hi game)) s := by
   have hidx : (UInt32.ofNat i).toNat = i := by
     rw [UInt32.toNat_ofNat']; omega
@@ -167,16 +169,16 @@ The loop is a fold of `cvDepthStep`; `cvDepthUpTo` names the partial folds so th
 induction over `List.range' k n` composes. -/
 
 /-- The position after the first `k` iterations of the depth loop. -/
-def cvDepthUpTo (pk : Vector UInt8 11) (p0 : SolverPosType) : Nat → SolverPosType
+def cvDepthUpTo (pk : Vector UInt8 11) (p0 : PosType) : Nat → PosType
   | 0 => p0
   | k + 1 => if h : k < 10 then cvDepthStep pk k h (cvDepthUpTo pk p0 k) else cvDepthUpTo pk p0 k
 
-theorem cvDepthUpTo_succ (pk : Vector UInt8 11) (p0 : SolverPosType) {k : Nat} (hk : k < 10) :
+theorem cvDepthUpTo_succ (pk : Vector UInt8 11) (p0 : PosType) {k : Nat} (hk : k < 10) :
     cvDepthUpTo pk p0 (k + 1) = cvDepthStep pk k hk (cvDepthUpTo pk p0 k) := by
   simp only [cvDepthUpTo, dif_pos hk]
 
-theorem cvDepthLoop_run (pk : Vector UInt8 11) (p0 : SolverPosType)
-    (s : Globals × SolverPosType) :
+theorem cvDepthLoop_run (pk : Vector UInt8 11) (p0 : PosType)
+    (s : Globals × PosType) :
     ∀ (n k : Nat), k + n = 10 →
       forIn (List.range' k n) (cvDepthUpTo pk p0 k) (cvDepthBody pk) s
         = .ok (cvDepthUpTo pk p0 10) s := by
@@ -205,7 +207,7 @@ def cvDepths (pk : Vector UInt8 11) : Vector UInt8 10 :=
   show (Vector.ofFn (fun i : Fin 10 => pk[i.val]'(by omega)))[i.val]'i.isLt = _
   rw [Vector.getElem_ofFn]
 
-theorem cvDepthUpTo_pileDepth (pk : Vector UInt8 11) (p0 : SolverPosType) :
+theorem cvDepthUpTo_pileDepth (pk : Vector UInt8 11) (p0 : PosType) :
     ∀ (k : Nat), k ≤ 10 → ∀ i : Fin 10,
       (cvDepthUpTo pk p0 k).pileDepth.get i =
         if i.val < k then (cvDepths pk).get i else p0.pileDepth.get i := by
@@ -228,7 +230,7 @@ theorem cvDepthUpTo_pileDepth (pk : Vector UInt8 11) (p0 : SolverPosType) :
       · rw [if_pos h2, if_pos (by omega)]
       · rw [if_neg h2, if_neg (by omega)]
 
-theorem cvDepthUpTo_pileFlute (pk : Vector UInt8 11) (p0 : SolverPosType) :
+theorem cvDepthUpTo_pileFlute (pk : Vector UInt8 11) (p0 : PosType) :
     ∀ (k : Nat), k ≤ 10 → ∀ i : Fin 10,
       (cvDepthUpTo pk p0 k).pileFlute.get i =
         if i.val < k then 1 else p0.pileFlute.get i := by
@@ -249,28 +251,28 @@ theorem cvDepthUpTo_pileFlute (pk : Vector UInt8 11) (p0 : SolverPosType) :
       · rw [if_pos h2, if_pos (by omega)]
       · rw [if_neg h2, if_neg (by omega)]
 
-theorem cvDepthUpTo_aces (pk : Vector UInt8 11) (p0 : SolverPosType) :
+theorem cvDepthUpTo_aces (pk : Vector UInt8 11) (p0 : PosType) :
     ∀ k : Nat, (cvDepthUpTo pk p0 k).aces = p0.aces := by
   intro k
   induction k with
   | zero => rfl
   | succ k ih => rw [cvDepthUpTo]; split <;> [skip; skip] <;> simp only [cvDepthStep, ih]
 
-theorem cvDepthUpTo_kings (pk : Vector UInt8 11) (p0 : SolverPosType) :
+theorem cvDepthUpTo_kings (pk : Vector UInt8 11) (p0 : PosType) :
     ∀ k : Nat, (cvDepthUpTo pk p0 k).kings = p0.kings := by
   intro k
   induction k with
   | zero => rfl
   | succ k ih => rw [cvDepthUpTo]; split <;> [skip; skip] <;> simp only [cvDepthStep, ih]
 
-theorem cvDepthUpTo_freePiles (pk : Vector UInt8 11) (p0 : SolverPosType) :
+theorem cvDepthUpTo_freePiles (pk : Vector UInt8 11) (p0 : PosType) :
     ∀ k : Nat, (cvDepthUpTo pk p0 k).freePiles = p0.freePiles := by
   intro k
   induction k with
   | zero => rfl
   | succ k ih => rw [cvDepthUpTo]; split <;> [skip; skip] <;> simp only [cvDepthStep, ih]
 
-theorem cvDepthUpTo_busyAces (pk : Vector UInt8 11) (p0 : SolverPosType) :
+theorem cvDepthUpTo_busyAces (pk : Vector UInt8 11) (p0 : PosType) :
     ∀ k : Nat, (cvDepthUpTo pk p0 k).busyAces = p0.busyAces := by
   intro k
   induction k with
@@ -294,7 +296,7 @@ theorem finRange_take_succ {n k : Nat} (hk : k < n) :
   congr 2
   exact Fin.ext (by simp)
 
-theorem cvDepthUpTo_hash (pk : Vector UInt8 11) (p0 : SolverPosType) :
+theorem cvDepthUpTo_hash (pk : Vector UInt8 11) (p0 : PosType) :
     ∀ (k : Nat), k ≤ 10 →
       (cvDepthUpTo pk p0 k).hash =
         ((List.finRange 10).take k).foldl
@@ -335,7 +337,7 @@ theorem cvDepthPrefix_le (pk : Vector UInt8 11) (hpk : ValidDepths pk) :
     have := ih (by omega)
     omega
 
-theorem cvDepthUpTo_usedSpace (pk : Vector UInt8 11) (p0 : SolverPosType)
+theorem cvDepthUpTo_usedSpace (pk : Vector UInt8 11) (p0 : PosType)
     (hpk : ValidDepths pk) (hu : 50 ≤ p0.usedSpace.toNat) :
     ∀ (k : Nat), k ≤ 10 →
       (cvDepthUpTo pk p0 k).usedSpace.toNat = p0.usedSpace.toNat - cvDepthPrefix pk k := by
@@ -361,7 +363,7 @@ theorem cvDepthUpTo_usedSpace (pk : Vector UInt8 11) (p0 : SolverPosType)
 Both walks scan a suit's cards for freeness; `runLen` is the length of the
 initial run of a decidable predicate, and both walk results are read off it. -/
 
-instance decIsFreeCard (g : Globals) (p : SolverPosType) (c : UInt8) :
+instance decIsFreeCard (g : Globals) (p : PosType) (c : UInt8) :
     Decidable (isFreeCard g p c) := by
   unfold isFreeCard; exact Nat.decLe _ _
 
@@ -418,7 +420,7 @@ def freeAt (g : Globals) (d : Vector UInt8 10) (c : UInt8) : Prop :=
   let pileDepth : UInt8 := if h : pile.toNat < 10 then d.get ⟨pile.toNat, h⟩ else 0
   origDepth.toNat ≥ pileDepth.toNat
 
-theorem isFreeCard_eq_freeAt (g : Globals) (p : SolverPosType) (c : UInt8) :
+theorem isFreeCard_eq_freeAt (g : Globals) (p : PosType) (c : UInt8) :
     isFreeCard g p c = freeAt g p.pileDepth c := rfl
 
 instance decFreeAt (g : Globals) (d : Vector UInt8 10) (c : UInt8) :
@@ -475,8 +477,8 @@ theorem cv_card_le {su v w : Nat} (hsu : su < 4) (hv : v < 16) (hw : w < 16) :
 /-! ### The foundation walk, one step at a time -/
 
 set_option linter.unusedSimpArgs false in
-theorem cvAceBody_yield (g : Globals) (q : SolverPosType) (hwf : WellFormedLayout g)
-    (card ace : UInt8) (s : Globals × SolverPosType) (hc64 : ace.toNat < 64)
+theorem cvAceBody_yield (g : Globals) (q : PosType) (hwf : WellFormedLayout g)
+    (card ace : UInt8) (s : Globals × PosType) (hc64 : ace.toNat < 64)
     (hle : ace ≤ card) (hfree : isFreeCard g q ace) :
     cvAceBody g q card () ace s = .ok (.yield (ace + 1)) s := by
   have hc32 : ace.toUInt32.toNat < 64 := by rw [UInt8.toNat_toUInt32]; exact hc64
@@ -491,8 +493,8 @@ theorem cvAceBody_yield (g : Globals) (q : SolverPosType) (hwf : WellFormedLayou
     getElem?_pos, hc32, hp10, hleT, decide_true, toBool, hcmp, reduceIte]
 
 set_option linter.unusedSimpArgs false in
-theorem cvAceBody_done_notFree (g : Globals) (q : SolverPosType) (hwf : WellFormedLayout g)
-    (card ace : UInt8) (s : Globals × SolverPosType) (hc64 : ace.toNat < 64)
+theorem cvAceBody_done_notFree (g : Globals) (q : PosType) (hwf : WellFormedLayout g)
+    (card ace : UInt8) (s : Globals × PosType) (hc64 : ace.toNat < 64)
     (hle : ace ≤ card) (hfree : ¬ isFreeCard g q ace) :
     cvAceBody g q card () ace s = .ok (.done ace) s := by
   have hc32 : ace.toUInt32.toNat < 64 := by rw [UInt8.toNat_toUInt32]; exact hc64
@@ -508,8 +510,8 @@ theorem cvAceBody_done_notFree (g : Globals) (q : SolverPosType) (hwf : WellForm
     getElem?_pos, hc32, hp10, hleT, decide_true, toBool, hcmp, Bool.false_eq_true, reduceIte]
 
 set_option linter.unusedSimpArgs false in
-theorem cvAceBody_done_gt (g : Globals) (q : SolverPosType)
-    (card ace : UInt8) (s : Globals × SolverPosType) (hle : ¬ (ace ≤ card)) :
+theorem cvAceBody_done_gt (g : Globals) (q : PosType)
+    (card ace : UInt8) (s : Globals × PosType) (hle : ¬ (ace ≤ card)) :
     cvAceBody g q card () ace s = .ok (.done ace) s := by
   have hleT : (ace ≤ card) = False := eq_false hle
   simp only [cvAceBody, bind, EStateM.bind, pure, EStateM.pure, andM, Vector.getE,
@@ -519,8 +521,8 @@ theorem cvAceBody_done_gt (g : Globals) (q : SolverPosType)
     an abstract stopping value `V` (instantiated at `cvAceVal` below) and from an
     arbitrary already-walked prefix `w`, so the induction composes; the solver
     enters it at `w = 0`. -/
-theorem cvAceWalk_run_gen (g : Globals) (q : SolverPosType) (hwf : WellFormedLayout g)
-    (su : Nat) (hsu : su < 4) (s : Globals × SolverPosType)
+theorem cvAceWalk_run_gen (g : Globals) (q : PosType) (hwf : WellFormedLayout g)
+    (su : Nat) (hsu : su < 4) (s : Globals × PosType)
     (V : Nat) (hV13 : V ≤ 13)
     (hholds : ∀ j, j < V → isFreeCard g q (CARD (UInt8.ofNat su) (UInt8.ofNat (j + 1))))
     (hstop : V < 13 → ¬ isFreeCard g q (CARD (UInt8.ofNat su) (UInt8.ofNat (V + 1)))) :
@@ -534,7 +536,7 @@ theorem cvAceWalk_run_gen (g : Globals) (q : SolverPosType) (hwf : WellFormedLay
     intro w hw hle
     obtain rfl : w = 13 := by omega
     obtain rfl : V = 13 := by omega
-    rw [Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × SolverPosType))
+    rw [Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × PosType))
       (l := Loop.mk) (b := CARD (UInt8.ofNat su) (UInt8.ofNat (13 + 1)))
       (f := cvAceBody g q (CARD (UInt8.ofNat su) (UInt8.ofNat 13)))]
     have hgt : ¬ (CARD (UInt8.ofNat su) (UInt8.ofNat (13 + 1))
@@ -551,7 +553,7 @@ theorem cvAceWalk_run_gen (g : Globals) (q : SolverPosType) (hwf : WellFormedLay
     have hleC : CARD (UInt8.ofNat su) (UInt8.ofNat (w + 1))
         ≤ CARD (UInt8.ofNat su) (UInt8.ofNat 13) :=
       (cv_card_le hsu (by omega) (by omega)).mpr (by omega)
-    rw [Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × SolverPosType))
+    rw [Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × PosType))
       (l := Loop.mk) (b := CARD (UInt8.ofNat su) (UInt8.ofNat (w + 1)))
       (f := cvAceBody g q (CARD (UInt8.ofNat su) (UInt8.ofNat 13)))]
     by_cases hlt : w < V
@@ -567,8 +569,8 @@ theorem cvAceWalk_run_gen (g : Globals) (q : SolverPosType) (hwf : WellFormedLay
         pure, EStateM.pure]
 
 /-- The walk, instantiated at the value it actually computes. -/
-theorem cvAceWalk_run (g : Globals) (q : SolverPosType) (hwf : WellFormedLayout g)
-    (su : Nat) (hsu : su < 4) (s : Globals × SolverPosType) :
+theorem cvAceWalk_run (g : Globals) (q : PosType) (hwf : WellFormedLayout g)
+    (su : Nat) (hsu : su < 4) (s : Globals × PosType) :
     Loop.forIn Loop.mk (CARD (UInt8.ofNat su) (UInt8.ofNat 1))
         (cvAceBody g q (CARD (UInt8.ofNat su) (UInt8.ofNat 13))) s
       = .ok (CARD (UInt8.ofNat su) (UInt8.ofNat (cvAceVal g q.pileDepth su + 1))) s :=
@@ -588,8 +590,8 @@ theorem cv_card_pred {su v : Nat} (hsu : su < 4) (hv : v < 16) (hv1 : 1 ≤ v) :
   omega
 
 set_option linter.unusedSimpArgs false in
-theorem cvKingBody_yield (g : Globals) (q : SolverPosType) (hwf : WellFormedLayout g)
-    (card : UInt8) (s : Globals × SolverPosType) (hc64 : card.toNat < 64)
+theorem cvKingBody_yield (g : Globals) (q : PosType) (hwf : WellFormedLayout g)
+    (card : UInt8) (s : Globals × PosType) (hc64 : card.toNat < 64)
     (hfree : isFreeCard g q card) :
     cvKingBody g q () card s = .ok (.yield (card - 1)) s := by
   have hc32 : card.toUInt32.toNat < 64 := by rw [UInt8.toNat_toUInt32]; exact hc64
@@ -604,8 +606,8 @@ theorem cvKingBody_yield (g : Globals) (q : SolverPosType) (hwf : WellFormedLayo
   rfl
 
 set_option linter.unusedSimpArgs false in
-theorem cvKingBody_done (g : Globals) (q : SolverPosType) (hwf : WellFormedLayout g)
-    (card : UInt8) (s : Globals × SolverPosType) (hc64 : card.toNat < 64)
+theorem cvKingBody_done (g : Globals) (q : PosType) (hwf : WellFormedLayout g)
+    (card : UInt8) (s : Globals × PosType) (hc64 : card.toNat < 64)
     (hfree : ¬ isFreeCard g q card) :
     cvKingBody g q () card s = .ok (.done card) s := by
   have hc32 : card.toUInt32.toNat < 64 := by rw [UInt8.toNat_toUInt32]; exact hc64
@@ -621,8 +623,8 @@ theorem cvKingBody_done (g : Globals) (q : SolverPosType) (hwf : WellFormedLayou
   rfl
 
 /-- **The king-frontier walk stops at the first un-freed card from the top.** -/
-theorem cvKingWalk_run_gen (g : Globals) (q : SolverPosType) (hwf : WellFormedLayout g)
-    (su : Nat) (hsu : su < 4) (s : Globals × SolverPosType)
+theorem cvKingWalk_run_gen (g : Globals) (q : PosType) (hwf : WellFormedLayout g)
+    (su : Nat) (hsu : su < 4) (s : Globals × PosType)
     (T : Nat) (hT : T ≤ 12)
     (hholds : ∀ j, j < T → isFreeCard g q (CARD (UInt8.ofNat su) (UInt8.ofNat (13 - j))))
     (hstop : ¬ isFreeCard g q (CARD (UInt8.ofNat su) (UInt8.ofNat (13 - T)))) :
@@ -636,7 +638,7 @@ theorem cvKingWalk_run_gen (g : Globals) (q : SolverPosType) (hwf : WellFormedLa
     intro t hw hle
     have hc64 : (CARD (UInt8.ofNat su) (UInt8.ofNat (13 - t))).toNat < 64 :=
       cv_card_lt64 hsu (by omega)
-    rw [Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × SolverPosType))
+    rw [Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × PosType))
       (l := Loop.mk) (b := CARD (UInt8.ofNat su) (UInt8.ofNat (13 - t)))
       (f := cvKingBody g q)]
     by_cases hlt : t < T
@@ -668,8 +670,8 @@ theorem cvKingRun_le (g : Globals) (d : Vector UInt8 10) (su : Nat)
 
 /-- The king-frontier walk, instantiated at the value it computes.  Entered only
     when `aces < kings`, i.e. when the suit is not entirely freed. -/
-theorem cvKingWalk_run (g : Globals) (q : SolverPosType) (hwf : WellFormedLayout g)
-    (su : Nat) (hsu : su < 4) (s : Globals × SolverPosType)
+theorem cvKingWalk_run (g : Globals) (q : PosType) (hwf : WellFormedLayout g)
+    (su : Nat) (hsu : su < 4) (s : Globals × PosType)
     (hA : cvAceVal g q.pileDepth su < 13) :
     Loop.forIn Loop.mk (CARD (UInt8.ofNat su) (UInt8.ofNat 13)) (cvKingBody g q) s
       = .ok (CARD (UInt8.ofNat su) (UInt8.ofNat (cvKingVal g q.pileDepth su))) s := by
@@ -704,7 +706,7 @@ theorem cv_card_lt {su v w : Nat} (hsu : su < 4) (hv : v < 16) (hw : w < 16) :
   omega
 
 /-- One iteration of the per-suit loop, as a pure state transformer. -/
-def cvSuitStep (g : Globals) (su : Nat) (hsu : su < 4) (game : SolverPosType) : SolverPosType :=
+def cvSuitStep (g : Globals) (su : Nat) (hsu : su < 4) (game : PosType) : PosType :=
   { game with
     aces := game.aces.set su
       (CARD (UInt8.ofNat su) (UInt8.ofNat (cvAceVal g game.pileDepth su))) hsu
@@ -715,7 +717,7 @@ def cvSuitStep (g : Globals) (su : Nat) (hsu : su < 4) (game : SolverPosType) : 
 set_option maxHeartbeats 1000000 in
 set_option linter.unusedSimpArgs false in
 theorem cvSuitBody_run (g : Globals) (hwf : WellFormedLayout g) (su : Nat) (hsu : su < 4)
-    (game : SolverPosType) (s : Globals × SolverPosType) :
+    (game : PosType) (s : Globals × PosType) :
     cvSuitBody g su game s = .ok (.yield (cvSuitStep g su hsu game)) s := by
   obtain ⟨A, hA⟩ : ∃ A, cvAceVal g game.pileDepth su = A := ⟨_, rfl⟩
   have hA13 : A ≤ 13 := by rw [← hA]; exact runLen_le _ _
@@ -738,7 +740,7 @@ theorem cvSuitBody_run (g : Globals) (hwf : WellFormedLayout g) (su : Nat) (hsu 
         = .ok (CARD (UInt8.ofNat su) (UInt8.ofNat (cvKingVal g game.pileDepth su))) s := by
     intro av us hlt
     exact cvKingWalk_run g { game with aces := av, usedSpace := us } hwf su hsu s
-      (by rw [show ({ game with aces := av, usedSpace := us } : SolverPosType).pileDepth
+      (by rw [show ({ game with aces := av, usedSpace := us } : PosType).pileDepth
                 = game.pileDepth from rfl, hA]; omega)
   by_cases hlt : A < 13
   · rw [if_pos ((cv_card_lt hsu (by omega) (by omega)).mpr hlt)]
@@ -752,16 +754,16 @@ theorem cvSuitBody_run (g : Globals) (hwf : WellFormedLayout g) (su : Nat) (hsu 
 /-! ## Loop 2: the exact run -/
 
 /-- The position after the first `k` iterations of the per-suit loop. -/
-def cvSuitUpTo (g : Globals) (p : SolverPosType) : Nat → SolverPosType
+def cvSuitUpTo (g : Globals) (p : PosType) : Nat → PosType
   | 0 => p
   | k + 1 => if h : k < 4 then cvSuitStep g k h (cvSuitUpTo g p k) else cvSuitUpTo g p k
 
-theorem cvSuitUpTo_succ (g : Globals) (p : SolverPosType) {k : Nat} (hk : k < 4) :
+theorem cvSuitUpTo_succ (g : Globals) (p : PosType) {k : Nat} (hk : k < 4) :
     cvSuitUpTo g p (k + 1) = cvSuitStep g k hk (cvSuitUpTo g p k) := by
   simp only [cvSuitUpTo, dif_pos hk]
 
-theorem cvSuitLoop_run (g : Globals) (hwf : WellFormedLayout g) (p : SolverPosType)
-    (s : Globals × SolverPosType) :
+theorem cvSuitLoop_run (g : Globals) (hwf : WellFormedLayout g) (p : PosType)
+    (s : Globals × PosType) :
     ∀ (n k : Nat), k + n = 4 →
       forIn (List.range' k n) (cvSuitUpTo g p k) (cvSuitBody g) s
         = .ok (cvSuitUpTo g p 4) s := by
@@ -782,42 +784,42 @@ theorem cvSuitLoop_run (g : Globals) (hwf : WellFormedLayout g) (p : SolverPosTy
 
 /-! ### What loop 2 computes -/
 
-theorem cvSuitUpTo_pileDepth (g : Globals) (p : SolverPosType) :
+theorem cvSuitUpTo_pileDepth (g : Globals) (p : PosType) :
     ∀ k : Nat, (cvSuitUpTo g p k).pileDepth = p.pileDepth := by
   intro k
   induction k with
   | zero => rfl
   | succ k ih => rw [cvSuitUpTo]; split <;> simp only [cvSuitStep, ih]
 
-theorem cvSuitUpTo_pileFlute (g : Globals) (p : SolverPosType) :
+theorem cvSuitUpTo_pileFlute (g : Globals) (p : PosType) :
     ∀ k : Nat, (cvSuitUpTo g p k).pileFlute = p.pileFlute := by
   intro k
   induction k with
   | zero => rfl
   | succ k ih => rw [cvSuitUpTo]; split <;> simp only [cvSuitStep, ih]
 
-theorem cvSuitUpTo_hash (g : Globals) (p : SolverPosType) :
+theorem cvSuitUpTo_hash (g : Globals) (p : PosType) :
     ∀ k : Nat, (cvSuitUpTo g p k).hash = p.hash := by
   intro k
   induction k with
   | zero => rfl
   | succ k ih => rw [cvSuitUpTo]; split <;> simp only [cvSuitStep, ih]
 
-theorem cvSuitUpTo_freePiles (g : Globals) (p : SolverPosType) :
+theorem cvSuitUpTo_freePiles (g : Globals) (p : PosType) :
     ∀ k : Nat, (cvSuitUpTo g p k).freePiles = p.freePiles := by
   intro k
   induction k with
   | zero => rfl
   | succ k ih => rw [cvSuitUpTo]; split <;> simp only [cvSuitStep, ih]
 
-theorem cvSuitUpTo_busyAces (g : Globals) (p : SolverPosType) :
+theorem cvSuitUpTo_busyAces (g : Globals) (p : PosType) :
     ∀ k : Nat, (cvSuitUpTo g p k).busyAces = p.busyAces := by
   intro k
   induction k with
   | zero => rfl
   | succ k ih => rw [cvSuitUpTo]; split <;> simp only [cvSuitStep, ih]
 
-theorem cvSuitUpTo_aces_succ (g : Globals) (p : SolverPosType) {k : Nat} (hk : k < 4) :
+theorem cvSuitUpTo_aces_succ (g : Globals) (p : PosType) {k : Nat} (hk : k < 4) :
     (cvSuitUpTo g p (k + 1)).aces = (cvSuitUpTo g p k).aces.set k
       (CARD (UInt8.ofNat k) (UInt8.ofNat (cvAceVal g p.pileDepth k))) hk := by
   rw [cvSuitUpTo_succ g p hk]
@@ -825,7 +827,7 @@ theorem cvSuitUpTo_aces_succ (g : Globals) (p : SolverPosType) {k : Nat} (hk : k
     (CARD (UInt8.ofNat k) (UInt8.ofNat (cvAceVal g (cvSuitUpTo g p k).pileDepth k))) hk = _
   rw [cvSuitUpTo_pileDepth g p k]
 
-theorem cvSuitUpTo_kings_succ (g : Globals) (p : SolverPosType) {k : Nat} (hk : k < 4) :
+theorem cvSuitUpTo_kings_succ (g : Globals) (p : PosType) {k : Nat} (hk : k < 4) :
     (cvSuitUpTo g p (k + 1)).kings = (cvSuitUpTo g p k).kings.set k
       (CARD (UInt8.ofNat k) (UInt8.ofNat (cvKingVal g p.pileDepth k))) hk := by
   rw [cvSuitUpTo_succ g p hk]
@@ -833,14 +835,14 @@ theorem cvSuitUpTo_kings_succ (g : Globals) (p : SolverPosType) {k : Nat} (hk : 
     (CARD (UInt8.ofNat k) (UInt8.ofNat (cvKingVal g (cvSuitUpTo g p k).pileDepth k))) hk = _
   rw [cvSuitUpTo_pileDepth g p k]
 
-theorem cvSuitUpTo_usedSpace_succ (g : Globals) (p : SolverPosType) {k : Nat} (hk : k < 4) :
+theorem cvSuitUpTo_usedSpace_succ (g : Globals) (p : PosType) {k : Nat} (hk : k < 4) :
     (cvSuitUpTo g p (k + 1)).usedSpace =
       (cvSuitUpTo g p k).usedSpace - UInt8.ofNat (cvAceVal g p.pileDepth k) := by
   rw [cvSuitUpTo_succ g p hk]
   show (cvSuitUpTo g p k).usedSpace - UInt8.ofNat (cvAceVal g (cvSuitUpTo g p k).pileDepth k) = _
   rw [cvSuitUpTo_pileDepth g p k]
 
-theorem cvSuitUpTo_aces (g : Globals) (p : SolverPosType) :
+theorem cvSuitUpTo_aces (g : Globals) (p : PosType) :
     ∀ (k : Nat), k ≤ 4 → ∀ i : Fin 4,
       (cvSuitUpTo g p k).aces.get i =
         if i.val < k then CARD (UInt8.ofNat i.val) (UInt8.ofNat (cvAceVal g p.pileDepth i.val))
@@ -863,7 +865,7 @@ theorem cvSuitUpTo_aces (g : Globals) (p : SolverPosType) :
       · rw [if_pos h2, if_pos (by omega)]
       · rw [if_neg h2, if_neg (by omega)]
 
-theorem cvSuitUpTo_kings (g : Globals) (p : SolverPosType) :
+theorem cvSuitUpTo_kings (g : Globals) (p : PosType) :
     ∀ (k : Nat), k ≤ 4 → ∀ i : Fin 4,
       (cvSuitUpTo g p k).kings.get i =
         if i.val < k then CARD (UInt8.ofNat i.val) (UInt8.ofNat (cvKingVal g p.pileDepth i.val))
@@ -922,7 +924,7 @@ theorem cvAcePrefix_mono (g : Globals) (d : Vector UInt8 10) :
     have hklt : k < 4 := by omega
     exact le_trans (by rw [cvAcePrefix_succ g d hklt]; omega) (ih (k + 1) (by omega))
 
-theorem cvSuitUpTo_usedSpace (g : Globals) (p : SolverPosType)
+theorem cvSuitUpTo_usedSpace (g : Globals) (p : PosType)
     (hbound : cvAcePrefix g p.pileDepth 4 ≤ p.usedSpace.toNat) :
     ∀ (k : Nat), k ≤ 4 →
       (cvSuitUpTo g p k).usedSpace.toNat = p.usedSpace.toNat - cvAcePrefix g p.pileDepth k := by
@@ -945,7 +947,7 @@ theorem cvSuitUpTo_usedSpace (g : Globals) (p : SolverPosType)
 
 /-! ## The prologue's result, in closed form -/
 
-theorem solverPos_ext {p q : SolverPosType} (h1 : p.hash = q.hash) (h2 : p.pileDepth = q.pileDepth)
+theorem solverPos_ext {p q : PosType} (h1 : p.hash = q.hash) (h2 : p.pileDepth = q.pileDepth)
     (h3 : p.pileFlute = q.pileFlute) (h4 : p.aces = q.aces) (h5 : p.kings = q.kings)
     (h6 : p.usedSpace = q.usedSpace) (h7 : p.freePiles = q.freePiles)
     (h8 : p.busyAces = q.busyAces) : p = q := by
@@ -953,19 +955,19 @@ theorem solverPos_ext {p q : SolverPosType} (h1 : p.hash = q.hash) (h2 : p.pileD
 
 /-- The position loop 1 starts from: the input position with the bookkeeping
     fields reset. -/
-def cvInit (p0 : SolverPosType) : SolverPosType :=
+def cvInit (p0 : PosType) : PosType :=
   { p0 with busyAces := 0, usedSpace := 52, freePiles := 0, hash := 0 }
 
 /-- The position after loop 1. -/
-def cvAfterDepths (pk : Vector UInt8 11) (p0 : SolverPosType) : SolverPosType :=
+def cvAfterDepths (pk : Vector UInt8 11) (p0 : PosType) : PosType :=
   cvDepthUpTo pk (cvInit p0) 10
 
-theorem cvAfterDepths_pileDepth (pk : Vector UInt8 11) (p0 : SolverPosType) :
+theorem cvAfterDepths_pileDepth (pk : Vector UInt8 11) (p0 : PosType) :
     (cvAfterDepths pk p0).pileDepth = cvDepths pk := by
   refine vector_ext_get _ _ (fun i => ?_)
   rw [cvAfterDepths, cvDepthUpTo_pileDepth pk (cvInit p0) 10 (le_refl _) i, if_pos i.isLt]
 
-theorem cvAfterDepths_pileFlute (pk : Vector UInt8 11) (p0 : SolverPosType) :
+theorem cvAfterDepths_pileFlute (pk : Vector UInt8 11) (p0 : PosType) :
     (cvAfterDepths pk p0).pileFlute = Vector.ofFn (fun _ : Fin 10 => (1 : UInt8)) := by
   refine vector_ext_get _ _ (fun i => ?_)
   rw [cvAfterDepths, cvDepthUpTo_pileFlute pk (cvInit p0) 10 (le_refl _) i, if_pos i.isLt]
@@ -978,25 +980,25 @@ def cvHash (pk : Vector UInt8 11) : UInt32 :=
   (List.finRange 10).foldl
     (fun acc i => acc + pileHashes.get i * ((cvDepths pk).get i).toNat.toUInt32) 0
 
-theorem cvAfterDepths_hash (pk : Vector UInt8 11) (p0 : SolverPosType) :
+theorem cvAfterDepths_hash (pk : Vector UInt8 11) (p0 : PosType) :
     (cvAfterDepths pk p0).hash = cvHash pk := by
   rw [cvAfterDepths, cvDepthUpTo_hash pk (cvInit p0) 10 (le_refl _)]
   simp only [cvHash, List.take_of_length_le (by simp : (List.finRange 10).length ≤ 10)]
   rfl
 
-theorem cvAfterDepths_aces (pk : Vector UInt8 11) (p0 : SolverPosType) :
+theorem cvAfterDepths_aces (pk : Vector UInt8 11) (p0 : PosType) :
     (cvAfterDepths pk p0).aces = p0.aces := cvDepthUpTo_aces pk (cvInit p0) 10
 
-theorem cvAfterDepths_kings (pk : Vector UInt8 11) (p0 : SolverPosType) :
+theorem cvAfterDepths_kings (pk : Vector UInt8 11) (p0 : PosType) :
     (cvAfterDepths pk p0).kings = p0.kings := cvDepthUpTo_kings pk (cvInit p0) 10
 
-theorem cvAfterDepths_freePiles (pk : Vector UInt8 11) (p0 : SolverPosType) :
+theorem cvAfterDepths_freePiles (pk : Vector UInt8 11) (p0 : PosType) :
     (cvAfterDepths pk p0).freePiles = 0 := cvDepthUpTo_freePiles pk (cvInit p0) 10
 
-theorem cvAfterDepths_busyAces (pk : Vector UInt8 11) (p0 : SolverPosType) :
+theorem cvAfterDepths_busyAces (pk : Vector UInt8 11) (p0 : PosType) :
     (cvAfterDepths pk p0).busyAces = 0 := cvDepthUpTo_busyAces pk (cvInit p0) 10
 
-theorem cvAfterDepths_usedSpace (pk : Vector UInt8 11) (p0 : SolverPosType)
+theorem cvAfterDepths_usedSpace (pk : Vector UInt8 11) (p0 : PosType)
     (hpk : ValidDepths pk) :
     (cvAfterDepths pk p0).usedSpace.toNat = 52 - cvDepthPrefix pk 10 :=
   cvDepthUpTo_usedSpace pk (cvInit p0) hpk
@@ -1010,9 +1012,9 @@ theorem cvAfterDepths_usedSpace (pk : Vector UInt8 11) (p0 : SolverPosType)
 def CvCountBound (g : Globals) (pk : Vector UInt8 11) : Prop :=
   cvDepthPrefix pk 10 + cvAcePrefix g (cvDepths pk) 4 ≤ 52
 
-/-- **The position `SolverConvertFromPilesKings`'s prologue produces.**  Every
+/-- **The position `convertFromPilesKings`'s prologue produces.**  Every
     field is determined by the globals and the input depth vector. -/
-def convertPre (g : Globals) (pk : Vector UInt8 11) : SolverPosType :=
+def convertPre (g : Globals) (pk : Vector UInt8 11) : PosType :=
   { hash := cvHash pk
     pileDepth := cvDepths pk
     pileFlute := Vector.ofFn (fun _ : Fin 10 => (1 : UInt8))
@@ -1024,7 +1026,7 @@ def convertPre (g : Globals) (pk : Vector UInt8 11) : SolverPosType :=
     freePiles := 0
     busyAces := 0 }
 
-theorem cvPrologue_eq (g : Globals) (pk : Vector UInt8 11) (p0 : SolverPosType)
+theorem cvPrologue_eq (g : Globals) (pk : Vector UInt8 11) (p0 : PosType)
     (hpk : ValidDepths pk) (hcount : CvCountBound g pk) :
     cvSuitUpTo g (cvAfterDepths pk p0) 4 = convertPre g pk := by
   have hdep : (cvAfterDepths pk p0).pileDepth = cvDepths pk := cvAfterDepths_pileDepth pk p0
@@ -1058,13 +1060,13 @@ theorem cvPrologue_eq (g : Globals) (pk : Vector UInt8 11) (p0 : SolverPosType)
 /-- **The prologue, run.**  Loops 1 and 2 leave the state alone and hand the
     cleanup loop exactly `convertPre g pk`. -/
 theorem convert_run_eq (g : Globals) (hwf : WellFormedLayout g) (pk : Vector UInt8 11)
-    (p0 : SolverPosType) (hpk : ValidDepths pk) (hcount : CvCountBound g pk) :
-    _root_.SolverConvertFromPilesKings pk (g, p0)
+    (p0 : PosType) (hpk : ValidDepths pk) (hcount : CvCountBound g pk) :
+    Solver.convertFromPilesKings pk (g, p0)
       = (forIn (List.range 10) (0xffff : UInt16) cvCleanupBody >>= fun fk =>
           Loop.forIn Loop.mk fk drainBody >>= fun r => pure r) (g, convertPre g pk) := by
   have hl1 : forIn (List.range' 0 10)
       ({ hash := 0, pileDepth := p0.pileDepth, pileFlute := p0.pileFlute, aces := p0.aces,
-         kings := p0.kings, usedSpace := 52, freePiles := 0, busyAces := 0 } : SolverPosType)
+         kings := p0.kings, usedSpace := 52, freePiles := 0, busyAces := 0 } : PosType)
       (cvDepthBody pk) (g, p0) = .ok (cvAfterDepths pk p0) (g, p0) :=
     cvDepthLoop_run pk (cvInit p0) (g, p0) 10 0 rfl
   have hl2 : forIn (List.range' 0 4) (cvAfterDepths pk p0) (cvSuitBody g) (g, p0)

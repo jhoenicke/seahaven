@@ -2,6 +2,7 @@ import Seahaven.SubsetTransport
 import Seahaven.CompletenessSkeleton
 
 open Rules
+open Solver
 
 /-!
 # The critical iteration sets the bit
@@ -26,7 +27,7 @@ this one, and there `bitSet_allkings_of_cfg` says the break cannot fire early en
 hurt.)
 
 The one hypothesis that is not local data is `ChildSpecComplete p` — the induction
-hypothesis, applicable because `SolverMove` drops `DepthSum` (`move_merged`, carried by
+hypothesis, applicable because `move` drops `DepthSum` (`move_merged`, carried by
 `exists_child_of_critical`).  Reaching it needs the child call's *run*, which is why
 `Contributes` records it.
 -/
@@ -41,11 +42,11 @@ theorem BitSet_not (x : UInt16) (k : Fin 16) : BitSet (~~~x) k ↔ ¬ BitSet x k
 
 /-- **The iteration at the critical pile sets the critical configuration's bit.**
 
-`i` is the block configuration `solverGetMovable` names, `k` the configuration the
+`i` is the block configuration `getMovable` names, `k` the configuration the
 critical state `t₀` is in; the caller closes the remaining gap between `k` and its own
 query with `cfg_eq_or_component_bits` and `CompAllOrNothing.transfer`. -/
 theorem critical_iteration_bitSet {H : Globals → Prop}
-    {g g' : Globals} {p : SolverPosType} {ki : KingInfo} {comp allkings vacc : UInt16}
+    {g g' : Globals} {p : PosType} {ki : KingInfo} {comp allkings vacc : UInt16}
     {r : ForInStep UInt16} {pile : Nat} {t₀ t₁ : State} {m : Move}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
     (hkiloc : PossibleKingsLocal p ki) (hkic : KingInfoCorrect p ki)
@@ -57,7 +58,7 @@ theorem critical_iteration_bitSet {H : Globals → Prop}
     (hsrc : m.src = Position.pile ⟨pile, hpile⟩)
     (hdst : m.dest ≠ Position.pile ⟨pile, hpile⟩)
     (hap : applyMove t₀ m = some t₁) (hsolv : Solvable t₁)
-    (hrun : recBody solverRecCheckSolvable p (closureInfoOf p) ki comp allkings pile vacc g
+    (hrun : recBody recCheckSolvable p (closureInfoOf p) ki comp allkings pile vacc g
       = .ok r g') :
     ∃ (i : Nat) (k : Fin 16), i < (closureInfoOf p).numBits.toNat ∧
       DepthPlusKingsCfg g t₀ p k ∧ MaskSub (globalCfg (closureInfoOf p) i) k ∧
@@ -91,7 +92,7 @@ theorem critical_iteration_bitSet {H : Globals → Prop}
   dsimp only at hrun
   rw [bind_ok (vector_getE_apply p.pileFlute (UInt32.ofNat pile) g hidx)] at hrun
   obtain ⟨toPile, hgd⟩ : ∃ tp : UInt8,
-      solverGetDestination p (UInt32.ofNat pile) g = .ok tp g := by
+      getDestination p (UInt32.ofNat pile) g = .ok tp g := by
     rcases getDest_spec' hwf hcan hidx hd hb5 with ⟨-, h⟩ | ⟨n, -, -, -, -, h⟩
     · exact ⟨_, h⟩
     · exact ⟨_, h⟩
@@ -99,7 +100,7 @@ theorem critical_iteration_bitSet {H : Globals → Prop}
   obtain ⟨mvm, hmvrun, hmvloc⟩ := getMovable_run (g := g) ki
     (p.pileFlute.get ⟨(UInt32.ofNat pile).toNat, hidx⟩) toPile
     (hb.flute_pos ⟨(UInt32.ofNat pile).toNat, hidx⟩) hkiloc
-  have hmvapp : solverGetMovable ki (closureInfoOf p).shiftValue
+  have hmvapp : getMovable ki (closureInfoOf p).shiftValue
       (p.pileFlute.get ⟨(UInt32.ofNat pile).toNat, hidx⟩) toPile g = .ok mvm g := hmvrun
   rw [bind_ok hmvapp] at hrun
   -- the destination is valid, and `DestValid` speaks about the column's head
@@ -135,7 +136,7 @@ theorem critical_iteration_bitSet {H : Globals → Prop}
       have : p'.freePiles.toInt = (p'.freePiles.toNat : Int) := rfl
       omega
     rw [bind_ok (closureInfos_getE_apply g p' hfp')] at hrun
-    cases hcs : solverRecCheckSolvable p' g with
+    cases hcs : recCheckSolvable p' g with
     | error e s => rw [bind_error hcs] at hrun; exact absurd hrun (by simp)
     | ok cs g₃ =>
       rw [bind_ok hcs] at hrun
@@ -222,12 +223,12 @@ grown by one `movableComp` (`AccumStep`, which is what both completeness loop in
 run on), a `break` can only return `allkings`, and the globals gain nothing but a memo
 write. -/
 theorem recBody_complete_step {H : Globals → Prop}
-    {p : SolverPosType} {ki : KingInfo} {comp allkings : UInt16}
+    {p : PosType} {ki : KingInfo} {comp allkings : UInt16}
     {pile : Nat} {v : UInt16} {g g' : Globals} {r : ForInStep UInt16}
     (hpile : pile < 10) (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
     (hkiloc : PossibleKingsLocal p ki) (hhm : H g)
     (hcsp : ChildSpecComplete H p)
-    (hrun : recBody solverRecCheckSolvable p (closureInfoOf p) ki comp allkings pile v g
+    (hrun : recBody recCheckSolvable p (closureInfoOf p) ki comp allkings pile v g
       = .ok r g') :
     AccumStep comp v r.value ∧
     (∀ c : UInt16, r = ForInStep.done c → c = allkings) ∧
@@ -253,7 +254,7 @@ theorem recBody_complete_step {H : Globals → Prop}
       have := hcan.toSolverInvBase.pileDepth_bound ⟨(UInt32.ofNat pile).toNat, hidx⟩
       omega
     obtain ⟨toPile, hgd⟩ : ∃ tp : UInt8,
-        solverGetDestination p (UInt32.ofNat pile) g = .ok tp g := by
+        getDestination p (UInt32.ofNat pile) g = .ok tp g := by
       rcases getDest_spec' hwf hcan hidx hd hb5 with ⟨-, h⟩ | ⟨n, -, -, -, -, h⟩
       · exact ⟨_, h⟩
       · exact ⟨_, h⟩
@@ -261,7 +262,7 @@ theorem recBody_complete_step {H : Globals → Prop}
     obtain ⟨mvm, hmvrun, hmvloc⟩ := getMovable_run (g := g) ki
       (p.pileFlute.get ⟨(UInt32.ofNat pile).toNat, hidx⟩) toPile
       (hcan.toSolverInvBase.flute_pos ⟨(UInt32.ofNat pile).toNat, hidx⟩) hkiloc
-    have hmvapp : solverGetMovable ki (closureInfoOf p).shiftValue
+    have hmvapp : getMovable ki (closureInfoOf p).shiftValue
         (p.pileFlute.get ⟨(UInt32.ofNat pile).toNat, hidx⟩) toPile g = .ok mvm g := hmvrun
     rw [bind_ok hmvapp] at hrun
     by_cases hnew : (mvm &&& ~~~v != 0) = true
@@ -279,7 +280,7 @@ theorem recBody_complete_step {H : Globals → Prop}
         have : p'.freePiles.toInt = (p'.freePiles.toNat : Int) := rfl
         omega
       rw [bind_ok (closureInfos_getE_apply g p' hfp')] at hrun
-      cases hcs : solverRecCheckSolvable p' g with
+      cases hcs : recCheckSolvable p' g with
       | error e s => rw [bind_error hcs] at hrun; exact absurd hrun (by simp)
       | ok cs g₃ =>
         rw [bind_ok hcs] at hrun
@@ -396,7 +397,7 @@ theorem forIn_reach {β : Type} (R : β → Globals → Prop) (P : β → Prop)
 `pos2card`; so the transfer is the same three lines as
 `StateMatchesSolverPos.hashmap_iff`. -/
 
-theorem DepthPlusKings.hashmap_iff {g : Globals} {u : State} {p : SolverPosType}
+theorem DepthPlusKings.hashmap_iff {g : Globals} {u : State} {p : PosType}
     (hm : Vector UInt16 BIG_HASH_SIZE) :
     DepthPlusKings { g with hashmap := hm } u p ↔ DepthPlusKings g u p := by
   constructor <;> intro h <;>
@@ -404,7 +405,7 @@ theorem DepthPlusKings.hashmap_iff {g : Globals} {u : State} {p : SolverPosType}
             depth_match := h.depth_match, king_le := h.king_le,
             aces_match := h.aces_match, flute_le := h.flute_le }
 
-theorem DepthPlusKingsCfg.hashmap_iff {g : Globals} {u : State} {p : SolverPosType}
+theorem DepthPlusKingsCfg.hashmap_iff {g : Globals} {u : State} {p : PosType}
     {k : Fin 16} (hm : Vector UInt16 BIG_HASH_SIZE) :
     DepthPlusKingsCfg { g with hashmap := hm } u p k ↔ DepthPlusKingsCfg g u p k := by
   constructor <;> intro h
@@ -418,7 +419,7 @@ theorem DepthPlusKingsCfg.hashmap_iff {g : Globals} {u : State} {p : SolverPosTy
 /-- What the loop is asked to deliver: some block configuration above one the critical
 state stands for, with its bit in the accumulator.  Stated at the loop's *entry* globals,
 which is why the memo frame has to travel alongside. -/
-def CriticalBit (g : Globals) (t₀ : State) (p : SolverPosType) (v : UInt16) : Prop :=
+def CriticalBit (g : Globals) (t₀ : State) (p : PosType) (v : UInt16) : Prop :=
   ∃ (i : Nat) (k : Fin 16), i < (closureInfoOf p).numBits.toNat ∧
     DepthPlusKingsCfg g t₀ p k ∧ MaskSub (globalCfg (closureInfoOf p) i) k ∧
       BitSet v ⟨min i 15, by omega⟩
@@ -427,7 +428,7 @@ def CriticalBit (g : Globals) (t₀ : State) (p : SolverPosType) (v : UInt16) : 
 move; the loop reaches it unless it breaks first, and a break returns `allkings`, which
 misses no realizable configuration. -/
 theorem critical_loop_bitSet {H : Globals → Prop}
-    {g g' : Globals} {p : SolverPosType} {ki : KingInfo} {comp allkings vfin : UInt16}
+    {g g' : Globals} {p : PosType} {ki : KingInfo} {comp allkings vfin : UInt16}
     {pile : Nat} {t₀ t₁ : State} {m : Move}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
     (hkiloc : PossibleKingsLocal p ki) (hkic : KingInfoCorrect p ki)
@@ -440,7 +441,7 @@ theorem critical_loop_bitSet {H : Globals → Prop}
     (hdst : m.dest ≠ Position.pile ⟨pile, hpile⟩)
     (hap : applyMove t₀ m = some t₁) (hsolv : Solvable t₁)
     (hrun : forIn (List.range 10) (0 : UInt16)
-      (recBody solverRecCheckSolvable p (closureInfoOf p) ki comp allkings) g = .ok vfin g') :
+      (recBody recCheckSolvable p (closureInfoOf p) ki comp allkings) g = .ok vfin g') :
     CriticalBit g t₀ p vfin ∧ CompAllOrNothing vfin comp ∧ H g' ∧
       ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm } := by
   have hb : SolverInvBase g p := hcan.toSolverInvBase
@@ -460,7 +461,7 @@ theorem critical_loop_bitSet {H : Globals → Prop}
   -- the three loop obligations
   have hstep : ∀ (x : Nat), x ∈ List.range 10 → ∀ (b : UInt16) (gg : Globals)
       (r : ForInStep UInt16) (gg' : Globals), R b gg →
-      recBody solverRecCheckSolvable p (closureInfoOf p) ki comp allkings x b gg = .ok r gg' →
+      recBody recCheckSolvable p (closureInfoOf p) ki comp allkings x b gg = .ok r gg' →
       AccumStep comp b r.value ∧
         (∀ c : UInt16, r = ForInStep.done c → c = allkings) ∧ R r.value gg' := by
     intro x hx b gg r gg' hr hbx
@@ -471,7 +472,7 @@ theorem critical_loop_bitSet {H : Globals → Prop}
     obtain ⟨-, -, hm, rfl⟩ := hr
     exact ⟨hm', by rw [hgg']⟩
   refine forIn_reach R (CriticalBit g t₀ p)
-    (recBody solverRecCheckSolvable p (closureInfoOf p) ki comp allkings) (List.range 10) pile
+    (recBody recCheckSolvable p (closureInfoOf p) ki comp allkings) (List.range 10) pile
     (List.mem_range.2 hpile)
     (fun x hx b gg r gg' hr hbx => (hstep x hx b gg r gg' hr hbx).2.2)
     (fun x hx b gg r gg' hr hp hbx => ?_) (fun x hx b gg c gg' hr hbx => ?_)

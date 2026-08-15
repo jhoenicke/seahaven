@@ -1,5 +1,7 @@
 import Seahaven.SolverSpecCommon
 
+open Solver
+
 /-!
 # Spec for `preCleanupPile` (and the older `cleanupRunResult`)
 
@@ -24,7 +26,7 @@ open Lean Lean.Order
     pile via `isFreeCard_mono`. -/
 theorem cleanupRunResult_pileDepth_le (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (p : SolverPosType) (m f : Nat)
+    (p : PosType) (m f : Nat)
     (hd5 : (p.pileDepth[pile.toNat]'hpile).toNat ≤ 5)
     (hm : m ≤ (p.pileDepth[pile.toNat]'hpile).toNat) (i : Fin 10) :
     ((cleanupRunResult pile hpile B ph hs4
@@ -79,7 +81,7 @@ theorem cleanupRunResult_pileDepth_le (pile : UInt32) (hpile : pile.toNat < 10)
     `pileDepth[j]` is literally unchanged (not merely `≤`). -/
 theorem cleanupRunResult_pileDepth_eq_of_ne (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (p : SolverPosType) (m f : Nat) (j : Fin 10) (hj : j.val ≠ pile.toNat) :
+    (p : PosType) (m f : Nat) (j : Fin 10) (hj : j.val ≠ pile.toNat) :
     (cleanupRunResult pile hpile B ph hs4
         (p.pileDepth[pile.toNat]'hpile) m f p).2.pileDepth.get j =
       p.pileDepth.get j := by
@@ -111,7 +113,7 @@ theorem cleanupRunResult_pileDepth_eq_of_ne (pile : UInt32) (hpile : pile.toNat 
     `hk` split is needed). -/
 theorem preCleanupPile_pileDepth_le (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (p : SolverPosType) (m f : Nat)
+    (p : PosType) (m f : Nat)
     (hd5 : (p.pileDepth[pile.toNat]'hpile).toNat ≤ 5)
     (hm : m ≤ (p.pileDepth[pile.toNat]'hpile).toNat) (i : Fin 10) :
     ((preCleanupPile pile hpile B ph hs4
@@ -135,7 +137,7 @@ theorem preCleanupPile_pileDepth_le (pile : UInt32) (hpile : pile.toNat < 10)
 /-- Specialization to `j ≠ pile`: `pileDepth[j]` is literally unchanged. -/
 theorem preCleanupPile_pileDepth_eq_of_ne (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (p : SolverPosType) (m f : Nat) (j : Fin 10) (hj : j.val ≠ pile.toNat) :
+    (p : PosType) (m f : Nat) (j : Fin 10) (hj : j.val ≠ pile.toNat) :
     (preCleanupPile pile hpile B ph hs4
         (p.pileDepth[pile.toNat]'hpile) m f p).pileDepth.get j =
       p.pileDepth.get j := by
@@ -148,7 +150,7 @@ theorem preCleanupPile_pileDepth_eq_of_ne (pile : UInt32) (hpile : pile.toNat < 
 /-- Specialization to `j ≠ pile`: `pileFlute[j]` is literally unchanged. -/
 theorem preCleanupPile_pileFlute_eq_of_ne (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (p : SolverPosType) (m f : Nat) (j : Fin 10) (hj : j.val ≠ pile.toNat) :
+    (p : PosType) (m f : Nat) (j : Fin 10) (hj : j.val ≠ pile.toNat) :
     (preCleanupPile pile hpile B ph hs4
         (p.pileDepth[pile.toNat]'hpile) m f p).pileFlute.get j =
       p.pileFlute.get j := by
@@ -166,7 +168,7 @@ theorem preCleanupPile_pileFlute_eq_of_ne (pile : UInt32) (hpile : pile.toNat < 
     are still distinct terms until the `if` is resolved). -/
 theorem preCleanupPile_aces_eq (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (p : SolverPosType) (m f : Nat) :
+    (p : PosType) (m f : Nat) :
     (preCleanupPile pile hpile B ph hs4
         (p.pileDepth[pile.toNat]'hpile) m f p).aces = p.aces := by
   simp only [preCleanupPile]
@@ -174,7 +176,7 @@ theorem preCleanupPile_aces_eq (pile : UInt32) (hpile : pile.toNat < 10)
 /-- `preCleanupPile` never touches `kings`. -/
 theorem preCleanupPile_kings_eq (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (p : SolverPosType) (m f : Nat) :
+    (p : PosType) (m f : Nat) :
     (preCleanupPile pile hpile B ph hs4
         (p.pileDepth[pile.toNat]'hpile) m f p).kings = p.kings := by
   simp only [preCleanupPile]
@@ -189,7 +191,7 @@ theorem preCleanupPile_kings_eq (pile : UInt32) (hpile : pile.toNat < 10)
     is untouched by `preCleanupPile_aces_eq`), so it transfers verbatim. -/
 theorem preCleanupPile_pileBase_ne (pile : UInt32) (g : Globals) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (p : SolverPosType) (m f : Nat)
+    (p : PosType) (m f : Nat)
     (hd5 : (p.pileDepth[pile.toNat]'hpile).toNat ≤ 5)
     (hm : m ≤ (p.pileDepth[pile.toNat]'hpile).toNat)
     (j : Fin 10) (hj : j.val ≠ pile.toNat) (hb : PileBase g p j) :
@@ -272,7 +274,7 @@ theorem preCleanupPile_pileBase_ne (pile : UInt32) (g : Globals) (hpile : pile.t
 private theorem preCleanupPile_not_free_of_lt_boundary
     (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10) (hwf : WellFormedLayout g)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4) (hBrange : B.toNat ≤ 61)
-    (p : SolverPosType) (m f : Nat)
+    (p : PosType) (m f : Nat)
     (hd5 : (p.pileDepth[pile.toNat]'hpile).toNat ≤ 5)
     (hm : m + 1 ≤ (p.pileDepth[pile.toNat]'hpile).toNat)
     (hmcards : ∀ k, k ≤ m → ∃ h5 : ((p.pileDepth[pile.toNat]'hpile) -
@@ -377,7 +379,7 @@ private theorem preCleanupPile_not_free_of_lt_boundary
 private theorem preCleanupPile_not_free_of_ne_absorbed
     (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10) (hwf : WellFormedLayout g)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4) (_hBrange : B.toNat ≤ 61)
-    (p : SolverPosType) (m f : Nat)
+    (p : PosType) (m f : Nat)
     (hd5 : (p.pileDepth[pile.toNat]'hpile).toNat ≤ 5)
     (hm : m + 1 ≤ (p.pileDepth[pile.toNat]'hpile).toNat)
     (hmcards : ∀ k, k ≤ m → ∃ h5 : ((p.pileDepth[pile.toNat]'hpile) -
@@ -475,7 +477,7 @@ private theorem preCleanupPile_not_free_of_ne_absorbed
     This is a restatement of the "No lone king" branch's own-pile reasoning
     out of the (structurally stale) monolithic `cleanupPile_base`, purely in
     terms of `preCleanupPile`. -/
-theorem preCleanupPile_pileBase_self (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem preCleanupPile_pileBase_self (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)
     (hnf : SolverInvBase g (fluteNorm pile hpile p))
@@ -789,7 +791,7 @@ set_option maxHeartbeats 1000000 in
     going"). `busyAces_complete`'s antecedent turns out to be *exactly*
     `preCleanupPile`'s own `busyAces`-setting condition, so it's essentially
     definitional once unfolded. -/
-theorem preCleanupPile_pileMerged_self (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem preCleanupPile_pileMerged_self (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)
     (hnf : SolverInvBase g (fluteNorm pile hpile p))
@@ -1157,7 +1159,7 @@ theorem preCleanupPile_pileMerged_self (pile : UInt32) (g : Globals) (p : Solver
 theorem preCleanupPile_pileMerged_ne (pile : UInt32) (g : Globals) (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (p : SolverPosType) (m f : Nat)
+    (p : PosType) (m f : Nat)
     (hd5 : (p.pileDepth[pile.toNat]'hpile).toNat ≤ 5)
     (hm_le : m + 1 ≤ (p.pileDepth[pile.toNat]'hpile).toNat)
     (hmcards : ∀ k, k ≤ m → ∃ h5 : ((p.pileDepth[pile.toNat]'hpile) -
@@ -1527,7 +1529,7 @@ theorem preCleanupPile_pileMerged_ne (pile : UInt32) (g : Globals) (hpile : pile
 /-- **`preCleanupPile` leaves the pile it just wrote `PileClean`.**  Combines
     `preCleanupPile_pileBase_self` and `preCleanupPile_pileMerged_self` into the
     full per-pile bundle. -/
-theorem preCleanupPile_pileClean_self (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem preCleanupPile_pileClean_self (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)
     (hnf : SolverInvBase g (fluteNorm pile hpile p))
@@ -1570,7 +1572,7 @@ theorem preCleanupPile_pileClean_self (pile : UInt32) (g : Globals) (p : SolverP
     itself this is `preCleanupPile_pileBase_self`'s own `pileDepth_bound`
     field; everywhere else the depth is untouched
     (`preCleanupPile_pileDepth_eq_of_ne`), so it's just `hnf`'s own bound. -/
-theorem preCleanupPile_pileDepth_bound_all (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem preCleanupPile_pileDepth_bound_all (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)
     (hnf : SolverInvBase g (fluteNorm pile hpile p))
@@ -1619,7 +1621,7 @@ set_option maxHeartbeats 1000000 in
     `B` itself when it IS in the revealed range, forcing `f = 0`
     (`hAeqB_implies_f0`) and landing the argument in the "flute-top witness is
     `pile` itself" disjunct instead. -/
-theorem preCleanupPile_suitClean (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem preCleanupPile_suitClean (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)
     (hnf : SolverInvBase g (fluteNorm pile hpile p))
@@ -2111,7 +2113,7 @@ theorem preCleanupPile_suitClean (pile : UInt32) (g : Globals) (p : SolverPosTyp
     exactly `m` at `pile` in the dot product (`hash_foldl_set` isolates that
     one term, then `UInt32.ofNat_add`/`mul_add` splits off the `m` part to
     match `preCleanupPile`'s own `hash := p.hash - UInt32.ofNat m * ph` field). -/
-theorem preCleanupPile_hash_def (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem preCleanupPile_hash_def (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10)
     (hnf : SolverInvBase g (fluteNorm pile hpile p))
     (B : UInt8) (hs4 : (SUIT B).toUInt32.toNat < 4)
@@ -2171,7 +2173,7 @@ set_option maxHeartbeats 1000000 in
     field), the ledger balances exactly.  The final `UInt8` arithmetic
     (`usedSpace - f`) doesn't wrap because `usedSpace_bounded` bounds
     `p.usedSpace.toInt ∈ [0,52]` and `f ≤ B.toNat - 1 ≤ 60`. -/
-theorem preCleanupPile_usedSpace_def (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem preCleanupPile_usedSpace_def (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)
     (hnf : SolverInvBase g (fluteNorm pile hpile p))

@@ -153,7 +153,7 @@ private theorem getElem_reverse_col {col : Column} {r : Nat} (hr : r < col.rever
 /-- **The chain above the boundary.**  Every card above the dealt boundary sits
 directly on its successor; at the very bottom (only possible when `n = 0`) the card is
 a king and the tail is empty. -/
-theorem pileMatches_nextCard_chain {g : Globals} (hwf : WellFormedLayout g)
+theorem pileMatches_nextCard_chain {g : Solver.Globals} (hwf : WellFormedLayout g)
     {col : Column} {a : Fin 10} {n : Fin 6} (h : PileMatches g col a n)
     (j : Nat) (hj : j < col.length) (hjlt : j < col.length - n.val) :
     nextCard (col[j]'hj) = (col.drop (j + 1)).head? := by
@@ -189,7 +189,7 @@ theorem pileMatches_nextCard_chain {g : Globals} (hwf : WellFormedLayout g)
     rw [nextCard_of_encodeCard_succ hstep, head?_drop_eq hj1]
 
 /-- **The reported depth is at most the layout's.**  In particular it is at most `5`. -/
-theorem removeFlute_length_le_of_pileMatches {g : Globals} (hwf : WellFormedLayout g)
+theorem removeFlute_length_le_of_pileMatches {g : Solver.Globals} (hwf : WellFormedLayout g)
     {col : Column} {a : Fin 10} {n : Fin 6} (h : PileMatches g col a n) :
     (removeFlute col).length ≤ n.val := by
   have hnL : n.val ≤ col.length := h.1
@@ -201,7 +201,7 @@ theorem removeFlute_length_le_of_pileMatches {g : Globals} (hwf : WellFormedLayo
 the layout's boundary was stripped because it chained, and down there the column *is*
 the dealt column — so the chain is a statement about `pos2card`, which is what
 `PileMatches_lower` wants. -/
-theorem pileMatches_pos2card_chain {g : Globals}
+theorem pileMatches_pos2card_chain {g : Solver.Globals}
     {col : Column} {a : Fin 10} {n : Fin 6} (h : PileMatches g col a n)
     (j : Nat) (h1 : 1 ≤ j) (hr : (removeFlute col).length ≤ j) (hjn : j < n.val)
     (hj1 : j - 1 < 5) (hj5 : j < 5) :
@@ -233,7 +233,7 @@ theorem pileMatches_pos2card_chain {g : Globals}
 /-- **The reported depth is a legal boundary.**  `PileMatches_lower` down to it, and —
 when it is `0` — `PileMatches_vacate` for the last step, whose king is exactly the card
 `removeFlute` needed to reach the empty list. -/
-theorem pileMatches_removeFluteDepth {g : Globals} (hwf : WellFormedLayout g)
+theorem pileMatches_removeFluteDepth {g : Solver.Globals} (hwf : WellFormedLayout g)
     {col : Column} {a : Fin 10} {n : Fin 6} (h : PileMatches g col a n)
     (hr6 : (removeFlute col).length < 6) :
     PileMatches g col a ⟨(removeFlute col).length, hr6⟩ := by
@@ -263,7 +263,7 @@ theorem pileMatches_removeFluteDepth {g : Globals} (hwf : WellFormedLayout g)
       have hking : (col.reverse[0]'h0r).rank = Rank.king := by
         rw [getElem_reverse_col h0r (by omega)] at *
         exact (nextCard_eq_none_iff _).1 hchain0
-      have hking13 : (VALUE ((g.pos2card.get a).get ⟨0, by omega⟩)).toNat = 13 := by
+      have hking13 : (Solver.VALUE ((g.pos2card.get a).get ⟨0, by omega⟩)).toNat = 13 := by
         rw [← hbot, encodeCard_VALUE, hking]
         rfl
       exact PileMatches_of_val_eq (PileMatches_vacate hone hking13)
@@ -358,7 +358,7 @@ theorem rank_king_of_removeFlute_nil {col : Column} (hrf : removeFlute col = [])
 
 /-- **Such a column is one suit's run**, so its top and bottom cards agree on the
 suit. -/
-theorem suit_eq_of_pileMatches_zero {g : Globals} {col : Column} {a : Fin 10} {n : Fin 6}
+theorem suit_eq_of_pileMatches_zero {g : Solver.Globals} {col : Column} {a : Fin 10} {n : Fin 6}
     (h : PileMatches g col a n) (hn : n.val = 0) {c d : Card}
     (hc : col.head? = some c) (hd : col.getLast? = some d) : c.suit = d.suit := by
   obtain ⟨su, hrun⟩ := h.king_run hn
@@ -375,7 +375,7 @@ theorem suit_eq_of_pileMatches_zero {g : Globals} {col : Column} {a : Fin 10} {n
 
 /-- **And it is at most a whole suit long**: the run descends from the king by one per
 card and never reaches value `0`. -/
-theorem PileMatches.length_le_of_zero {g : Globals} {col : Column} {a : Fin 10} {n : Fin 6}
+theorem PileMatches.length_le_of_zero {g : Solver.Globals} {col : Column} {a : Fin 10} {n : Fin 6}
     (h : PileMatches g col a n) (hn : n.val = 0) : col.length ≤ 13 := by
   by_contra hlt
   obtain ⟨su, hrun⟩ := h.king_run hn
@@ -484,7 +484,7 @@ theorem pileDepth_toNat (s : State) (i : Fin 10)
   rw [UInt8.toNat_ofNat']
   omega
 
-theorem removeFlute_length_le_five {g : Globals} (hwf : WellFormedLayout g) {s : State}
+theorem removeFlute_length_le_five {g : Solver.Globals} (hwf : WellFormedLayout g) {s : State}
     (hlayout : StateMatchesLayout g s) (i : Fin 10) :
     (removeFlute (s.tableau i)).length ≤ 5 := by
   obtain ⟨n, hn⟩ := hlayout.piles_match i
@@ -493,19 +493,19 @@ theorem removeFlute_length_le_five {g : Globals} (hwf : WellFormedLayout g) {s :
   omega
 
 /-- **Obligation 1: the depths a state reports are legal.** -/
-theorem validDepths_pilesKings {g : Globals} (hwf : WellFormedLayout g) {s : State}
+theorem validDepths_pilesKings {g : Solver.Globals} (hwf : WellFormedLayout g) {s : State}
     (hlayout : StateMatchesLayout g s) : ValidDepths (pilesKingsFromState s) := by
   intro i
   rw [pilesKings_get, pileDepth_toNat s i (removeFlute_length_le_five hwf hlayout i)]
   exact removeFlute_length_le_five hwf hlayout i
 
-theorem cvDepths_toNat {g : Globals} (hwf : WellFormedLayout g) {s : State}
+theorem cvDepths_toNat {g : Solver.Globals} (hwf : WellFormedLayout g) {s : State}
     (hlayout : StateMatchesLayout g s) (i : Fin 10) :
     ((cvDepths (pilesKingsFromState s)).get i).toNat = (removeFlute (s.tableau i)).length := by
   rw [cvDepths_pilesKings, pileDepth_toNat s i (removeFlute_length_le_five hwf hlayout i)]
 
 /-- **The reported depths are legal boundaries.** -/
-theorem depthMatch_pilesKings {g : Globals} (hwf : WellFormedLayout g) {s : State}
+theorem depthMatch_pilesKings {g : Solver.Globals} (hwf : WellFormedLayout g) {s : State}
     (hlayout : StateMatchesLayout g s) (i : Fin 10)
     (h6 : ((cvDepths (pilesKingsFromState s)).get i).toNat < 6) :
     PileMatches g (s.tableau i) i ⟨((cvDepths (pilesKingsFromState s)).get i).toNat, h6⟩ := by
@@ -515,14 +515,14 @@ theorem depthMatch_pilesKings {g : Globals} (hwf : WellFormedLayout g) {s : Stat
 
 /-! ## The configuration the encoding names
 
-`kingBitmap` sets bit `su` when a suit owns a pile; `^^^ 0xf` and `bits2grlex` turn that
+`kingBitmap` sets bit `su` when a suit owns a pile; `^^^ 0xf` and `Solver.bits2grlex` turn that
 into the internal reading, where a set bit means the suit has *no* pile.  Both tables are
 concrete, so the round trip is decided. -/
 
-/-- `bits2grlex` and `grlex2bits` are inverse tables, so the configuration's own bit is
+/-- `Solver.bits2grlex` and `Solver.grlex2bits` are inverse tables, so the configuration's own bit is
 the bitmask's bit. -/
 private theorem cfg_nibble (x : Fin 16) (su : Suit) :
-    ¬ CfgBitSet ⟨(bits2grlex.get x).toNat, bits2grlex_lt x⟩ su
+    ¬ CfgBitSet ⟨(Solver.bits2grlex.get x).toNat, bits2grlex_lt x⟩ su
       ↔ ¬ (x.val / 2 ^ (suitToNat su) % 2 = 1) := by
   revert su x
   decide
@@ -547,7 +547,7 @@ theorem cfgBitSet_kingCfgOf (pk : Vector UInt8 11)
   have hx15 : (pk.get ⟨10, by omega⟩).toNat ^^^ 15 < 16 :=
     Nat.xor_lt_two_pow (n := 4) h10 (by decide)
   have h1 : kingCfgOf pk h10
-      = ⟨(bits2grlex.get ⟨((pk.get ⟨10, by omega⟩) ^^^ 0xf).toNat, hxlt⟩).toNat,
+      = ⟨(Solver.bits2grlex.get ⟨((pk.get ⟨10, by omega⟩) ^^^ 0xf).toNat, hxlt⟩).toNat,
           bits2grlex_lt _⟩ := rfl
   have hidx : (⟨((pk.get ⟨10, by omega⟩) ^^^ 0xf).toNat, hxlt⟩ : Fin 16)
       = ⟨(pk.get ⟨10, by omega⟩).toNat ^^^ 15, hx15⟩ :=
@@ -577,14 +577,14 @@ theorem kingRunLen_eq {s : State} (hcount : ∀ c : Card, countState s c = 1) {s
 
 /-- **The position a state's own encoding describes.**  Depths and flutes as the state
 carries them, foundations its own, and `kings` the length of each suit's king pile. -/
-noncomputable def stateGame (s : State) : SolverPosType where
+noncomputable def stateGame (s : State) : Solver.PosType where
   hash := 0
   pileDepth := cvDepths (pilesKingsFromState s)
   pileFlute := cvFluteOf s (cvDepths (pilesKingsFromState s))
   aces := Vector.ofFn (fun t : Fin 4 =>
     encodeFoundation (natToSuit t) (s.foundations (natToSuit t)))
   kings := Vector.ofFn (fun t : Fin 4 =>
-    CARD (UInt8.ofNat t.val) (UInt8.ofNat (13 - kingRunLen s (natToSuit t))))
+    Solver.CARD (UInt8.ofNat t.val) (UInt8.ofNat (13 - kingRunLen s (natToSuit t))))
   usedSpace := 0
   freePiles := 0
   busyAces := 0
@@ -598,13 +598,13 @@ theorem stateGame_aces (s : State) (su : Suit) :
   rw [Vector.getElem_ofFn, hnat]
 
 theorem stateGame_kings (s : State) (su : Suit) :
-    (VALUE ((stateGame s).kings.get (finOfSuit su))).toNat = 13 - kingRunLen s su := by
+    (Solver.VALUE ((stateGame s).kings.get (finOfSuit su))).toNat = 13 - kingRunLen s su := by
   have hnat : natToSuit ⟨(finOfSuit su).val, (finOfSuit su).isLt⟩ = su := natToSuit_suitToNat su
-  show (VALUE ((Vector.ofFn (fun t : Fin 4 =>
-    CARD (UInt8.ofNat t.val) (UInt8.ofNat (13 - kingRunLen s (natToSuit t)))))[
+  show (Solver.VALUE ((Vector.ofFn (fun t : Fin 4 =>
+    Solver.CARD (UInt8.ofNat t.val) (UInt8.ofNat (13 - kingRunLen s (natToSuit t)))))[
       (finOfSuit su).val]'(finOfSuit su).isLt)).toNat = _
   rw [Vector.getElem_ofFn, hnat]
-  show (VALUE (CARD (UInt8.ofNat (suitToNat su))
+  show (Solver.VALUE (Solver.CARD (UInt8.ofNat (suitToNat su))
     (UInt8.ofNat (13 - kingRunLen s su)))).toNat = _
   rw [VALUE_toNat, cv_card_toNat (show suitToNat su < 4 from suitToNat_lt su) (by omega)]
   omega
@@ -615,10 +615,10 @@ theorem stateGame_kings (s : State) (su : Suit) :
 the configuration its own king bitmap names.  Every clause but the flute one is read off
 the layout match (`matchesKingConfig_cvFluteOf` supplies that one), and the
 configuration's content is that a column `removeFlute` empties is a king run. -/
-theorem exists_cvEntry {g : Globals} (hwf : WellFormedLayout g) {s : State}
+theorem exists_cvEntry {g : Solver.Globals} (hwf : WellFormedLayout g) {s : State}
     (hlayout : StateMatchesLayout g s)
     (h10 : ((pilesKingsFromState s).get ⟨10, by omega⟩).toNat < 16) :
-    ∃ game' : SolverPosType,
+    ∃ game' : Solver.PosType,
       CvEntry g (pilesKingsFromState s) s game'
         (kingCfgOf (pilesKingsFromState s) h10) := by
   classical
@@ -662,7 +662,7 @@ theorem exists_cvEntry {g : Globals} (hwf : WellFormedLayout g) {s : State}
   have hking : ∀ i : Fin 10, ((stateGame s).pileDepth.get i).toNat = 0 →
       ∀ c ∈ (s.tableau i).getLast?,
         (s.tableau i).length
-          + (VALUE ((stateGame s).kings.get (finOfSuit c.suit))).toNat = 13 := by
+          + (Solver.VALUE ((stateGame s).kings.get (finOfSuit c.suit))).toNat = 13 := by
     intro i h0 c hc
     have hc' : (s.tableau i).getLast? = some c := hc
     have hrank : c.rank = Rank.king := rank_king_of_removeFlute_nil (hnil i h0) hc'

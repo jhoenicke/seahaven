@@ -2,6 +2,7 @@ import Seahaven.ConvertSim
 import Seahaven.Phase1Sim
 
 open Rules
+open Solver
 
 /-!
 # Soundness of `solve`
@@ -10,14 +11,14 @@ open Rules
 
 The call is three steps, and each one now has its spec:
 
-1. `SolverConvertFromPilesKings pk10` — `SolverSpec.convert_simulates`: the
+1. `convertFromPilesKings pk10` — `SolverSpec.convert_simulates`: the
    resulting position `p` is canonical, and the legal moves it stands for take the
    concrete state `s` (which stands for the prologue's position `convertPre g
    pk10` at the king configuration `pk10[10]` names) to a state `v` standing
    for `p` at some configuration `k'`;
 2. the `hash = 0` shortcut — `solvable_of_hash_zero`: a position with all depths
    zero has all four foundations complete, so the matching state *is* the goal;
-3. `solverRecCheckSolvable` plus the final `subsetTable` read —
+3. `recCheckSolvable` plus the final `subsetTable` read —
    `recCheckSolvableSound` gives `SoundBits g p cs`, and `Simulates.transport`
    carries the bit the solver tested at the *parent's* configuration over to the
    one the successor state actually realizes.  This is the same `&&& forcedKings`
@@ -47,13 +48,13 @@ def kingCfgOf (pk10 : Vector UInt8 11) (h : (pk10.get ⟨10, by omega⟩).toNat 
 
 /-- Everything `solve` does after the convert call: the `hash = 0` shortcut, the
     recursive check, and the final `subsetTable` read. -/
-def solveTail (pk10 : Vector UInt8 11) (forcedKings : UInt16) (game : SolverPosType) :
+def solveTail (pk10 : Vector UInt8 11) (forcedKings : UInt16) (game : PosType) :
     EStateM Error Globals UInt8 := do
   if game.hash == 0 then
     return 0  -- SUCCESS: game already solved
   let kingbit ← bits2grlex.getE ((← pk10.getE 10) ^^^ 0xf).toUInt32
   let ci ← closureInfos.getE game.freePiles.toUInt32
-  let solvable := (← solverRecCheckSolvable game) &&&
+  let solvable := (← recCheckSolvable game) &&&
                   (forcedKings >>> ci.shiftValue.toUInt16)
   let tableEntry ← subsetTable.getE (ci.offset.toUInt32 + solvable.toUInt32)
   if tableEntry &&& ((1 : UInt16) <<< kingbit.toUInt16) != 0 then
@@ -63,10 +64,10 @@ def solveTail (pk10 : Vector UInt8 11) (forcedKings : UInt16) (game : SolverPosT
 
 /-- The `rfl`-twin of `solve` with its tail named. -/
 theorem solve_eq_explicit (pk10 : Vector UInt8 11) :
-    _root_.solve pk10 = (do
+    Solver.solve pk10 = (do
       let globals ← get
-      match EStateM.run (_root_.SolverConvertFromPilesKings pk10)
-          (globals, emptySolverPosType) with
+      match EStateM.run (Solver.convertFromPilesKings pk10)
+          (globals, emptyPosType) with
       | .error e _ => throw e
       | .ok forcedKings (globals', game) => do
           set globals'
@@ -90,7 +91,7 @@ set_option maxHeartbeats 1000000 in
     configuration `pk10[10]` names.  Everything below this is a matter of which
     state that bit is read against. -/
 theorem solveTail_bits {g g' : Globals} {pk10 : Vector UInt8 11}
-    {p : SolverPosType} {fk : UInt16}
+    {p : PosType} {fk : UInt16}
     (hwf : WFGlobals g) (hcan : IsCanonicalPos g p)
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
     (hrun : solveTail pk10 fk p g = .ok 0 g') :
@@ -126,7 +127,7 @@ theorem solveTail_bits {g g' : Globals} {pk10 : Vector UInt8 11}
       exact congrArg closureInfos.get (Fin.ext hvaleq)
     rw [bind_ok (vector_getE_apply closureInfos _ g hfp), hciEq] at hrun
     -- the recursive check
-    cases hrc : solverRecCheckSolvable p g with
+    cases hrc : recCheckSolvable p g with
     | error e g2 =>
       rw [bind_error hrc] at hrun
       simp at hrun
@@ -215,7 +216,7 @@ theorem uint16_and_or_absorb (a b : UInt16) : (a &&& b) ||| a = a := by
     position; the moves the cleanup and the drain perform take it to a state
     standing for `p`. -/
 theorem solveTail_sound {g g' : Globals} {pk10 : Vector UInt8 11} {s : State}
-    {P p : SolverPosType} {fk : UInt16}
+    {P p : PosType} {fk : UInt16}
     (hwf : WFGlobals g) (hcan : IsCanonicalPos g p)
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
     (hsim : ∃ (v : State) (k' : Fin 16) (FK : Finset Suit),
@@ -232,7 +233,7 @@ theorem solveTail_sound {g g' : Globals} {pk10 : Vector UInt8 11} {s : State}
     arbitrary flute lengths, freed runs already on the piles — so no moves have to
     be simulated at all. -/
 theorem solveTail_sound_canonical {g g' : Globals} {pk10 : Vector UInt8 11} {s : State}
-    {p : SolverPosType} {fk : UInt16}
+    {p : PosType} {fk : UInt16}
     (hwf : WFGlobals g) (hcan : IsCanonicalPos g p)
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
     (hmatch : StateMatchesKingConfig g s p (kingCfgOf pk10 hs10))
@@ -252,12 +253,12 @@ theorem solve_sound {g g' : Globals} {pk10 : Vector UInt8 11} {s : State}
     (hwf : WFGlobals g) (hpk : ValidDepths pk10)
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
     (hmatch : StateMatchesKingConfig g s (convertPre g pk10) (kingCfgOf pk10 hs10))
-    (hrun : EStateM.run (_root_.solve pk10) g = .ok 0 g') :
+    (hrun : EStateM.run (Solver.solve pk10) g = .ok 0 g') :
     Solvable s := by
   obtain ⟨fk, p, v, k', FK, hrunC, hcan, hsim⟩ :=
-    convert_simulates g hwf.layout pk10 hpk emptySolverPosType s
+    convert_simulates g hwf.layout pk10 hpk emptyPosType s
       (kingCfgOf pk10 hs10) hmatch
-  have hrun' : _root_.solve pk10 g = .ok 0 g' := hrun
+  have hrun' : Solver.solve pk10 g = .ok 0 g' := hrun
   rw [solve_eq_explicit pk10] at hrun'
   simp only [bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get, hrunC,
     set, EStateM.set] at hrun'
@@ -272,19 +273,19 @@ theorem solve_sound {g g' : Globals} {pk10 : Vector UInt8 11} {s : State}
     (`p` and `hconv` name that position; convert is deterministic, so `hconv`
     pins it and `IsCanonicalPos g p` comes for free.) -/
 theorem solve_sound_canonical {g g' : Globals} {pk10 : Vector UInt8 11} {s : State}
-    {p : SolverPosType} {fk : UInt16}
+    {p : PosType} {fk : UInt16}
     (hwf : WFGlobals g) (hpk : ValidDepths pk10)
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
-    (hconv : EStateM.run (_root_.SolverConvertFromPilesKings pk10) (g, emptySolverPosType)
+    (hconv : EStateM.run (Solver.convertFromPilesKings pk10) (g, emptyPosType)
       = .ok fk (g, p))
     (hmatch : StateMatchesKingConfig g s p (kingCfgOf pk10 hs10))
-    (hrun : EStateM.run (_root_.solve pk10) g = .ok 0 g') :
+    (hrun : EStateM.run (Solver.solve pk10) g = .ok 0 g') :
     Solvable s := by
-  obtain ⟨fk2, p2, hrun2, hcan2⟩ := convert_canonical g emptySolverPosType pk10 hwf.layout hpk
+  obtain ⟨fk2, p2, hrun2, hcan2⟩ := convert_canonical g emptyPosType pk10 hwf.layout hpk
   injection hconv.symm.trans hrun2 with hfk hst
   injection hst with _hg hp
   have hcan : IsCanonicalPos g p := by rw [hp]; exact hcan2
-  have hrun' : _root_.solve pk10 g = .ok 0 g' := hrun
+  have hrun' : Solver.solve pk10 g = .ok 0 g' := hrun
   rw [solve_eq_explicit pk10] at hrun'
   simp only [bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get, hconv,
     set, EStateM.set] at hrun'
@@ -302,19 +303,19 @@ theorem solve_sound_of_reach {g g' : Globals} {pk10 : Vector UInt8 11} {s w : St
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
     (hreach : Reach s w)
     (hmatch : StateMatchesKingConfig g w (convertPre g pk10) (kingCfgOf pk10 hs10))
-    (hrun : EStateM.run (_root_.solve pk10) g = .ok 0 g') :
+    (hrun : EStateM.run (Solver.solve pk10) g = .ok 0 g') :
     Solvable s :=
   Solvable.of_reach hreach (solve_sound hwf hpk hs10 hmatch hrun)
 
 theorem solve_sound_canonical_of_reach {g g' : Globals} {pk10 : Vector UInt8 11} {s w : State}
-    {p : SolverPosType} {fk : UInt16}
+    {p : PosType} {fk : UInt16}
     (hwf : WFGlobals g) (hpk : ValidDepths pk10)
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
-    (hconv : EStateM.run (_root_.SolverConvertFromPilesKings pk10) (g, emptySolverPosType)
+    (hconv : EStateM.run (Solver.convertFromPilesKings pk10) (g, emptyPosType)
       = .ok fk (g, p))
     (hreach : Reach s w)
     (hmatch : StateMatchesKingConfig g w p (kingCfgOf pk10 hs10))
-    (hrun : EStateM.run (_root_.solve pk10) g = .ok 0 g') :
+    (hrun : EStateM.run (Solver.solve pk10) g = .ok 0 g') :
     Solvable s :=
   Solvable.of_reach hreach (solve_sound_canonical hwf hpk hs10 hconv hmatch hrun)
 

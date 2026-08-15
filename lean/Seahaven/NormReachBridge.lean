@@ -1,6 +1,7 @@
 import Seahaven.CPNormal
 
 open Rules
+open Solver
 
 /-!
 # The drain's moves are normalizing moves
@@ -15,7 +16,7 @@ i.e. that its `Reach` is a `NormReach`.
 
 The two ingredients the drain is built from both convert:
 
-* `PlaysAll` — the foundation run (`SolverMoveAces`' plays) is an `FMReach`;
+* `PlaysAll` — the foundation run (`moveAces`' plays) is an `FMReach`;
 * `CPReach` — cleanup's freed-predecessor drops are cell→pile moves.
 
 What is *not* here is the re-exposure itself: `Simulates` records `reach : Reach s s'`
@@ -40,7 +41,7 @@ theorem normReach_solvable_iff {s t : State} (hcount : ∀ c : Card, countState 
   Solvable.iff_normReach (fun c => le_of_eq (hcount c)) h
 
 /-- **The drain, as step 5 will use it.**  A foundation run followed by a cell→pile run
-— the shape `SolverMoveAces` produces, per suit — leaves solvability unchanged. -/
+— the shape `moveAces` produces, per suit — leaves solvability unchanged. -/
 theorem drain_solvable_iff {s t u : State} {cs : List Card}
     (hcount : ∀ c : Card, countState s c = 1)
     (hplays : PlaysAll s cs t) (hcp : CPReach t u) : Solvable s ↔ Solvable u :=

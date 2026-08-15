@@ -2,6 +2,7 @@ import Seahaven.CriticalMove
 import Seahaven.KingReshuffle
 
 open Rules
+open Solver
 
 /-!
 # The king configuration only moves when a column is empty
@@ -47,14 +48,14 @@ which is why `exists_critical_move_aces` hands back a `PrefixReach`.
 /-! ## Empty columns -/
 
 /-- Some column the solver treats as empty really is empty. -/
-def HasEmptyPile (u : State) (p : SolverPosType) : Prop :=
+def HasEmptyPile (u : State) (p : PosType) : Prop :=
   ∃ i : Fin 10, (p.pileDepth.get i).toNat = 0 ∧ u.tableau i = []
 
 /-- Every column the solver treats as empty carries at least one card. -/
-def NoEmptyPile (u : State) (p : SolverPosType) : Prop :=
+def NoEmptyPile (u : State) (p : PosType) : Prop :=
   ∀ i : Fin 10, (p.pileDepth.get i).toNat = 0 → u.tableau i ≠ []
 
-theorem noEmptyPile_of_not {u : State} {p : SolverPosType} (h : ¬ HasEmptyPile u p) :
+theorem noEmptyPile_of_not {u : State} {p : PosType} (h : ¬ HasEmptyPile u p) :
     NoEmptyPile u p := fun i hd0 hnil => h ⟨i, hd0, hnil⟩
 
 /-! ## One move, one column
@@ -117,7 +118,7 @@ theorem move_column_cases {u v : State} {m : Move} (h : applyMove u m = some v) 
 /-- **A move out of a state with no empty column can only lose piled suits.**  A
 suit's column cannot have been *created* by this move: creating one means
 dropping onto an empty column, and there is none. -/
-theorem PiledSuit.of_move_src {u v : State} {p : SolverPosType} {m : Move}
+theorem PiledSuit.of_move_src {u v : State} {p : PosType} {m : Move}
     (h : applyMove u m = some v) (hne : NoEmptyPile u p) {su : Suit}
     (hp : PiledSuit v p su) : PiledSuit u p su := by
   obtain ⟨i, hd0, d, hd, hsu⟩ := hp
@@ -135,7 +136,7 @@ theorem PiledSuit.of_move_src {u v : State} {p : SolverPosType} {m : Move}
 
 /-- **A move into a state with no empty column can only gain piled suits.**  A
 suit's column cannot have been *emptied* by this move. -/
-theorem PiledSuit.of_move_dst {u v : State} {p : SolverPosType} {m : Move}
+theorem PiledSuit.of_move_dst {u v : State} {p : PosType} {m : Move}
     (h : applyMove u m = some v) (hne : NoEmptyPile v p) {su : Suit}
     (hp : PiledSuit u p su) : PiledSuit v p su := by
   obtain ⟨i, hd0, d, hd, hsu⟩ := hp
@@ -160,7 +161,7 @@ its direction — or stops at the first (resp. last) state that has one. -/
 /-- **Looking backwards.**  Either every suit piled at the far end is piled at
 the near end, or some state of the chain has an empty column and *its* piled
 suits are all piled at the near end. -/
-theorem prefix_piled_left {g : Globals} {p : SolverPosType} {u v : State}
+theorem prefix_piled_left {g : Globals} {p : PosType} {u v : State}
     (hu : DepthPlusKings g u p) (hr : PrefixReach g p u v) :
     (∀ su : Suit, PiledSuit v p su → PiledSuit u p su) ∨
       ∃ w : State, DepthPlusKings g w p ∧ HasEmptyPile w p ∧
@@ -182,7 +183,7 @@ theorem prefix_piled_left {g : Globals} {p : SolverPosType} {u v : State}
 /-- **Looking forwards.**  The mirror image: either every suit piled at the near
 end is piled at the far end, or some state of the chain has an empty column and
 *its* piled suits are all piled at the far end. -/
-theorem prefix_piled_right {g : Globals} {p : SolverPosType} {u v : State}
+theorem prefix_piled_right {g : Globals} {p : PosType} {u v : State}
     (hr : PrefixReach g p u v) :
     (∀ su : Suit, PiledSuit u p su → PiledSuit v p su) ∨
       ∃ w : State, DepthPlusKings g w p ∧ HasEmptyPile w p ∧
@@ -206,18 +207,18 @@ state merely `RealizesKingConfig` may in addition reserve an empty column for a
 suit whose stack has already reached the foundation.  With no empty column there
 is nothing to reserve, so the two agree. -/
 
-theorem piledMaskNat_congr {u v : State} {p : SolverPosType}
+theorem piledMaskNat_congr {u v : State} {p : PosType}
     (h : ∀ su : Suit, PiledSuit u p su ↔ PiledSuit v p su) :
     piledMaskNat u p = piledMaskNat v p := by
   unfold piledMaskNat
   rw [h Suit.clubs, h Suit.diamonds, h Suit.hearts, h Suit.spades]
 
-theorem cfgOf_congr {u v : State} {p : SolverPosType}
+theorem cfgOf_congr {u v : State} {p : PosType}
     (h : ∀ su : Suit, PiledSuit u p su ↔ PiledSuit v p su) : cfgOf u p = cfgOf v p :=
   congrArg cfgOfMask (Fin.ext (piledMaskNat_congr h))
 
 /-- **With no empty column, the realized configuration is the physical one.** -/
-theorem cfgOf_eq_of_noEmpty {u : State} {p : SolverPosType} {k : Fin 16}
+theorem cfgOf_eq_of_noEmpty {u : State} {p : PosType} {k : Fin 16}
     (hr : RealizesKingConfig u p k) (hnp : ∀ su : Suit, CfgBitSet k su → NoKingPile u p su)
     (hne : ¬ HasEmptyPile u p) : k = cfgOf u p := by
   refine piledSet_inj (Finset.Subset.antisymm ?_ ?_)
@@ -250,7 +251,7 @@ open Classical in
 /-- **An empty column is a column no suit is using.**  The piled suits inject
 into the *non-empty* solver-empty columns, and the empty one is not among
 them. -/
-theorem card_piledSet_cfgOf_lt {g : Globals} {w : State} {p : SolverPosType}
+theorem card_piledSet_cfgOf_lt {g : Globals} {w : State} {p : PosType}
     (hm : SolverInvMerged g p) (he : HasEmptyPile w p) :
     (piledSet (cfgOf w p)).card < p.freePiles.toNat := by
   obtain ⟨i₀, hd0, hemp⟩ := he
@@ -307,7 +308,7 @@ theorem card_piledSet_cfgOf_lt {g : Globals} {w : State} {p : SolverPosType}
 /-- **A real state's configuration fits.**  `usedSpace` is at most what is
 physically outside the piles, the cells hold at most four cards, and every king
 stack is refunded — so the cell budget at `cfgOf w p` is non-negative. -/
-theorem freeCellsOf_cfgOf_nonneg {g : Globals} {w : State} {p : SolverPosType}
+theorem freeCellsOf_cfgOf_nonneg {g : Globals} {w : State} {p : PosType}
     (hb : SolverInvBase g p) (hw : DepthPlusKings g w p) :
     0 ≤ freeCellsOf p (cfgOf w p) := by
   have h1 := usedSpace_le_outside hb hw.cards_count hw.aces_match hw.flute_le
@@ -324,7 +325,7 @@ theorem freeCellsOf_cfgOf_nonneg {g : Globals} {w : State} {p : SolverPosType}
 /-- **Every configuration a state stands for is affordable.**  The same count as
 `freeCellsOf_cfgOf_nonneg`, at an arbitrary realized configuration rather than the
 physical one: `no_pile` is all `kingList_le_kingRefund_of` needs. -/
-theorem DepthPlusKingsCfg.freeCellsOf_nonneg {g : Globals} {w : State} {p : SolverPosType}
+theorem DepthPlusKingsCfg.freeCellsOf_nonneg {g : Globals} {w : State} {p : PosType}
     {k : Fin 16} (hb : SolverInvBase g p) (hw : DepthPlusKingsCfg g w p k) :
     0 ≤ freeCellsOf p k := by
   have h1 := usedSpace_le_outside hb hw.toDepthPlusKings.cards_count
@@ -345,13 +346,13 @@ theorem DepthPlusKingsCfg.freeCellsOf_nonneg {g : Globals} {w : State} {p : Solv
 piling no more than `k` does leaves a solver-empty column completely unused and
 still fits in the cells.  This is exactly the semantic content of a
 `componentTable` bit (`ComponentComplete.inComponent_of_hasSpareSubset`). -/
-def HasSpareSubset (p : SolverPosType) (k : Fin 16) : Prop :=
+def HasSpareSubset (p : PosType) (k : Fin 16) : Prop :=
   ∃ c : Fin 16, piledSet c ⊆ piledSet k ∧ (piledSet c).card < p.freePiles.toNat ∧
     0 ≤ freeCellsOf p c
 
 /-- A state with an empty column, all of whose piled suits `k` piles, witnesses
 `HasSpareSubset p k`. -/
-theorem hasSpareSubset_of_state {g : Globals} {w : State} {p : SolverPosType} {k : Fin 16}
+theorem hasSpareSubset_of_state {g : Globals} {w : State} {p : PosType} {k : Fin 16}
     (hm : SolverInvMerged g p) (hw : DepthPlusKings g w p) (he : HasEmptyPile w p)
     (hsub : ∀ su : Suit, PiledSuit w p su → ¬ CfgBitSet k su) : HasSpareSubset p k := by
   refine ⟨cfgOf w p, ?_, card_piledSet_cfgOf_lt hm he,
@@ -367,7 +368,7 @@ of them dominates a feasible configuration with a column to spare.
 Note both alternatives are needed: the critical move may itself put a king on an
 empty column (`cfgOfPlus`), and then `t` has an empty column, so the second
 alternative is the one that fires. -/
-theorem cfg_eq_or_spareSubset {g : Globals} {p : SolverPosType} {s t : State} {k kt : Fin 16}
+theorem cfg_eq_or_spareSubset {g : Globals} {p : PosType} {s t : State} {k kt : Fin 16}
     (hm : SolverInvMerged g p)
     (hs : DepthPlusKingsCfg g s p k) (ht : DepthPlusKingsCfg g t p kt)
     (hr : PrefixReach g p s t) :

@@ -2,6 +2,7 @@ import Seahaven.SolveSound
 import Seahaven.RecCheckComplete
 
 open Rules
+open Solver
 
 /-!
 # `solve` is correct
@@ -18,7 +19,7 @@ Everything is already in place; this file only joins it up.
   the same `&&& forcedKings` step, read *up* instead of down.
 * `SimulatesNorm.solvable_iff` (`SimulatesNorm`) is what makes the convert call
   itself two-sided — its moves (cleanup's freed-predecessor drops and the
-  `SolverMoveAces` drain) are all *normalizing*, hence solvability-preserving in
+  `moveAces` drain) are all *normalizing*, hence solvability-preserving in
   both directions.  Soundness needed only that they are legal.
 
 The one hypothesis that changes shape is the memo invariant: the recursion carries
@@ -37,7 +38,7 @@ saying so is part of the claim.  `solveTail_spec_bits` therefore also reports
 The completeness reading of `Simulates.bound`'s `←` half, in the `MaskSub` spelling
 `kingStep_transport_complete` wants. -/
 
-theorem Simulates.maskSub {g : Globals} {s s' : State} {p p' : SolverPosType}
+theorem Simulates.maskSub {g : Globals} {s s' : State} {p p' : PosType}
     {k k' : Fin 16} {FK : Finset Suit} {fk : UInt16}
     (h : Simulates g s p k s' p' k' FK fk) : MaskSub k' k := by
   rw [MaskSub_iff]
@@ -71,7 +72,7 @@ set_option maxHeartbeats 1000000 in
     is `SUCCESS` precisely when its `forcedKings`-filtered `subsetTable` expansion
     contains the configuration `pk10[10]` names. -/
 theorem solveTail_spec_bits {g g' : Globals} {pk10 : Vector UInt8 11}
-    {p : SolverPosType} {fk : UInt16} {r : UInt8}
+    {p : PosType} {fk : UInt16} {r : UInt8}
     (hwf : WellFormedLayout g) (hcor : HashmapCorrect g) (hcan : IsCanonicalPos g p)
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
     (hrun : solveTail pk10 fk p g = .ok r g') :
@@ -112,14 +113,14 @@ theorem solveTail_spec_bits {g g' : Globals} {pk10 : Vector UInt8 11}
       exact congrArg closureInfos.get (Fin.ext hvaleq)
     rw [bind_ok (vector_getE_apply closureInfos _ g hfp), hciEq] at hrun
     -- the recursive check
-    cases hrc : solverRecCheckSolvable p g with
+    cases hrc : recCheckSolvable p g with
     | error e g2 =>
       rw [bind_error hrc] at hrun
       simp at hrun
     | ok cs g2 =>
       obtain ⟨⟨hcsspec, hcsloc⟩, hcor2, -⟩ :=
         RecCheckSolvableSpec.apply recCheckSolvableSpec hwf hcan hcor hrc
-      -- the frame: `solverRecCheckSolvable` writes nothing but the memo table
+      -- the frame: `recCheckSolvable` writes nothing but the memo table
       obtain ⟨-, -, hframe⟩ :=
         recCheckSolvableSound g g2 p cs (wfGlobals_of_correct hwf hcor) hcan hrc
       rw [bind_ok hrc] at hrun
@@ -198,7 +199,7 @@ prologue runs (`convert_canonical`), and the tail's four table reads are all in 
 `closureInfos` because `freePiles ≤ 10`, and `subsetTable` because the recursion's
 answer is a `LocalMask` and every block ends below `100`. -/
 
-theorem solveTail_runs {g : Globals} {pk10 : Vector UInt8 11} {p : SolverPosType}
+theorem solveTail_runs {g : Globals} {pk10 : Vector UInt8 11} {p : PosType}
     {fk : UInt16}
     (hwf : WellFormedLayout g) (hcor : HashmapCorrect g) (hcan : IsCanonicalPos g p)
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16) :
@@ -228,7 +229,7 @@ theorem solveTail_runs {g : Globals} {pk10 : Vector UInt8 11} {p : SolverPosType
     rw [bind_ok (vector_getE_apply closureInfos _ g hfp), hciEq]
     -- the recursive check: it returns, and its answer fits the block
     obtain ⟨cs, g2, hrc, ⟨-, hcsloc⟩, -⟩ := recCheckSolvableSpec g p hwf hcan hcor
-    have hrc' : solverRecCheckSolvable p g = .ok cs g2 := hrc
+    have hrc' : recCheckSolvable p g = .ok cs g2 := hrc
     rw [bind_ok hrc']
     -- the `subsetTable` read
     have hnb : (closureInfoOf p).numBits.toNat ≤ 6 := by
@@ -259,11 +260,11 @@ theorem solveTail_runs {g : Globals} {pk10 : Vector UInt8 11} {p : SolverPosType
 theorem solve_runs {g : Globals} {pk10 : Vector UInt8 11}
     (hwf : WellFormedLayout g) (hcor : HashmapCorrect g) (hpk : ValidDepths pk10)
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16) :
-    ∃ (r : UInt8) (g' : Globals), EStateM.run (_root_.solve pk10) g = .ok r g' := by
-  obtain ⟨fk, p, hrunC, hcan⟩ := convert_canonical g emptySolverPosType pk10 hwf hpk
+    ∃ (r : UInt8) (g' : Globals), EStateM.run (Solver.solve pk10) g = .ok r g' := by
+  obtain ⟨fk, p, hrunC, hcan⟩ := convert_canonical g emptyPosType pk10 hwf hpk
   obtain ⟨r, g', htail⟩ := solveTail_runs (fk := fk) hwf hcor hcan hs10
   refine ⟨r, g', ?_⟩
-  show _root_.solve pk10 g = .ok r g'
+  show Solver.solve pk10 g = .ok r g'
   rw [solve_eq_explicit pk10]
   simp only [bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get, hrunC,
     set, EStateM.set]
@@ -297,7 +298,7 @@ theorem answer_of_iff {r : UInt8} {s : State}
     both directions (`SimulatesNorm.solvable_iff`).  So the bit the solver tests at
     the parent's configuration decides `Solvable s` outright. -/
 theorem solveTail_correct {g g' : Globals} {pk10 : Vector UInt8 11} {s v : State}
-    {P p : SolverPosType} {k' : Fin 16} {FK : Finset Suit} {fk : UInt16} {r : UInt8}
+    {P p : PosType} {k' : Fin 16} {FK : Finset Suit} {fk : UInt16} {r : UInt8}
     (hwf : WellFormedLayout g) (hcor : HashmapCorrect g) (hcan : IsCanonicalPos g p)
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
     (hsim : SimulatesNorm g s P (kingCfgOf pk10 hs10) v p k' FK fk)
@@ -324,11 +325,11 @@ theorem solveTail_correct {g g' : Globals} {pk10 : Vector UInt8 11} {s v : State
 theorem solve_frame {g g' : Globals} {pk10 : Vector UInt8 11} {r : UInt8}
     (hwf : WellFormedLayout g) (hcor : HashmapCorrect g) (hpk : ValidDepths pk10)
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
-    (hrun : EStateM.run (_root_.solve pk10) g = .ok r g') :
+    (hrun : EStateM.run (Solver.solve pk10) g = .ok r g') :
     (r = UInt8.ofNat SUCCESS ∨ r = UInt8.ofNat NOMOVE) ∧
     HashmapCorrect g' ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm } := by
-  obtain ⟨fk, p, hrunC, hcan⟩ := convert_canonical g emptySolverPosType pk10 hwf hpk
-  have hrun' : _root_.solve pk10 g = .ok r g' := hrun
+  obtain ⟨fk, p, hrunC, hcan⟩ := convert_canonical g emptyPosType pk10 hwf hpk
+  have hrun' : Solver.solve pk10 g = .ok r g' := hrun
   rw [solve_eq_explicit pk10] at hrun'
   simp only [bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get, hrunC,
     set, EStateM.set] at hrun'
@@ -348,12 +349,12 @@ theorem solve_correct {g g' : Globals} {pk10 : Vector UInt8 11} {s : State} {r :
     (hwf : WellFormedLayout g) (hcor : HashmapCorrect g) (hpk : ValidDepths pk10)
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
     (hmatch : StateMatchesKingConfig g s (convertPre g pk10) (kingCfgOf pk10 hs10))
-    (hrun : EStateM.run (_root_.solve pk10) g = .ok r g') :
+    (hrun : EStateM.run (Solver.solve pk10) g = .ok r g') :
     (HashmapCorrect g' ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm }) ∧
     ((r = UInt8.ofNat NOMOVE ∧ ¬ isSolvable s) ∨ (r = UInt8.ofNat SUCCESS ∧ isSolvable s)) := by
   obtain ⟨fk, p, v, k', FK, hrunC, hcan, hsim⟩ :=
-    convert_simulates g hwf pk10 hpk emptySolverPosType s (kingCfgOf pk10 hs10) hmatch
-  have hrun' : _root_.solve pk10 g = .ok r g' := hrun
+    convert_simulates g hwf pk10 hpk emptyPosType s (kingCfgOf pk10 hs10) hmatch
+  have hrun' : Solver.solve pk10 g = .ok r g' := hrun
   rw [solve_eq_explicit pk10] at hrun'
   simp only [bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get, hrunC,
     set, EStateM.set] at hrun'
@@ -369,7 +370,7 @@ theorem solve_correct_of_normReach {g g' : Globals} {pk10 : Vector UInt8 11} {s 
     (hs10 : (pk10.get ⟨10, by omega⟩).toNat < 16)
     (hreach : NormReach s w)
     (hmatch : StateMatchesKingConfig g w (convertPre g pk10) (kingCfgOf pk10 hs10))
-    (hrun : EStateM.run (_root_.solve pk10) g = .ok r g') :
+    (hrun : EStateM.run (Solver.solve pk10) g = .ok r g') :
     (HashmapCorrect g' ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm }) ∧
     ((r = UInt8.ofNat NOMOVE ∧ ¬ isSolvable s) ∨ (r = UInt8.ofNat SUCCESS ∧ isSolvable s)) := by
   rw [← Solvable_iff_isSolvable, normReach_solvable_iff (fun c =>

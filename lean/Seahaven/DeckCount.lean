@@ -1,6 +1,7 @@
 import Seahaven.CPNormal
 
 open Rules
+open Solver
 
 /-!
 # The deck partition
@@ -230,7 +231,7 @@ private theorem sum_filter_map {α : Type} (l : List α) (q : α → Bool) (h : 
   | cons x xs ih => by_cases hq : q x <;> simp [hq, ih]
 
 /-- `aces` records the foundation heights. -/
-theorem VALUE_aces_eq {u : State} {p : SolverPosType}
+theorem VALUE_aces_eq {u : State} {p : PosType}
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
     (su : Suit) :
     (VALUE (p.aces.get (finOfSuit su))).toNat = optRankToNat (u.foundations su) := by
@@ -244,7 +245,7 @@ The cards in cells and on king stacks are what `usedSpace` pays for; a flute car
 the position counts but that physically sits in a cell (because it was parked to
 expose the boundary) is *not* paid for twice, so it appears as the negative
 `parked` term. -/
-theorem usedSpace_eq_outside {g : Globals} {u : State} {p : SolverPosType}
+theorem usedSpace_eq_outside {g : Globals} {u : State} {p : PosType}
     (hb : SolverInvBase g p) (hcount : ∀ c : Card, countState u c = 1)
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su)) :
     p.usedSpace.toInt
@@ -329,12 +330,12 @@ column holds no more than its flute, which every state along the shuffle prefix
 satisfies. -/
 
 /-- How many of pile `i`'s flute cards are not physically on the column. -/
-def parkedAt (u : State) (p : SolverPosType) (i : Fin 10) : Int :=
+def parkedAt (u : State) (p : PosType) (i : Fin 10) : Int :=
   if (p.pileDepth.get i).toNat ≠ 0 then
     ((p.pileFlute.get i).toNat : Int) + (p.pileDepth.get i).toNat - 1 - (u.tableau i).length
   else 0
 
-theorem parkedAt_nonneg {u : State} {p : SolverPosType} {i : Fin 10}
+theorem parkedAt_nonneg {u : State} {p : PosType} {i : Fin 10}
     (h : 0 < (p.pileDepth.get i).toNat →
       (u.tableau i).length + 1 ≤ (p.pileDepth.get i).toNat + (p.pileFlute.get i).toNat) :
     0 ≤ parkedAt u p i := by
@@ -351,7 +352,7 @@ theorem parkedAt_nonneg {u : State} {p : SolverPosType} {i : Fin 10}
 /-- **`usedSpace` is at most what is physically outside the piles** — the cards in
 the cells plus the cards on king stacks.  Every other card is either resident in
 its pile, part of a flute the position counts, or on a foundation. -/
-theorem usedSpace_le_outside {g : Globals} {u : State} {p : SolverPosType}
+theorem usedSpace_le_outside {g : Globals} {u : State} {p : PosType}
     (hb : SolverInvBase g p) (hcount : ∀ c : Card, countState u c = 1)
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
     (hflute : ∀ i : Fin 10, 0 < (p.pileDepth.get i).toNat →
@@ -365,8 +366,8 @@ theorem usedSpace_le_outside {g : Globals} {u : State} {p : SolverPosType}
 
 /-- **The affordability bound.**  Only four cells exist, so whatever `usedSpace`
 does not spend on king stacks leaves room for the cards pile `a` has parked — which
-is exactly the space test `solverGetMovable` reads out of `possibleKings`. -/
-theorem usedSpace_add_parked_le {g : Globals} {u : State} {p : SolverPosType}
+is exactly the space test `getMovable` reads out of `possibleKings`. -/
+theorem usedSpace_add_parked_le {g : Globals} {u : State} {p : PosType}
     (hb : SolverInvBase g p) (hcount : ∀ c : Card, countState u c = 1)
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
     (hflute : ∀ i : Fin 10, 0 < (p.pileDepth.get i).toNat →
@@ -389,7 +390,7 @@ column is then exactly its dealt part — the whole flute above the boundary has
 parked — so `parkedAt` is `fluteLen - 1`, and those cards occupy cells that
 `usedSpace` does not pay for.  Hence `usedSpace - #kingStacks + (fluteLen - 1) ≤ 4`,
 which is precisely `possibleKings[fluteLen - 1]`' space test. -/
-theorem usedSpace_add_flute_le {g : Globals} {u : State} {p : SolverPosType}
+theorem usedSpace_add_flute_le {g : Globals} {u : State} {p : PosType}
     (hb : SolverInvBase g p) (hcount : ∀ c : Card, countState u c = 1)
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
     (hflute : ∀ i : Fin 10, 0 < (p.pileDepth.get i).toNat →
@@ -414,7 +415,7 @@ column carries one suit's complete stack (`king_pile`), distinct columns carry
 distinct suits (`empty_pile_unique`), and `no_pile` forces every such suit's bit to
 be clear, hence refunded. -/
 
-theorem kingList_length_sum (s : State) (p : SolverPosType) :
+theorem kingList_length_sum (s : State) (p : PosType) :
     (kingList s p).length
       = ∑ i : Fin 10, (if (p.pileDepth.get i).toNat = 0 then (s.tableau i).length else 0) := by
   rw [kingList_length, sum_filter_map, ← List.ofFn_eq_map, List.sum_ofFn]
@@ -427,17 +428,17 @@ private def kingSuitOf (s : State) (i : Fin 10) : Fin 4 :=
   | some d => finOfSuit d.suit
   | none => 0
 
-private def kingCols (s : State) (p : SolverPosType) : Finset (Fin 10) :=
+private def kingCols (s : State) (p : PosType) : Finset (Fin 10) :=
   Finset.univ.filter (fun i => (p.pileDepth.get i).toNat = 0 ∧ s.tableau i ≠ [])
 
 /-- The refund one piled suit earns. -/
-private def refundTerm (p : SolverPosType) (su : Fin 4) : Int :=
+private def refundTerm (p : PosType) (su : Fin 4) : Int :=
   (13 : Int) - (VALUE (p.kings.get su)).toNat
 
 private def clearSuits (k : Fin 16) : Finset (Fin 4) :=
   Finset.univ.filter (fun su => ¬ CfgBitSet k (natToSuit su))
 
-private theorem kingRefund_as_sum (p : SolverPosType) (k : Fin 16) :
+private theorem kingRefund_as_sum (p : PosType) (k : Fin 16) :
     kingRefund p k = ∑ su : Fin 4,
       (if ¬ CfgBitSet k (natToSuit su) then refundTerm p su else 0) := by
   rw [kingRefund, ← List.ofFn_eq_map, List.sum_ofFn]
@@ -462,7 +463,7 @@ in cells mid-reshuffle.  A shorter column only makes the bound easier, so
 * `huniq` — distinct such columns carry distinct suits;
 * `hnp` — every such suit has a clear configuration bit, hence is refunded. -/
 theorem kingList_le_kingRefund_of {g : Globals} {s : State}
-    {p : SolverPosType} {k : Fin 16} (hb : SolverInvBase g p)
+    {p : PosType} {k : Fin 16} (hb : SolverInvBase g p)
     (hkl : ∀ i : Fin 10, (p.pileDepth.get i).toNat = 0 → ∀ d ∈ (s.tableau i).getLast?,
       (s.tableau i).length + (VALUE (p.kings.get (finOfSuit d.suit))).toNat ≤ 13)
     (huniq : ∀ (i j : Fin 10), (p.pileDepth.get i).toNat = 0 → (p.pileDepth.get j).toNat = 0 →
@@ -547,7 +548,7 @@ theorem kingList_le_kingRefund_of {g : Globals} {s : State}
 /-- **Every king stack is refunded**, for a full match.  `king_pile`'s equality is
 stronger than `kingList_le_kingRefund_of` needs. -/
 theorem StateMatchesKingConfig.kingList_le_kingRefund {g : Globals} {s : State}
-    {p : SolverPosType} {k : Fin 16} (hb : SolverInvBase g p)
+    {p : PosType} {k : Fin 16} (hb : SolverInvBase g p)
     (hk : StateMatchesKingConfig g s p k) :
     ((kingList s p).length : Int) ≤ kingRefund p k :=
   kingList_le_kingRefund_of hb
@@ -559,11 +560,11 @@ theorem StateMatchesKingConfig.kingList_le_kingRefund {g : Globals} {s : State}
 
 `usedSpace_add_parked_le` throws away `#cells ≤ 4`.  Keeping the exact count instead
 (`#cells + #freeCells = 4`) leaves the free cells as slack on the left, which is what
-the `EXTRA` and king-pile branches of `solverGetMovable` need: they index
+the `EXTRA` and king-pile branches of `getMovable` need: they index
 `possibleKings` at `fluteLen`, one higher than a column destination, and the extra
 cell is exactly the one the play itself used. -/
 
-theorem usedSpace_add_parked_add_freeCells_le {g : Globals} {u : State} {p : SolverPosType}
+theorem usedSpace_add_parked_add_freeCells_le {g : Globals} {u : State} {p : PosType}
     (hb : SolverInvBase g p) (hcount : ∀ c : Card, countState u c = 1)
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
     (hflute : ∀ i : Fin 10, 0 < (p.pileDepth.get i).toNat →
@@ -583,7 +584,7 @@ theorem usedSpace_add_parked_add_freeCells_le {g : Globals} {u : State} {p : Sol
   linarith
 
 /-- The same, with pile `a`'s flute known to be parked (`hcol`). -/
-theorem usedSpace_add_flute_add_freeCells_le {g : Globals} {u : State} {p : SolverPosType}
+theorem usedSpace_add_flute_add_freeCells_le {g : Globals} {u : State} {p : PosType}
     (hb : SolverInvBase g p) (hcount : ∀ c : Card, countState u c = 1)
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
     (hflute : ∀ i : Fin 10, 0 < (p.pileDepth.get i).toNat →
@@ -600,7 +601,7 @@ theorem usedSpace_add_flute_add_freeCells_le {g : Globals} {u : State} {p : Solv
 /-- **The sharp affordability bound.**  Every free cell at the critical moment is one
 more cell the configuration can afford — the form the `EXTRA` branch needs. -/
 theorem flute_sub_one_add_freeCells_le_freeCellsOf_of {g : Globals} {u : State}
-    {p : SolverPosType} {k : Fin 16} (hb : SolverInvBase g p)
+    {p : PosType} {k : Fin 16} (hb : SolverInvBase g p)
     (hcount : ∀ c : Card, countState u c = 1)
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
     (hflute : ∀ i : Fin 10, 0 < (p.pileDepth.get i).toNat →
@@ -628,7 +629,7 @@ affordability of the configuration a state is *in* be transported to the block's
 maximal configurations — the ones the loop's bits actually range over
 (`closureInfo_block`). -/
 
-theorem kingRefund_mono {g : Globals} {p : SolverPosType} (hb : SolverInvBase g p)
+theorem kingRefund_mono {g : Globals} {p : PosType} (hb : SolverInvBase g p)
     {d k : Fin 16} (h : MaskSub d k) : kingRefund p k ≤ kingRefund p d := by
   unfold kingRefund
   rw [← List.ofFn_eq_map, ← List.ofFn_eq_map, List.sum_ofFn, List.sum_ofFn]
@@ -655,7 +656,7 @@ theorem kingRefund_mono {g : Globals} {p : SolverPosType} (hb : SolverInvBase g 
     · rw [if_pos hd]; omega
     · rw [if_neg hd]
 
-theorem freeCellsOf_mono {g : Globals} {p : SolverPosType} (hb : SolverInvBase g p)
+theorem freeCellsOf_mono {g : Globals} {p : PosType} (hb : SolverInvBase g p)
     {d k : Fin 16} (h : MaskSub d k) : freeCellsOf p k ≤ freeCellsOf p d := by
   have := kingRefund_mono hb h
   unfold freeCellsOf
@@ -672,7 +673,7 @@ This is the completeness counterpart of `freeCellsOf_le`: that one bounds
 decision as a physical one), this one bounds it *below* by what the play already
 did (completeness reads a physical fact as a solver decision). -/
 theorem flute_sub_one_le_freeCellsOf_of {g : Globals} {u : State}
-    {p : SolverPosType} {k : Fin 16} (hb : SolverInvBase g p)
+    {p : PosType} {k : Fin 16} (hb : SolverInvBase g p)
     (hcount : ∀ c : Card, countState u c = 1)
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
     (hflute : ∀ i : Fin 10, 0 < (p.pileDepth.get i).toNat →
@@ -693,7 +694,7 @@ theorem flute_sub_one_le_freeCellsOf_of {g : Globals} {u : State}
 
 /-- The same, for a full match. -/
 theorem StateMatchesKingConfig.flute_sub_one_le_freeCellsOf {g : Globals} {u : State}
-    {p : SolverPosType} {k : Fin 16} (hb : SolverInvBase g p)
+    {p : PosType} {k : Fin 16} (hb : SolverInvBase g p)
     (hk : StateMatchesKingConfig g u p k)
     (hflute : ∀ i : Fin 10, 0 < (p.pileDepth.get i).toNat →
       (u.tableau i).length + 1 ≤ (p.pileDepth.get i).toNat + (p.pileFlute.get i).toNat)

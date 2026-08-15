@@ -1,9 +1,11 @@
 import Seahaven.RecCheckSound
 
-/-!
-# `solverRecCheckSolvable` runs
+open Solver
 
-`solverRecCheckSolvable` is defined by `partial_fixpoint`, so *every* statement about
+/-!
+# `recCheckSolvable` runs
+
+`recCheckSolvable` is defined by `partial_fixpoint`, so *every* statement about
 it so far has been conditional on a successful run — `recCheck_run_loop_inv`,
 `recLoop_all`, `recBodyStep` all take `… = .ok v g'` as a hypothesis.  For the
 end-to-end statement that is not enough: `Correctness` asserts that the call
@@ -58,21 +60,21 @@ theorem forIn_exists {β : Type} (P : β → Globals → Prop)
 /-- The induction hypothesis, existence half: the recursive call on a smaller child
 returns, and its answer fits the child's block (which is what puts the `subsetTable`
 index the caller then reads in range). -/
-def ChildRuns (H : Globals → Prop) (p : SolverPosType) : Prop :=
-  ∀ (child : SolverPosType) (g₁ : Globals),
+def ChildRuns (H : Globals → Prop) (p : PosType) : Prop :=
+  ∀ (child : PosType) (g₁ : Globals),
     SolverSpec.DepthSum child < SolverSpec.DepthSum p → WellFormedLayout g₁ →
     IsCanonicalPos g₁ child → H g₁ →
     ∃ (w : UInt16) (g₂ : Globals),
-      EStateM.run (solverRecCheckSolvable child) g₁ = .ok w g₂ ∧ LocalMask child w
+      EStateM.run (recCheckSolvable child) g₁ = .ok w g₂ ∧ LocalMask child w
 
 /-- **One iteration of the pile loop runs.** -/
 def RecBodyRuns (H : Globals → Prop) : Prop :=
-  ∀ (p : SolverPosType) (ki : KingInfo) (comp : UInt8) (allkings : UInt16)
+  ∀ (p : PosType) (ki : KingInfo) (comp : UInt8) (allkings : UInt16)
     (g₁ : Globals) (pile : Nat) (w : UInt16),
     pile < 10 → WellFormedLayout g₁ → IsCanonicalPos g₁ p → H g₁ →
     PossibleKingsLocal p ki → ChildRuns H p →
     ∃ (r : ForInStep UInt16) (g₂ : Globals),
-      recBody solverRecCheckSolvable p (closureInfoOf p) ki comp.toUInt16 allkings pile w g₁
+      recBody recCheckSolvable p (closureInfoOf p) ki comp.toUInt16 allkings pile w g₁
         = .ok r g₂
 
 set_option maxHeartbeats 1000000 in
@@ -99,7 +101,7 @@ theorem recBodyRuns (H : Globals → Prop) : RecBodyRuns H := by
       have := hcan.toSolverInvBase.pileDepth_bound ⟨(UInt32.ofNat pile).toNat, hidx⟩
       omega
     obtain ⟨toPile, hgd⟩ : ∃ tp : UInt8,
-        solverGetDestination p (UInt32.ofNat pile) g₁ = .ok tp g₁ := by
+        getDestination p (UInt32.ofNat pile) g₁ = .ok tp g₁ := by
       rcases getDest_spec' hwf hcan hidx hd hb5 with ⟨-, h⟩ | ⟨n, -, -, -, -, h⟩
       · exact ⟨_, h⟩
       · exact ⟨_, h⟩
@@ -107,7 +109,7 @@ theorem recBodyRuns (H : Globals → Prop) : RecBodyRuns H := by
     obtain ⟨mv, hmvrun, hmvloc⟩ := getMovable_run (g := g₁) ki
       (p.pileFlute.get ⟨(UInt32.ofNat pile).toNat, hidx⟩) toPile
       (hcan.toSolverInvBase.flute_pos ⟨(UInt32.ofNat pile).toNat, hidx⟩) hkiloc
-    have hmvapp : solverGetMovable ki (closureInfoOf p).shiftValue
+    have hmvapp : getMovable ki (closureInfoOf p).shiftValue
         (p.pileFlute.get ⟨(UInt32.ofNat pile).toNat, hidx⟩) toPile g₁ = .ok mv g₁ := hmvrun
     rw [bind_ok hmvapp]
     by_cases hnew : (mv &&& ~~~w != 0) = true
@@ -125,7 +127,7 @@ theorem recBodyRuns (H : Globals → Prop) : RecBodyRuns H := by
       rw [bind_ok (closureInfos_getE_apply g₁ p' hfp')]
       -- the recursive call: the only step that can fail, supplied by the IH
       obtain ⟨cs, g₃, hcs, hcsloc⟩ := hchild p' g₁ hmeas hwf hcan' hms
-      have hcs' : solverRecCheckSolvable p' g₁ = .ok cs g₃ := hcs
+      have hcs' : recCheckSolvable p' g₁ = .ok cs g₃ := hcs
       rw [bind_ok hcs']
       -- the `subsetTable` lookup: the child's answer stays inside the child's block,
       -- and every block fits below `100`

@@ -1,6 +1,8 @@
 import Seahaven.SolverSpecKingMove
 import Seahaven.SolverSpecPreCleanupPile
 
+open Solver
+
 /-!
 # Spec for `cleanupPile`
 
@@ -24,24 +26,24 @@ open Lean Lean.Order
 -- broken `rfl`/`exact` looping forever; it's cumulative elaboration cost).
 -- Same remedy already used elsewhere in this file's `rfl`-twin proofs.
 set_option maxHeartbeats 4000000 in
-/-- **Shared guard-derivation preamble for `SolverCleanupPile`**, factored out of
+/-- **Shared guard-derivation preamble for `cleanupPile`**, factored out of
     `cleanupPile_base`/`solverCleanupPile_step` (which used to duplicate an
     identical ~400-line derivation, differing only by a `pile ↦ UInt32.ofNat k`
     substitution).  Given the flute-normalized `SolverInvBase` precondition, this
-    produces the exact symbolic run of `SolverCleanupPile pile` together with
+    produces the exact symbolic run of `cleanupPile pile` together with
     every fact its two callers need to reassemble their own (stronger) tower
     layer: the empty-pile case is a plain `freePiles += 1` no-op; the
     loop-bearing case exposes the boundary card `B`, the merge/freed loop
     counts `m`/`f`, and (for each of the non-king/king sub-branches) the
     resulting position's `PileClean`/`SuitClean`/`hash_def`/`usedSpace_def`
     facts and the "other piles' depths are untouched" frame condition. -/
-theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)
     (hnf : SolverInvBase g (fluteNorm pile hpile p)) :
     (∃ (_hd : p.pileDepth[pile.toNat]'hpile = 0)
        (_hsd : p.pileDepth.set pile.toNat 0 hpile = p.pileDepth),
-       EStateM.run (_root_.SolverCleanupPile pile) (g, p) = .ok 0xffff
+       EStateM.run (Solver.cleanupPile pile) (g, p) = .ok 0xffff
          (g, { p with
                freePiles := p.freePiles + 1,
                pileDepth := p.pileDepth.set pile.toNat 0 hpile,
@@ -106,7 +108,7 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
                 (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
                   (p.pileDepth[pile.toNat]'hpile) m f p).pileFlute.toList
                 |>.foldl (·+·) 0 : Nat)),
-          EStateM.run (_root_.SolverCleanupPile pile) (g, p) = .ok 0xffff
+          EStateM.run (Solver.cleanupPile pile) (g, p) = .ok 0xffff
             (g, preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
                   (p.pileDepth[pile.toNat]'hpile) m f p))
        ∨
@@ -158,7 +160,7 @@ theorem cleanupPile_eq (pile : UInt32) (g : Globals) (p : SolverPosType)
                   (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
                     (p.pileDepth[pile.toNat]'hpile) m f p)).pileFlute.toList
                 |>.foldl (·+·) 0 : Nat))),
-          EStateM.run (_root_.SolverCleanupPile pile) (g, p) = .ok
+          EStateM.run (Solver.cleanupPile pile) (g, p) = .ok
             (0xffff &&& kingOnPileMap[(SUIT B).toUInt32.toNat]'hs4)
             (g, kingMove pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile)
                   (preCleanupPile pile hpile B (pileHashes[pile.toNat]'hpile) hs4
@@ -730,7 +732,7 @@ private theorem uint8_one_shl_lt16_of_lt4 (x : UInt8) (hx : x.toNat < 4) :
     did. -/
 theorem preCleanupPile_busyAces_lt16 (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (d : UInt8) (m f : Nat) (p : SolverPosType) (hp16 : p.busyAces < 16) :
+    (d : UInt8) (m f : Nat) (p : PosType) (hp16 : p.busyAces < 16) :
     (preCleanupPile pile hpile B ph hs4 d m f p).busyAces < 16 := by
   have hs4' : (SUIT B).toNat < 4 := by rwa [UInt8.toNat_toUInt32] at hs4
   simp only [preCleanupPile]
@@ -739,12 +741,12 @@ theorem preCleanupPile_busyAces_lt16 (pile : UInt32) (hpile : pile.toNat < 10)
   · exact hp16
 
 set_option maxHeartbeats 4000000 in
-/-- **`SolverCleanupPile` preserves the base invariant layer** (up to the
+/-- **`cleanupPile` preserves the base invariant layer** (up to the
     `freePiles` field, which `SolverInvBase` deliberately omits).
 
     The precondition is stated about the *flute-normalized* entry position
     `{ p with pileFlute[pile] := 1 }` rather than `p` itself: the callers
-    (convert's cleanup loop, `SolverRemoveFlute`) leave a stale `pileFlute[pile]`
+    (convert's cleanup loop, `removeFlute`) leave a stale `pileFlute[pile]`
     behind — the function never reads it and overwrites it at the end — and the
     invariant's `usedSpace`/flute clauses are only true of the normalized
     position.  (The freed loop re-frees the old flute interiors; with a stale
@@ -758,11 +760,11 @@ set_option maxHeartbeats 4000000 in
     Proof status: complete.  The empty-pile case is direct; the loop-bearing case
     runs `cleanupPile_nonempty_eq` (the exact symbolic run) and discharges its
     clauses one by one. -/
-theorem cleanupPile_base (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem cleanupPile_base (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)
     (hnf : SolverInvBase g (fluteNorm pile hpile p)) :
-    ∃ fk p', EStateM.run (_root_.SolverCleanupPile pile) (g, p) = .ok fk (g, p') ∧
+    ∃ fk p', EStateM.run (Solver.cleanupPile pile) (g, p) = .ok fk (g, p') ∧
       SolverInvBase g p' := by
   rcases cleanupPile_eq pile g p hpile hwf hnf with
     ⟨hd, hsd, hrun⟩ | ⟨B, hs4, hd, hd1, hd5, hidx, hBdef, hBrange, hnfp, m, f,
@@ -851,7 +853,7 @@ private theorem finRange_countP_ite_split : ∀ (n k : Nat) (hk : k < n) (f : Fi
     Combines `finRange_countP_ite_split` with the fact that `Vector.toList`'s
     `countP` agrees with the `List.finRange`-indexed `countP` via `Vector.get`. -/
 theorem cleanupReady_freePiles_split (pile : UInt32) (hpile : pile.toNat < 10)
-    (q : SolverPosType) (fpCount : Nat)
+    (q : PosType) (fpCount : Nat)
     (hcount : fpCount = ((List.finRange 10).countP
         (fun j => j.val != pile.toNat && (q.pileDepth.get j == 0)) : Nat)) :
     q.pileDepth.toList.countP (· == 0) =
@@ -871,7 +873,7 @@ theorem cleanupReady_freePiles_split (pile : UInt32) (hpile : pile.toNat < 10)
     `q.pileDepth.get j` for `j ≠ pile` (the `&&` short-circuits to `false` at
     `j = pile` regardless), so it transfers unchanged across any frame
     condition agreeing with a reference position outside `pile`. -/
-theorem cleanupReady_freePiles_frame_eq (pile : UInt32) (p q : SolverPosType)
+theorem cleanupReady_freePiles_frame_eq (pile : UInt32) (p q : PosType)
     (hframe : ∀ j : Fin 10, j.val ≠ pile.toNat → q.pileDepth.get j = p.pileDepth.get j) :
     (List.finRange 10).countP (fun j => j.val != pile.toNat && (q.pileDepth.get j == 0)) =
     (List.finRange 10).countP (fun j => j.val != pile.toNat && (p.pileDepth.get j == 0)) := by
@@ -881,7 +883,7 @@ theorem cleanupReady_freePiles_frame_eq (pile : UInt32) (p q : SolverPosType)
   · simp [hij]
   · rw [hframe j hij]
 
-/-- **`SolverCleanupPile` re-establishes the Merged layer** from the midpoint
+/-- **`cleanupPile` re-establishes the Merged layer** from the midpoint
     predicate.  On top of `cleanupPile_baseNF`'s clause discharge this adds, at
     the same discharge site:
 
@@ -894,11 +896,11 @@ theorem cleanupReady_freePiles_frame_eq (pile : UInt32) (p q : SolverPosType)
       *non-free* new boundary `T+m`, contradicting `flute_cards_free[j]`;
     * `freePiles_def`, restored by cleanup itself (the empty and lone-king
       branches do `+1` and leave depth 0; otherwise the pile keeps depth ≥ 1). -/
-theorem cleanupPile_merged (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem cleanupPile_merged (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)
     (hready : CleanupReady g (fluteNorm pile hpile p) pile) :
-    ∃ fk p', EStateM.run (_root_.SolverCleanupPile pile) (g, p) = .ok fk (g, p') ∧
+    ∃ fk p', EStateM.run (Solver.cleanupPile pile) (g, p) = .ok fk (g, p') ∧
       SolverInvMerged g p' ∧ p'.aces = p.aces ∧
       (∀ mask : UInt8, p.busyAces &&& mask ≠ 0 → p'.busyAces &&& mask ≠ 0) := by
   obtain ⟨hnf, hpmOther, hfpCount⟩ := hready

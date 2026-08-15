@@ -1,5 +1,7 @@
 import Seahaven.ComputeKingSpaces
 
+open Solver
+
 /-!
 # `computeComponentKingBits`
 
@@ -30,7 +32,7 @@ open Lean Lean.Order
 /-! ## The loop -/
 
 /-- Body of the per-configuration loop: set bit `i` when configuration `i` fits. -/
-def compBody (info : ClosureInfo) (game : SolverPosType) :
+def compBody (info : ClosureInfo) (game : PosType) :
     Nat → UInt16 → EStateM Error Globals (ForInStep UInt16) :=
   fun i result => do
     let kingBitmap ← grlex2bits.getE (info.shiftValue + UInt8.ofNat i).toUInt32
@@ -41,7 +43,7 @@ def compBody (info : ClosureInfo) (game : SolverPosType) :
       return .yield result
 
 /-- Explicit-loop twin of `computeComponentKingBits`. -/
-def componentExplicit (game : SolverPosType) : EStateM Error Globals UInt8 := do
+def componentExplicit (game : PosType) : EStateM Error Globals UInt8 := do
   let emptyPiles := game.freePiles
   if emptyPiles ≥ 1 && emptyPiles ≤ 3 then
     let info ← closureInfos.getE (emptyPiles - 1).toUInt32
@@ -70,7 +72,7 @@ private theorem uint16_or_testBit (r : UInt16) (i b : Nat) (hi : i < 16) (hb : b
   rw [UInt16.toNat_or, Nat.testBit_or, Bool.or_eq_true, hkey ⟨i, hi⟩ ⟨b, hb⟩]
   simp
 
-theorem compBody_run (info : ClosureInfo) (game : SolverPosType) (s : Globals) (i : Nat)
+theorem compBody_run (info : ClosureInfo) (game : PosType) (s : Globals) (i : Nat)
     (r : UInt16) (hcfg : cfgIdx info.shiftValue i < 16) :
     compBody info game i r s = .ok (.yield
       (if (blockSpace info.shiftValue game i).toInt ≤ 4
@@ -86,7 +88,7 @@ theorem compBody_run (info : ClosureInfo) (game : SolverPosType) (s : Globals) (
       fun h => hu ((bit_guard_iff _).1 h)
     simp only [hgrl, pure_apply, spaceLoop_run, hg, reduceIte, if_neg hu]
 
-theorem compLoop_run (info : ClosureInfo) (game : SolverPosType) (s : Globals) :
+theorem compLoop_run (info : ClosureInfo) (game : PosType) (s : Globals) :
     ∀ (l : List Nat) (r : UInt16),
       (∀ i ∈ l, cfgIdx info.shiftValue i < 16) → (∀ i ∈ l, i < 16) →
       ∃ res : UInt16, forIn l r (compBody info game) s = .ok res s ∧
@@ -225,7 +227,7 @@ private theorem component_bit_16 : ∀ (il : Fin 6) (jl : Fin 4),
 
 /-- The block for one fewer free pile — the configurations the loop enumerates,
 each leaving one pile completely unused. -/
-def prevInfo (p : SolverPosType) : ClosureInfo :=
+def prevInfo (p : PosType) : ClosureInfo :=
   closureInfos.get ⟨min (p.freePiles.toNat - 1) 10, by omega⟩
 
 /-! ### The specification, in the `prevInfo` spelling
@@ -242,7 +244,7 @@ private theorem globalCfg_mk (ci : ClosureInfo) (sh : Nat) (hsh : ci.shiftValue.
   Fin.ext (by rw [globalCfg_val ci i (by omega), hsh])
 
 /-- The single-bit entries of the three blocks, uniformly. -/
-private theorem component_bit_pos (p : SolverPosType) (hfp1 : 1 ≤ p.freePiles.toNat)
+private theorem component_bit_pos (p : PosType) (hfp1 : 1 ≤ p.freePiles.toNat)
     (hfp3 : p.freePiles.toNat ≤ 3) (il : Nat) (hil : il < (prevInfo p).numBits.toNat)
     (j : Nat) (hj : j < (closureInfoOf p).numBits.toNat) :
     ((componentAt ((prevInfo p).offset.toNat + 2 ^ il)).toNat.testBit j = true) ↔
@@ -283,7 +285,7 @@ private theorem component_bit_pos (p : SolverPosType) (hfp1 : 1 ≤ p.freePiles.
 some configuration `il` of the mask `T` piles strictly fewer kings than block
 configuration `j` — the `or_consistent` decomposition of the entry, with the
 single-bit entries read off the tables. -/
-theorem component_spec_pos (p : SolverPosType) (hfp1 : 1 ≤ p.freePiles.toNat)
+theorem component_spec_pos (p : PosType) (hfp1 : 1 ≤ p.freePiles.toNat)
     (hfp3 : p.freePiles.toNat ≤ 3) (T : Nat) (hT : T < 2 ^ (prevInfo p).numBits.toNat)
     (j : Nat) (hj : j < (closureInfoOf p).numBits.toNat) :
     ((componentAt ((prevInfo p).offset.toNat + T)).toNat.testBit j = true) ↔
@@ -300,12 +302,12 @@ theorem component_spec_pos (p : SolverPosType) (hfp1 : 1 ≤ p.freePiles.toNat)
   · rintro ⟨il, hil, hTbit, hspec⟩
     exact ⟨⟨il, hil⟩, hTbit, (component_bit_pos p hfp1 hfp3 il hil j hj).2 hspec⟩
 
-private theorem freePiles_int32 (p : SolverPosType) :
+private theorem freePiles_int32 (p : PosType) :
     (p.freePiles.toInt32).toInt = (p.freePiles.toNat : Int) := uint8_toInt32_toInt _
 
 /-- **`computeComponentKingBits` is the table lookup at the loop's mask**, and that
 mask has bit `i` set exactly for the feasible one-pile-spare configurations. -/
-theorem component_run_eq (g : Globals) (p : SolverPosType) (comp : UInt8)
+theorem component_run_eq (g : Globals) (p : PosType) (comp : UInt8)
     (hfp1 : 1 ≤ p.freePiles.toNat) (hfp3 : p.freePiles.toNat ≤ 3)
     (hrun : EStateM.run (computeComponentKingBits p) g = .ok comp g) :
     ∃ result : UInt16,
@@ -395,7 +397,7 @@ theorem component_run_eq (g : Globals) (p : SolverPosType) (comp : UInt8)
 
 /-- The loop's `usedSpace ≤ 4` test is "this configuration leaves at least zero
 free cells" — the `freeCellsOf` form `computeKingSpaces`' spec is stated in. -/
-theorem freeCellsOf_nonneg_iff {g : Globals} (p : SolverPosType) (hb : SolverInvBase g p)
+theorem freeCellsOf_nonneg_iff {g : Globals} (p : PosType) (hb : SolverInvBase g p)
     (ci : ClosureInfo) (i : Nat) (h : ci.shiftValue.toNat + i ≤ 15) :
     (0 ≤ freeCellsOf p (globalCfg ci i)) ↔ (blockSpace ci.shiftValue p i).toInt ≤ 4 := by
   rw [freeCellsOf, globalCfg, ← blockSpace_toInt_eq p hb ci.shiftValue i h]

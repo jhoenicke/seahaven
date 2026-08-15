@@ -1,5 +1,7 @@
 import Seahaven.SolverSpecCleanupPile
 
+open Solver
+
 /-!
 # Spec for `removeFlute`
 
@@ -9,9 +11,9 @@ ones via the exact reduction `removeFlute_eq` (from `SolverRealSpec`).
 
 ## It moves no cards — and that is why there is no simulation lemma here
 
-`SolverRemoveFlute` decrements the pile's depth, fixes the hash, and calls
-`SolverCleanupPile`.  The flute cards are *already gone* from the state: the flute
-move inside `SolverMove` put them where they belong, and this function only
+`removeFlute` decrements the pile's depth, fixes the hash, and calls
+`cleanupPile`.  The flute cards are *already gone* from the state: the flute
+move inside `move` put them where they belong, and this function only
 reconciles the recorded position with the state as it already is.
 
 Removing the flute as a card operation would be wrong, not merely redundant: the
@@ -47,17 +49,17 @@ each phase touches one pile — and it is the same monotonicity `isFreeCard_mono
 consumes.  The single strict decrement is assembled at the top, in `move_merged`. -/
 
 /-- Every pile's depth in `q` is at most its depth in `p`. -/
-def DepthLe (p q : SolverPosType) : Prop :=
+def DepthLe (p q : PosType) : Prop :=
   ∀ i : Fin 10, (q.pileDepth.get i).toNat ≤ (p.pileDepth.get i).toNat
 
-theorem DepthLe.rfl' (p : SolverPosType) : DepthLe p p := fun _ => Nat.le_refl _
+theorem DepthLe.rfl' (p : PosType) : DepthLe p p := fun _ => Nat.le_refl _
 
-theorem DepthLe.trans' {p q r : SolverPosType} (h : DepthLe p q) (h' : DepthLe q r) :
+theorem DepthLe.trans' {p q r : PosType} (h : DepthLe p q) (h' : DepthLe q r) :
     DepthLe p r := fun i => le_trans (h' i) (h i)
 
 /-- The progress measure itself: the total number of cards still on the tableau, in the
 same `List.foldl` spelling `usedSpace_def` and `destFrame_depth_sum` already use. -/
-def DepthSum (p : SolverPosType) : Nat :=
+def DepthSum (p : PosType) : Nat :=
   p.pileDepth.toList.foldl (fun acc d => acc + d.toNat) 0
 
 /-- Pointwise `≤` on a length-matched pair of lists lifts to the running `foldl` sum.
@@ -85,7 +87,7 @@ private theorem foldl_toNat_mono : ∀ (L1 L2 : List UInt8), L1.length = L2.leng
 
 /-- **Pointwise to sum.**  The composable form is `DepthLe`; the measure the induction
     actually decreases is `DepthSum`. -/
-theorem DepthLe.sum_le {p q : SolverPosType} (h : DepthLe p q) : DepthSum q ≤ DepthSum p := by
+theorem DepthLe.sum_le {p q : PosType} (h : DepthLe p q) : DepthSum q ≤ DepthSum p := by
   refine foldl_toNat_mono p.pileDepth.toList q.pileDepth.toList (by simp) ?_ 0 0 (Nat.le_refl _)
   intro i h1 _h2
   have hi : i < 10 := by simpa using h1
@@ -93,11 +95,11 @@ theorem DepthLe.sum_le {p q : SolverPosType} (h : DepthLe p q) : DepthSum q ≤ 
 
 /-- **Pointwise `≤` plus one strict index gives a strict drop in the sum.**  This is the
     shape every phase hands up: nothing grows, and the source pile lost its flute. -/
-theorem DepthLe.sum_lt {p q : SolverPosType} (h : DepthLe p q) (i : Fin 10)
+theorem DepthLe.sum_lt {p q : PosType} (h : DepthLe p q) (i : Fin 10)
     (hi : (q.pileDepth.get i).toNat < (p.pileDepth.get i).toNat) : DepthSum q < DepthSum p := by
   -- Route both sums through the position that agrees with `p` off `i` and with `q` at `i`:
   -- `depth_sum_foldl_set` isolates exactly that one term.
-  set r : SolverPosType :=
+  set r : PosType :=
     { p with pileDepth := p.pileDepth.set i.val (q.pileDepth.get i) i.isLt } with hrdef
   have hrle : DepthLe p r := by
     intro j
@@ -133,13 +135,13 @@ theorem DepthLe.sum_lt {p q : SolverPosType} (h : DepthLe p q) (i : Fin 10)
     omega
   exact lt_of_le_of_lt (hqr.sum_le) hstrict
 
-/-- **`SolverCleanupPile` never deepens a pile.**  The empty branch rewrites the depth it
+/-- **`cleanupPile` never deepens a pile.**  The empty branch rewrites the depth it
 sets back to itself (`hsd`); the loop-bearing branches are `preCleanupPile_pileDepth_le`
 and, in the lone-king case, `kingMove_pileDepth_le` on top of it. -/
-theorem cleanupPile_depth_le (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem cleanupPile_depth_le (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10) (hwf : WellFormedLayout g)
     (hnf : SolverInvBase g (fluteNorm pile hpile p)) :
-    ∃ fk p', EStateM.run (_root_.SolverCleanupPile pile) (g, p) = .ok fk (g, p') ∧
+    ∃ fk p', EStateM.run (Solver.cleanupPile pile) (g, p) = .ok fk (g, p') ∧
       DepthLe p p' := by
   rcases cleanupPile_eq pile g p hpile hwf hnf with
     ⟨_hd0, hsd, hrun⟩ | ⟨B, hs4, _hd, _hd1, hd5, _hidx, _hBdef, _hBr, _hnfp, m, f, hm_le,
@@ -159,13 +161,13 @@ theorem cleanupPile_depth_le (pile : UInt32) (g : Globals) (p : SolverPosType)
         (kingMove_pileDepth_le pile hpile (SUIT B) hs4 (pileHashes[pile.toNat]'hpile) _ i)
         (hpre i)⟩
 
-/-- **`SolverRemoveFlute` never deepens a pile** — and strictly decrements the pile it is
+/-- **`removeFlute` never deepens a pile** — and strictly decrements the pile it is
 called on, which is where the whole progress argument comes from. -/
-theorem removeFlute_depth_le (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem removeFlute_depth_le (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10) (hwf : WellFormedLayout g)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hnf : SolverInvBase g (fluteNorm pile hpile (removeFlutePre pile hpile p))) :
-    ∃ fk p', EStateM.run (_root_.SolverRemoveFlute pile) (g, p) = .ok fk (g, p') ∧
+    ∃ fk p', EStateM.run (Solver.removeFlute pile) (g, p) = .ok fk (g, p') ∧
       DepthLe p p' ∧
       (p'.pileDepth.get ⟨pile.toNat, hpile⟩).toNat
         < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat := by
@@ -198,31 +200,31 @@ theorem removeFlute_depth_le (pile : UInt32) (g : Globals) (p : SolverPosType)
   have := hle ⟨pile.toNat, hpile⟩
   omega
 
-/-- **`SolverRemoveFlute` preserves the base layer.**  Direct corollary of
+/-- **`removeFlute` preserves the base layer.**  Direct corollary of
     `cleanupPile_baseNF` via the exact reduction `removeFlute_eq`: the
     precondition is stated at the composed point — depth and hash already
     decremented (`removeFlutePre`), stale flute normalized (`fluteNorm`).  At
     exactly this state the `usedSpace` ledger balances and the caller-side
-    anomalies vanish (a destination flute extended by `SolverMove` is valid once
-    the source depth is decremented; an `aces` advanced by `SolverMoveAces` no
+    anomalies vanish (a destination flute extended by `move` is valid once
+    the source depth is decremented; an `aces` advanced by `moveAces` no
     longer conflicts with the normalized flute). -/
-theorem removeFlute_base (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem removeFlute_base (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)
     (hnf : SolverInvBase g (fluteNorm pile hpile (removeFlutePre pile hpile p))) :
-    ∃ fk p', EStateM.run (_root_.SolverRemoveFlute pile) (g, p) = .ok fk (g, p') ∧
+    ∃ fk p', EStateM.run (Solver.removeFlute pile) (g, p) = .ok fk (g, p') ∧
       SolverInvBase g p' := by
   rw [removeFlute_eq pile g p hpile]
   exact cleanupPile_base pile g (removeFlutePre pile hpile p) hpile hwf hnf
 
-/-- **`SolverRemoveFlute` re-establishes the Merged layer** from the midpoint
+/-- **`removeFlute` re-establishes the Merged layer** from the midpoint
     predicate at the composed point (see `removeFlute_baseNF` for why the
     composed state is the right place). -/
-theorem removeFlute_merged (pile : UInt32) (g : Globals) (p : SolverPosType)
+theorem removeFlute_merged (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)
     (hready : CleanupReady g (fluteNorm pile hpile (removeFlutePre pile hpile p)) pile) :
-    ∃ fk p', EStateM.run (_root_.SolverRemoveFlute pile) (g, p) = .ok fk (g, p') ∧
+    ∃ fk p', EStateM.run (Solver.removeFlute pile) (g, p) = .ok fk (g, p') ∧
       SolverInvMerged g p' ∧ p'.aces = p.aces ∧
       (∀ mask : UInt8, p.busyAces &&& mask ≠ 0 → p'.busyAces &&& mask ≠ 0) := by
   rw [removeFlute_eq pile g p hpile]

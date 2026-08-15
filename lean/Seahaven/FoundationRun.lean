@@ -5,7 +5,7 @@ open Rules
 /-!
 # Playing a run of cards to the foundation
 
-`SolverMoveAces` ships a *consecutive run of one suit* to the foundation in a
+`moveAces` ships a *consecutive run of one suit* to the foundation in a
 single call: starting just above `aces[suit]`, it walks upwards for as long as
 the next card is either already free or exposed at its pile's boundary.
 
@@ -16,7 +16,7 @@ iterates that over a list of cards.  The headline results are
 * `ready_tail` — readiness propagates along a run, so a caller only ever has to
   supply *accessibility* of the next card, never readiness;
 * `playsAll_column` — a run exposed on top of a pile plays off completely, which
-  is exactly the `cardDepth == 0` cascade of `SolverMoveAces`;
+  is exactly the `cardDepth == 0` cascade of `moveAces`;
 * the transfer lemmas to `FMReach` and hence to `Solvable`, in both directions.
 
 Everything here is independent of the solver's layout tables.
@@ -168,7 +168,7 @@ theorem PlaysAll.foundations_getLast {s t : State} {cs : List Card} (h : PlaysAl
     | cons e es => exact ih d (by simpa using hd)
 
 /-- **A run exposed on top of a pile plays off completely.**  This is the
-`cardDepth == 0` cascade of `SolverMoveAces`, on the `Rules` side. -/
+`cardDepth == 0` cascade of `moveAces`, on the `Rules` side. -/
 theorem playsAll_column {s : State} {q : Fin 10} {cs rest : Column}
     (hcol : s.tableau q = cs ++ rest)
     (hrun : IsRun cs)
@@ -198,9 +198,9 @@ theorem playsAll_cell {s : State} {i : Fin 4} {c : Card}
       t.tableau = s.tableau :=
   ⟨_, PlaysAll.cons (PlaysTo.of_cell hc hready) (PlaysAll.nil _), rfl, rfl⟩
 
-/-! ## The run that `SolverMoveAces` plays
+/-! ## The run that `moveAces` plays
 
-`SolverMoveAces` walks upwards from `aces[suit] + 1`.  On the `Rules` side that
+`moveAces` walks upwards from `aces[suit] + 1`.  On the `Rules` side that
 start card is `nextFoundationCard`, and the run it walks is `runFrom`.  The
 solver therefore only has to contribute a *count* — the `aces` delta — never the
 cards themselves, which keeps the eventual bridge free of card decoding. -/
@@ -295,7 +295,7 @@ theorem nextFoundationCard_playsTo {s t : State} {su : Suit} {c : Card}
 /-- **The whole run plays, driven by an accessibility invariant.**
 
 `P` is whatever the caller knows about the state — in the eventual bridge it will
-be derived from a `Rules.State ↔ SolverPosType` matching relation.  All the
+be derived from a `Rules.State ↔ PosType` matching relation.  All the
 caller must supply is that `P` makes the suit's next card accessible and is
 preserved by playing it; readiness and the shape of the run come for free. -/
 theorem exists_playsAll_runFrom {su : Suit} (P : State → Prop)

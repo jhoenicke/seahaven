@@ -1,9 +1,11 @@
 import Seahaven.ConvertPre
 
+open Solver
+
 /-!
 # The prologue's space accounting never underflows
 
-`SolverConvertFromPilesKings` computes `usedSpace` by subtracting, from `52`, the
+`convertFromPilesKings` computes `usedSpace` by subtracting, from `52`, the
 pile depths and then each suit's foundation top.  For the result to be the
 `usedSpace_def` value (rather than a wrapped `UInt8`) those two families have to
 fit inside the deck:

@@ -36,7 +36,7 @@ that `card2pile`/`card2depth` are left inverses of `pos2card` and that
 50–51) get `card2depth = 5`, one more than any live pile depth, so the freeness
 test `card2depth[c] ≥ pileDepth[card2pile[c]]` always counts them as freed.
 
-### The abstract position (`SolverPosType`)
+### The abstract position (`Solver.PosType`)
 
 For a position matching a concrete state:
 
@@ -78,7 +78,7 @@ Filling empty columns with kings is the one move family that makes *no*
 progress: it is reversible and cycles.  The solver therefore never searches
 king relocations.  Instead each position is judged under a **king
 configuration** — a 4-bit mask, bit `su` set iff suit `su` has *no* dedicated
-king pile — and `solverRecCheckSolvable` returns a *bitmask over
+king pile — and `Solver.recCheckSolvable` returns a *bitmask over
 configurations* rather than a Boolean.  The payoff: every move the solver does
 make strictly decreases `DepthSum = Σ pileDepth` (`move_merged`), which is the
 induction measure everywhere and what makes the hash a sound memo key.
@@ -114,23 +114,23 @@ position at `k` is solvable.*
 ### Simulating one abstract move
 
 `Simulates.move` (assembled in `SolverMoveSim.lean` from `Phase1Sim`,
-`CleanupSim`, `MoveAcesSim`): given a matched state and a `SolverMove` the
+`CleanupSim`, `MoveAcesSim`): given a matched state and a `Solver.move` the
 solver considers, produce `Rules` moves to a state matching the child
 position.  The move plays out in the order of the C code:
 
 1. park the flute's interior cards in cells (the space check
-   `solverGetMovable` guarantees the cells exist);
-2. move the boundary card to its destination (`SolverRemoveFlute`'s
+   `Solver.getMovable` guarantees the cells exist);
+2. move the boundary card to its destination (`Solver.removeFlute`'s
    `depth--`);
 3. cleanup: drop freed predecessors back onto the pile
-   (`SolverCleanupPile`'s freed loop), vacate a lone king if one is exposed;
-4. drain `busyAces` (`SolverMoveAces`): the walk counts already-free cards
+   (`Solver.cleanupPile`'s freed loop), vacate a lone king if one is exposed;
+4. drain `busyAces` (`Solver.moveAces`): the walk counts already-free cards
    without touching the state, so the `Rules` plays are *deferred* to the sync
    points, where the whole pending run is played at once.
 
 ### The recursion
 
-`solverRecCheckSolvable` is defined by `partial_fixpoint`, giving the one-step
+`Solver.recCheckSolvable` is defined by `partial_fixpoint`, giving the one-step
 unfolding `recCheck_eq`.  Every theorem about it takes the successful run as a
 *hypothesis* (`EStateM.run … = .ok r g'`), so no totality proof is ever
 needed; the induction is on a `Nat` bound of `DepthSum`, decreasing by
@@ -178,11 +178,11 @@ Before the critical move:
 - **Destination** (`DestComplete.lean`): parking the boundary card and
   dropping it later composes to the direct move (`cell_park_then_drop`); a
   column destination is unique; a king fits only on an empty column.  So the
-  play's choice is equivalent to the solver's `solverGetDestination`.
+  play's choice is equivalent to the solver's `Solver.getDestination`.
 - **Affordability** (`DeckCount.lean`, `DestAfford.lean`): the play itself
   parked `fluteLen − 1` cards, and the full-deck partition
   `Σ foundations + #cells + Σ |tableau i| = 52` turns that into the exact
-  space bound `solverGetMovable` checks against `possibleKings`.  The
+  space bound `Solver.getMovable` checks against `possibleKings`.  The
   configuration this happens at is `k_t` — the *physically piled* suits of the
   critical state, plus the moved king when the critical move is
   king-to-empty-column — affordable by construction, no guessing.
@@ -198,7 +198,7 @@ Before the critical move:
 CP-normalize the child (`CPNormal.lean`; cell→pile drops are revertible, so
 solvability is unchanged) and identify the result with the solver's own child:
 by depth uniqueness the canonical position the child state matches *is* the
-one `SolverMove` + `SolverCleanupPile` computed (`matches_of_depth_match`,
+one `Solver.move` + `Solver.cleanupPile` computed (`matches_of_depth_match`,
 `CriticalChild`).  The induction hypothesis at the child (smaller `DepthSum`)
 then yields the bit, transported back up through `subsetTable` and
 `forcedKings` read in the completeness direction (`SubsetTransport`).
@@ -227,7 +227,7 @@ direction-specific.
 
 ## Entry and assembly
 
-- **Convert** (`SolverConvertFromPilesKings`): read at the caller's state via
+- **Convert** (`Solver.convertFromPilesKings`): read at the caller's state via
   the lax entry `CvEntry` (`ConvertMatch.lean`) — the queried depths with the
   state's *own* flutes and foundations.  Convert's own loops close the gap to
   the canonical position, and their writes are realized by normalizing moves:

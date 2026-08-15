@@ -3,6 +3,7 @@ import Seahaven.UsedSpaceBound
 import Seahaven.MoveSim
 
 open Rules
+open Solver
 
 /-!
 # The two physical king-reshuffle steps
@@ -40,7 +41,7 @@ theorem cfgBitSet_clearCfgBit (k : Fin 16) (su su' : Suit) :
   revert k su su'; decide
 
 /-- Unpiling a suit costs its run length in cells. -/
-theorem freeCellsOf_setCfgBit (p : SolverPosType) (k : Fin 16) {su : Suit}
+theorem freeCellsOf_setCfgBit (p : PosType) (k : Fin 16) {su : Suit}
     (hsu : ¬ CfgBitSet k su) :
     freeCellsOf p (setCfgBit k su) = freeCellsOf p k - runLen p su := by
   rw [freeCellsOf_eq, freeCellsOf_eq, piledSet_setCfgBit]
@@ -48,7 +49,7 @@ theorem freeCellsOf_setCfgBit (p : SolverPosType) (k : Fin 16) {su : Suit}
   omega
 
 /-- Piling a suit refunds its run length. -/
-theorem freeCellsOf_clearCfgBit (p : SolverPosType) (k : Fin 16) {su : Suit}
+theorem freeCellsOf_clearCfgBit (p : PosType) (k : Fin 16) {su : Suit}
     (hsu : CfgBitSet k su) :
     freeCellsOf p (clearCfgBit k su) = freeCellsOf p k + runLen p su := by
   rw [freeCellsOf_eq, freeCellsOf_eq, piledSet_clearCfgBit,
@@ -60,7 +61,7 @@ theorem freeCellsOf_clearCfgBit (p : SolverPosType) (k : Fin 16) {su : Suit}
 /-- **A state whose only change is that a solver-empty column was emptied still
 matches `p`.**  Nothing the position records mentions those cards: the column's
 depth stays `0`, no flute is involved, and the foundations are untouched. -/
-theorem StateMatchesSolverPos.frameEmptyCol {g : Globals} {s t : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.frameEmptyCol {g : Globals} {s t : State} {p : PosType}
     {i : Fin 10} (h : StateMatchesSolverPos g s p)
     (hd0 : (p.pileDepth.get i).toNat = 0)
     (hreach : Reach s t) (hti : t.tableau i = [])
@@ -87,7 +88,7 @@ theorem StateMatchesSolverPos.frameEmptyCol {g : Globals} {s t : State} {p : Sol
 /-! ## Unpiling -/
 
 /-- The freed run of a suit that owns a column is exactly that column. -/
-private theorem ownsPile_length {g : Globals} {s : State} {p : SolverPosType} {su : Suit}
+private theorem ownsPile_length {g : Globals} {s : State} {p : PosType} {su : Suit}
     {i : Fin 10} (hm : StateMatchesSolverPos g s p) (hb : SolverInvBase g p)
     (hown : OwnsPile s p su i) : ((s.tableau i).length : Int) ≤ runLen p su := by
   obtain ⟨hd0, hphys⟩ := hown
@@ -382,7 +383,7 @@ would sit in the flute above a boundary card of the same suit and *higher* value
 which `king_frontier` declares free while `depth_card_not_free` declares it not. -/
 
 /-- Every card of a solver-empty column carries the deepest card's suit. -/
-private theorem empty_col_suit {g : Globals} {s : State} {p : SolverPosType}
+private theorem empty_col_suit {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (q : Fin 10)
     (hq : (p.pileDepth.get q).toNat = 0) {d e : Card}
     (hlast : (s.tableau q).getLast? = some d) (he : e ∈ s.tableau q) : e.suit = d.suit := by
@@ -407,7 +408,7 @@ private theorem empty_col_suit {g : Globals} {s : State} {p : SolverPosType}
   exact suitToNat_inj (by omega)
 
 /-- **The freed run of an unpiled suit sits in the cells.** -/
-theorem run_card_in_cell {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16} {su : Suit}
+theorem run_card_in_cell {g : Globals} {s : State} {p : PosType} {k : Fin 16} {su : Suit}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hk : StateMatchesKingConfig g s p k) (hsu : CfgBitSet k su)
     {v : Nat} (hv1 : (VALUE (p.kings.get (finOfSuit su))).toNat < v) (hv2 : v ≤ 13) :
@@ -520,7 +521,7 @@ theorem PileMatches_kingRun {g : Globals} {j : Fin 10} {n : Fin 6} {su : Suit} {
 
 /-- **A state whose only change is that a solver-empty column was filled with a
 suit's complete freed king stack still matches `p`.** -/
-theorem StateMatchesSolverPos.frameFillCol {g : Globals} {s t : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.frameFillCol {g : Globals} {s t : State} {p : PosType}
     {j : Fin 10} {su : Suit} {V : Nat} (h : StateMatchesSolverPos g s p)
     (hd0 : (p.pileDepth.get j).toNat = 0)
     (hV : (VALUE (p.kings.get (finOfSuit su))).toNat = V) (hV13 : V ≤ 13)
@@ -560,7 +561,7 @@ piled than the position has empty columns, so the assignment misses one; and a
 missed empty column carries nothing — whatever its deepest card's suit were, that
 suit either owns a *different* column (`empty_pile_unique`, so this one would be
 assigned after all) or owns none at all (`no_pile`). -/
-private theorem exists_spare_col {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
+private theorem exists_spare_col {g : Globals} {s : State} {p : PosType} {k : Fin 16}
     (hfp : p.freePiles.toNat
       ≤ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card)
     (hk : StateMatchesKingConfig g s p k)
@@ -617,7 +618,7 @@ backwards.
 When nothing of the suit is freed yet (`VALUE kings[su] = 13`) the run is empty and
 no card moves at all; the spare column is claimed through `OwnsPile`'s reservation
 branch, and both reaches are `refl`. -/
-theorem kingPileEquiv (g : Globals) (p : SolverPosType) (s : State) (k : Fin 16) (su : Suit)
+theorem kingPileEquiv (g : Globals) (p : PosType) (s : State) (k : Fin 16) (su : Suit)
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hfp : p.freePiles.toNat
       ≤ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card)
@@ -705,7 +706,7 @@ theorem kingPileReachable : KingPileReachable := by
 /-- **`ComponentSound`.**  `KingReshuffle`'s reduction, fed with the two physical
 steps.  This is the second of `SoundnessSkeleton`'s named obligations to be
 proved (after `KingSpacesSpec`), and it is what licenses
-`movable'' := movable' ||| component` in `solverRecCheckSolvable`.
+`movable'' := movable' ||| component` in `recCheckSolvable`.
 
 `SubsetSound` — the other consumer of these two steps — needs only
 `kingPileReachable`: its `subsetTable` closure moves *more* kings onto columns,

@@ -2,9 +2,10 @@ import Seahaven.MoveAcesSim
 import Seahaven.DepthMatch
 
 open Rules
+open Solver
 
 /-!
-# `SolverCleanupPile` at the depth-vector layer
+# `cleanupPile` at the depth-vector layer
 
 The completeness step reaches the cleanup with only a **depth match** in hand — the
 play's post-critical-move state has its flutes parked in cells, so it does not satisfy
@@ -34,16 +35,16 @@ theorem PileMatches_of_val_eq {g : Globals} {col : Column} {a : Fin 10} {n n' : 
   rw [(Fin.ext hv : n' = n)]
   exact h
 
-/-- **The depth-vector half of a `SolverCleanupPile` call.**  Every pile but the one
+/-- **The depth-vector half of a `cleanupPile` call.**  Every pile but the one
 being cleaned keeps its depth; the cleaned pile's drops by the merge count, or all the
 way to `0` when its last dealt card is a king. -/
-theorem cleanupPile_depth {g : Globals} {w : State} {q0 : SolverPosType}
+theorem cleanupPile_depth {g : Globals} {w : State} {q0 : PosType}
     (hwf : WellFormedLayout g) {pile : UInt32} (hpile : pile.toNat < 10)
     (hb : SolverInvBase g (SolverSpec.fluteNorm pile hpile q0))
     (hdm : ∀ (i : Fin 10) (h : (q0.pileDepth.get i).toNat < 6),
       PileMatches g (w.tableau i) i ⟨(q0.pileDepth.get i).toNat, h⟩)
-    {fk : UInt16} {p' : SolverPosType}
-    (hrun' : EStateM.run (_root_.SolverCleanupPile pile) (g, q0) = .ok fk (g, p'))
+    {fk : UInt16} {p' : PosType}
+    (hrun' : EStateM.run (Solver.cleanupPile pile) (g, q0) = .ok fk (g, p'))
     (i : Fin 10) :
     (p'.pileDepth.get i).toNat ≤ (q0.pileDepth.get i).toNat ∧
       ∀ h6 : (p'.pileDepth.get i).toNat < 6,
@@ -186,32 +187,32 @@ theorem cleanupPile_depth {g : Globals} {w : State} {q0 : SolverPosType}
       exact ⟨le_of_eq hval, fun _ => PileMatches_of_val_eq (hdm i (by omega)) hval⟩
 
 /-- The depth match half. -/
-theorem pileMatches_cleanupPile {g : Globals} {w : State} {q0 : SolverPosType}
+theorem pileMatches_cleanupPile {g : Globals} {w : State} {q0 : PosType}
     (hwf : WellFormedLayout g) {pile : UInt32} (hpile : pile.toNat < 10)
     (hb : SolverInvBase g (SolverSpec.fluteNorm pile hpile q0))
     (hdm : ∀ (i : Fin 10) (h : (q0.pileDepth.get i).toNat < 6),
       PileMatches g (w.tableau i) i ⟨(q0.pileDepth.get i).toNat, h⟩)
-    {fk : UInt16} {p' : SolverPosType}
-    (hrun' : EStateM.run (_root_.SolverCleanupPile pile) (g, q0) = .ok fk (g, p'))
+    {fk : UInt16} {p' : PosType}
+    (hrun' : EStateM.run (Solver.cleanupPile pile) (g, q0) = .ok fk (g, p'))
     (i : Fin 10) (h6 : (p'.pileDepth.get i).toNat < 6) :
     PileMatches g (w.tableau i) i ⟨(p'.pileDepth.get i).toNat, h6⟩ :=
   (cleanupPile_depth hwf hpile hb hdm hrun' i).2 h6
 
 /-- **The cleanup never raises a depth** — so a solver-empty column stays solver-empty,
 which is what carries `PiledSuit` across the call. -/
-theorem cleanupPile_depth_le {g : Globals} {w : State} {q0 : SolverPosType}
+theorem cleanupPile_depth_le {g : Globals} {w : State} {q0 : PosType}
     (hwf : WellFormedLayout g) {pile : UInt32} (hpile : pile.toNat < 10)
     (hb : SolverInvBase g (SolverSpec.fluteNorm pile hpile q0))
     (hdm : ∀ (i : Fin 10) (h : (q0.pileDepth.get i).toNat < 6),
       PileMatches g (w.tableau i) i ⟨(q0.pileDepth.get i).toNat, h⟩)
-    {fk : UInt16} {p' : SolverPosType}
-    (hrun' : EStateM.run (_root_.SolverCleanupPile pile) (g, q0) = .ok fk (g, p'))
+    {fk : UInt16} {p' : PosType}
+    (hrun' : EStateM.run (Solver.cleanupPile pile) (g, q0) = .ok fk (g, p'))
     (i : Fin 10) : (p'.pileDepth.get i).toNat ≤ (q0.pileDepth.get i).toNat :=
   (cleanupPile_depth hwf hpile hb hdm hrun' i).1
 
 /-! ## The vacated suits are physically piled
 
-`SimulatesNorm.drainFrom` may be entered with the mask `SolverRemoveFlute` returned only
+`SimulatesNorm.drainFrom` may be entered with the mask `removeFlute` returned only
 if the configuration already piles every suit that mask forces.  At the depth layer that
 is a *physical* statement about the state, and it is free: the lone-king branch fires
 exactly when one dealt card is left and it is a king, so that card — the column's
@@ -237,13 +238,13 @@ private theorem suit_add_of_value_13 {B : UInt8} {m : Nat} (hreal : IsRealCard B
 
 /-- **The cleanup's `forcedKings` is met by the state itself.**  Its vacated suit — if
 any — has its king physically on the freed column. -/
-theorem kingVacates_cleanupPile {g : Globals} {w : State} {q0 : SolverPosType}
+theorem kingVacates_cleanupPile {g : Globals} {w : State} {q0 : PosType}
     (hwf : WellFormedLayout g) {pile : UInt32} (hpile : pile.toNat < 10)
     (hb : SolverInvBase g (SolverSpec.fluteNorm pile hpile q0))
     (hdm : ∀ (i : Fin 10) (h : (q0.pileDepth.get i).toNat < 6),
       PileMatches g (w.tableau i) i ⟨(q0.pileDepth.get i).toNat, h⟩)
-    {fk : UInt16} {p' : SolverPosType}
-    (hrun' : EStateM.run (_root_.SolverCleanupPile pile) (g, q0) = .ok fk (g, p')) :
+    {fk : UInt16} {p' : PosType}
+    (hrun' : EStateM.run (Solver.cleanupPile pile) (g, q0) = .ok fk (g, p')) :
     ∃ FK : Finset Suit, KingVacates FK fk ∧ (∀ su ∈ FK, PiledSuit w p' su) ∧
       VacateSites q0 p' FK := by
   have hle := cleanupPile_depth_le hwf hpile hb hdm hrun'
@@ -366,14 +367,14 @@ theorem kingVacates_cleanupPile {g : Globals} {w : State} {q0 : SolverPosType}
     · rw [if_neg hk] at hsu
       exact absurd hsu (Finset.notMem_empty su)
 
-/-! ## The whole `SolverRemoveFlute` call
+/-! ## The whole `removeFlute` call
 
-`SolverRemoveFlute` is the depth/hash decrement and the flute reset — exactly the
-`movePre` bookkeeping the state already reflects — followed by `SolverCleanupPile`
+`removeFlute` is the depth/hash decrement and the flute reset — exactly the
+`movePre` bookkeeping the state already reflects — followed by `cleanupPile`
 (`removeFlute_eq`).  Since `fluteNorm` rewrites only `pileFlute`, the depth vector the
 cleanup is entered at *is* `movePre`'s. -/
 
-theorem pileMatches_removeFlute {g : Globals} {w : State} {gameA : SolverPosType}
+theorem pileMatches_removeFlute {g : Globals} {w : State} {gameA : PosType}
     (hwf : WellFormedLayout g) {pile : UInt32} (hpile : pile.toNat < 10)
     (hb : SolverInvBase g (SolverSpec.fluteNorm pile hpile
       (removeFlutePre pile hpile gameA)))
@@ -381,24 +382,24 @@ theorem pileMatches_removeFlute {g : Globals} {w : State} {gameA : SolverPosType
         (h : ((removeFlutePre pile hpile gameA).pileDepth.get i).toNat < 6),
       PileMatches g (w.tableau i) i
         ⟨((removeFlutePre pile hpile gameA).pileDepth.get i).toNat, h⟩)
-    {fk : UInt16} {p' : SolverPosType}
-    (hrun : _root_.SolverRemoveFlute pile (g, gameA) = .ok fk (g, p'))
+    {fk : UInt16} {p' : PosType}
+    (hrun : Solver.removeFlute pile (g, gameA) = .ok fk (g, p'))
     (i : Fin 10) (h6 : (p'.pileDepth.get i).toNat < 6) :
     PileMatches g (w.tableau i) i ⟨(p'.pileDepth.get i).toNat, h6⟩ := by
-  have hrun' : EStateM.run (_root_.SolverRemoveFlute pile) (g, gameA) = .ok fk (g, p') := hrun
+  have hrun' : EStateM.run (Solver.removeFlute pile) (g, gameA) = .ok fk (g, p') := hrun
   rw [removeFlute_eq pile g gameA hpile] at hrun'
   exact pileMatches_cleanupPile hwf hpile hb hdm hrun' i h6
 
-/-- **The depth match survives a whole `SolverRemoveFlute`**, in `DepthMatchesV` form —
+/-- **The depth match survives a whole `removeFlute`**, in `DepthMatchesV` form —
 stated at `movePre`, which is where `MovePreMatch.critical_depthMatchesV_movePre` leaves
 the play's post-critical-move state. -/
-theorem depthMatchesV_removeFlute {g : Globals} {w : State} {p : SolverPosType}
+theorem depthMatchesV_removeFlute {g : Globals} {w : State} {p : PosType}
     (hwf : WellFormedLayout g) {pile : UInt32} (hpile : pile.toNat < 10) (toPile : UInt8)
     (hb : SolverInvBase g (SolverSpec.movePre pile toPile hpile p))
     (hd6 : ∀ i : Fin 10, ((SolverSpec.movePre pile toPile hpile p).pileDepth.get i).toNat < 6)
     (hdm : DepthMatchesV g w (depthVec (SolverSpec.movePre pile toPile hpile p) hd6))
-    {fk : UInt16} {p' : SolverPosType}
-    (hrun : _root_.SolverRemoveFlute pile (g, SolverSpec.moveDestPre pile toPile hpile p)
+    {fk : UInt16} {p' : PosType}
+    (hrun : Solver.removeFlute pile (g, SolverSpec.moveDestPre pile toPile hpile p)
       = .ok fk (g, p'))
     (hd6' : ∀ i : Fin 10, (p'.pileDepth.get i).toNat < 6) :
     DepthMatchesV g w (depthVec p' hd6') :=
@@ -407,41 +408,41 @@ theorem depthMatchesV_removeFlute {g : Globals} {w : State} {p : SolverPosType}
 
 /-- A suit physically piled is piled by any configuration the state matches — the
 `PiledSuit` form of `StateMatchesKingConfig.clear_of_column`. -/
-theorem cfgBitSet_clear_of_piled {g : Globals} {u : State} {p : SolverPosType} {k : Fin 16}
+theorem cfgBitSet_clear_of_piled {g : Globals} {u : State} {p : PosType} {k : Fin 16}
     (h : StateMatchesKingConfig g u p k) {su : Suit} (hp : PiledSuit u p su) :
     ¬ CfgBitSet k su := by
   obtain ⟨i, hd0, d, hd, hsuit⟩ := hp
   exact fun hbit => h.no_pile su hbit i hd0 d hd hsuit
 
-/-- **The `forcedKings` of a whole `SolverRemoveFlute` is met by the state.**  Together
+/-- **The `forcedKings` of a whole `removeFlute` is met by the state.**  Together
 with `depthMatchesV_removeFlute` this is everything `SimulatesNorm.drainFrom` asks for. -/
-theorem kingVacates_removeFlute {g : Globals} {w : State} {gameA : SolverPosType}
+theorem kingVacates_removeFlute {g : Globals} {w : State} {gameA : PosType}
     (hwf : WellFormedLayout g) {pile : UInt32} (hpile : pile.toNat < 10)
     (hb : SolverInvBase g (SolverSpec.fluteNorm pile hpile
       (removeFlutePre pile hpile gameA)))
     (hdm : ∀ (i : Fin 10) (h : ((removeFlutePre pile hpile gameA).pileDepth.get i).toNat < 6),
       PileMatches g (w.tableau i) i
         ⟨((removeFlutePre pile hpile gameA).pileDepth.get i).toNat, h⟩)
-    {fk : UInt16} {p' : SolverPosType}
-    (hrun : _root_.SolverRemoveFlute pile (g, gameA) = .ok fk (g, p')) :
+    {fk : UInt16} {p' : PosType}
+    (hrun : Solver.removeFlute pile (g, gameA) = .ok fk (g, p')) :
     ∃ FK : Finset Suit, KingVacates FK fk ∧ (∀ su ∈ FK, PiledSuit w p' su) ∧
       VacateSites (removeFlutePre pile hpile gameA) p' FK := by
-  have hrun' : EStateM.run (_root_.SolverRemoveFlute pile) (g, gameA) = .ok fk (g, p') := hrun
+  have hrun' : EStateM.run (Solver.removeFlute pile) (g, gameA) = .ok fk (g, p') := hrun
   rw [removeFlute_eq pile g gameA hpile] at hrun'
   exact kingVacates_cleanupPile hwf hpile hb hdm hrun'
 
-/-- The depth bound across a whole `SolverRemoveFlute`. -/
-theorem removeFlute_depth_le {g : Globals} {w : State} {gameA : SolverPosType}
+/-- The depth bound across a whole `removeFlute`. -/
+theorem removeFlute_depth_le {g : Globals} {w : State} {gameA : PosType}
     (hwf : WellFormedLayout g) {pile : UInt32} (hpile : pile.toNat < 10)
     (hb : SolverInvBase g (SolverSpec.fluteNorm pile hpile
       (removeFlutePre pile hpile gameA)))
     (hdm : ∀ (i : Fin 10) (h : ((removeFlutePre pile hpile gameA).pileDepth.get i).toNat < 6),
       PileMatches g (w.tableau i) i
         ⟨((removeFlutePre pile hpile gameA).pileDepth.get i).toNat, h⟩)
-    {fk : UInt16} {p' : SolverPosType}
-    (hrun : _root_.SolverRemoveFlute pile (g, gameA) = .ok fk (g, p'))
+    {fk : UInt16} {p' : PosType}
+    (hrun : Solver.removeFlute pile (g, gameA) = .ok fk (g, p'))
     (i : Fin 10) :
     (p'.pileDepth.get i).toNat ≤ ((removeFlutePre pile hpile gameA).pileDepth.get i).toNat := by
-  have hrun' : EStateM.run (_root_.SolverRemoveFlute pile) (g, gameA) = .ok fk (g, p') := hrun
+  have hrun' : EStateM.run (Solver.removeFlute pile) (g, gameA) = .ok fk (g, p') := hrun
   rw [removeFlute_eq pile g gameA hpile] at hrun'
   exact cleanupPile_depth_le hwf hpile hb hdm hrun' i

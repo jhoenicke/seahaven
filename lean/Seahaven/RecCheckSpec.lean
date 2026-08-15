@@ -1,8 +1,10 @@
 import Seahaven.CriticalIteration
 import Seahaven.RecCheckRuns
 
+open Solver
+
 /-!
-# `solverRecCheckSolvable` meets its two-sided specification
+# `recCheckSolvable` meets its two-sided specification
 
 `RecCheckSound` proves the soundness half by an induction over `DepthSum`, and a
 completeness half proved the same way would repeat that induction verbatim.  This
@@ -53,7 +55,7 @@ Verbatim `hashmapSound_slotWrite` with `SolvableBits` in place of `SoundBits`: t
 /-- **`setSlot` preserves `HashmapCorrect`.**  The written key's own slot now holds
 the correct mask; every other key either sees an untouched slot or has been evicted
 and reads `FREESLOT`. -/
-theorem hashmapCorrect_slotWrite {g : Globals} {p : SolverPosType} {v : UInt16}
+theorem hashmapCorrect_slotWrite {g : Globals} {p : PosType} {v : UInt16}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p) (hmc : HashmapCorrect g)
     (hspec : SolvableBits g p v) (hloc : LocalMask p v) :
     HashmapCorrect (slotWrite g p.hash v) := by
@@ -81,7 +83,7 @@ The leaf's completeness reads the answer `1` as the maximal configuration of the
 `freePiles = 10` block (`completeBits_one_of_freePiles_ten`), so it needs the free-pile
 count, where soundness needed the depths themselves. -/
 
-theorem freePiles_eq_ten_of_hash_zero {g : Globals} {p : SolverPosType}
+theorem freePiles_eq_ten_of_hash_zero {g : Globals} {p : PosType}
     (hcan : IsCanonicalPos g p) (hz : p.hash = 0) : p.freePiles.toNat = 10 := by
   have hd : ∀ i : Fin 10, p.pileDepth.get i = 0 :=
     pileDepth_eq_zero_of_hash_zero hcan.toSolverInvBase hz
@@ -110,20 +112,20 @@ the transfer to the caller's configuration (`exists_block_cfg_maskSub` and
 `subsetAt_spec_pos` for the block, `cfg_eq_or_component_bits` with
 `CompAllOrNothing.transfer` for the component). -/
 def RecLoopComplete : Prop :=
-  ∀ (H : Globals → Prop) (g gl : Globals) (p : SolverPosType) (ki : KingInfo) (comp : UInt8)
+  ∀ (H : Globals → Prop) (g gl : Globals) (p : PosType) (ki : KingInfo) (comp : UInt8)
     (v : UInt16),
     p.hash ≠ 0 → LocalMask p v →
     WellFormedLayout g → IsCanonicalPos g p → H g →
     PossibleKingsLocal p ki → KingInfoCorrect p ki → ChildSpecComplete H p →
     EStateM.run (computeComponentKingBits p) g = .ok comp g →
     forIn (List.range 10) (0 : UInt16)
-      (recBody solverRecCheckSolvable p (closureInfoOf p) ki comp.toUInt16
+      (recBody recCheckSolvable p (closureInfoOf p) ki comp.toUInt16
         (ki.possibleKings.get 0).toUInt16) g = .ok v gl →
     CompleteBits g p v
 
 /-! ## The recursion, both directions at once -/
 
-/-- **`solverRecCheckSolvable` meets `RecCheckSolvableSpec`**, modulo the three
+/-- **`recCheckSolvable` meets `RecCheckSolvableSpec`**, modulo the three
 semantic obligations: `SubsetSound` and `MoveSimulated` (both discharged elsewhere —
 `KingMoveSim.subsetSound`, `Phase1Sim.moveSimulated`) and `RecLoopComplete`.
 
@@ -133,10 +135,10 @@ per step.  The single induction hypothesis serves both directions — projected 
 `ChildSpec` for `recLoop_all` and to `ChildSpecComplete` for `RecLoopComplete`. -/
 theorem recCheck_spec (hSS : SubsetSound) (hMS : MoveSimulated) (hRLC : RecLoopComplete) :
     RecCheckSolvableSpec := by
-  suffices Hind : ∀ n : Nat, ∀ (g : Globals) (p : SolverPosType),
+  suffices Hind : ∀ n : Nat, ∀ (g : Globals) (p : PosType),
       SolverSpec.DepthSum p < n → WellFormedLayout g → IsCanonicalPos g p → HashmapCorrect g →
       ∃ (v : UInt16) (g' : Globals),
-        EStateM.run (solverRecCheckSolvable p) g = .ok v g' ∧
+        EStateM.run (recCheckSolvable p) g = .ok v g' ∧
         (SolvableBits g p v ∧ LocalMask p v) ∧ HashmapCorrect g' ∧
           ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm } by
     intro g p hwf hcan hcor
@@ -181,7 +183,7 @@ theorem recCheck_spec (hSS : SubsetSound) (hMS : MoveSimulated) (hRLC : RecLoopC
         obtain ⟨v, gl, hloop, -⟩ := forIn_exists
           (fun (_ : UInt16) (g₁ : Globals) => WellFormedLayout g₁ ∧ IsCanonicalPos g₁ p ∧
             HashmapCorrect g₁ ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, g₁ = { g with hashmap := hm })
-          (recBody solverRecCheckSolvable p (closureInfoOf p) ki comp.toUInt16
+          (recBody recCheckSolvable p (closureInfoOf p) ki comp.toUInt16
             (ki.possibleKings.get 0).toUInt16) (List.range 10)
           (fun a ha b g₁ hP => by
             obtain ⟨hwf₁, hcan₁, hcor₁, hm₁, rfl⟩ := hP

@@ -2,6 +2,7 @@ import Seahaven.CriticalMove
 import Seahaven.CleanupSim
 
 open Rules
+open Solver
 
 /-!
 # The critical move lands on `movePre`'s depth vector
@@ -25,7 +26,7 @@ The flute lengths deliberately play no part: `t₀`'s flute is parked in cells a
 the cell cards are dropped back — which is `CPNormCfg`'s business, not this file's.
 
 What this does *not* yet do is descend to the merged position the cleanup computes:
-`movePre` is not `PileMerged` at `a` (the merge is exactly what `SolverRemoveFlute`
+`movePre` is not `PileMerged` at `a` (the merge is exactly what `removeFlute`
 still has to run), so `matches_of_depth_match` does not apply here.  Lowering the
 depth along the merge chain is `PileMatches_lower` (`CleanupSim`), and feeding it the
 chain the run establishes is the next step.
@@ -68,7 +69,7 @@ theorem PileMatches_pop_boundary {g : Globals} {col : Column} {a : Fin 10} {n n'
 
 /-- `movePre`'s depths are `p`'s with the source decremented, so they still fit in
 `Fin 6`. -/
-theorem movePre_depth_sub {g : Globals} {p : SolverPosType} (hb : SolverInvBase g p)
+theorem movePre_depth_sub {g : Globals} {p : PosType} (hb : SolverInvBase g p)
     (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
     (hda : 0 < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat) :
     ((SolverSpec.movePre pile toPile hpile p).pileDepth.get ⟨pile.toNat, hpile⟩).toNat
@@ -78,7 +79,7 @@ theorem movePre_depth_sub {g : Globals} {p : SolverPosType} (hb : SolverInvBase 
     (hb.pileDepth_bound ⟨pile.toNat, hpile⟩) (by omega)
   rwa [show (UInt8.ofNat 1) = (1 : UInt8) from rfl] at h
 
-theorem movePre_depth_lt6 {g : Globals} {p : SolverPosType} (hb : SolverInvBase g p)
+theorem movePre_depth_lt6 {g : Globals} {p : PosType} (hb : SolverInvBase g p)
     (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
     (hda : 0 < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat) (i : Fin 10) :
     ((SolverSpec.movePre pile toPile hpile p).pileDepth.get i).toNat < 6 := by
@@ -95,7 +96,7 @@ theorem movePre_depth_lt6 {g : Globals} {p : SolverPosType} (hb : SolverInvBase 
 /-- **The critical move's target matches `movePre`'s depth vector.**  Nothing about
 flutes or king stacks is claimed — only the depths, which is exactly what
 `PileMatches_lower` and `matches_of_depth_match` consume downstream. -/
-theorem critical_depthMatchesV_movePre {g : Globals} {t₀ t₁ : State} {p : SolverPosType}
+theorem critical_depthMatchesV_movePre {g : Globals} {t₀ t₁ : State} {p : PosType}
     (hb : SolverInvBase g p) (h : DepthPlusKings g t₀ p)
     {pile : UInt32} (hpile : pile.toNat < 10) (toPile : UInt8)
     (hlen : (t₀.tableau ⟨pile.toNat, hpile⟩).length

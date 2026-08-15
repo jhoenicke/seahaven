@@ -1,6 +1,7 @@
 import Seahaven.DestAfford
 
 open Rules
+open Solver
 
 /-!
 # Every configuration is covered by one of its block's stored ones
@@ -54,7 +55,7 @@ theorem exists_globalCfg_maskSub (f : Fin 11) (k : Fin 16)
 
 /-- **The covering configuration, for a configuration the position really realizes.**
 The card bound is `RealizesKingConfig.card_clear_le_freePiles`. -/
-theorem exists_block_cfg_maskSub {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
+theorem exists_block_cfg_maskSub {g : Globals} {s : State} {p : PosType} {k : Fin 16}
     (hm : SolverInvMerged g p) (hr : RealizesKingConfig s p k) :
     ∃ j : Nat, j < (closureInfoOf p).numBits.toNat ∧
       MaskSub (globalCfg (closureInfoOf p) j) k := by
@@ -67,7 +68,7 @@ theorem exists_block_cfg_maskSub {g : Globals} {s : State} {p : SolverPosType} {
 /-- **And it affords whatever the realized configuration afforded.**  `freeCellsOf` is
 monotone along `MaskSub`, so the space bound the play established at `k` transports to
 the block configuration the loop actually indexes. -/
-theorem exists_block_cfg_afford {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
+theorem exists_block_cfg_afford {g : Globals} {s : State} {p : PosType} {k : Fin 16}
     (hb : SolverInvBase g p) (hm : SolverInvMerged g p) (hr : RealizesKingConfig s p k)
     (c : Int) (hc : c ≤ freeCellsOf p k) :
     ∃ j : Nat, j < (closureInfoOf p).numBits.toNat ∧
@@ -77,7 +78,7 @@ theorem exists_block_cfg_afford {g : Globals} {s : State} {p : SolverPosType} {k
   exact ⟨j, hj, hsub, le_trans hc (freeCellsOf_mono hb hsub)⟩
 
 /-- A suit piled by the realized configuration is piled by the covering one — which is
-what the king-pile branch of `solverGetMovable` needs (`kingOnPile`). -/
+what the king-pile branch of `getMovable` needs (`kingOnPile`). -/
 theorem maskSub_piled {d k : Fin 16} (h : MaskSub d k) {su : Suit}
     (hk : ¬ CfgBitSet k su) : ¬ CfgBitSet d su :=
   fun hd => hk ((MaskSub_iff d k).1 h su hd)

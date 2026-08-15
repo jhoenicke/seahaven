@@ -3,17 +3,18 @@ import Seahaven.SimulatesNorm
 import Seahaven.SoundnessSkeleton
 
 open Rules
+open Solver
 
 /-!
 # King configurations through the simulation
 
 Tools for carrying a king configuration (`StateMatchesKingConfig`) through the
-phases of `SolverMove`, together with the `forcedKings` bookkeeping
+phases of `move`, together with the `forcedKings` bookkeeping
 (`KingVacates`) that `MoveSimulated` demands.
 
 ## The `forcedKings` side
 
-`SolverCleanupPile` factors as `preCleanupPile` then — in the lone-king case
+`cleanupPile` factors as `preCleanupPile` then — in the lone-king case
 only — `kingMove` (`cleanupRunResult_eq`).  Only `kingMove` vacates a king, so
 the `forcedKings` description lives at that level: `kingMove_kingVacates` is the
 single-vacate fact, `preCleanupPile` contributes the unit `KingVacates ∅ 0xffff`,
@@ -51,7 +52,7 @@ theorem kingMove_kingVacates (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) :
 boundary's suit, the ordinary branch nothing. -/
 theorem cleanupRunResult_kingVacates (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (d32 : UInt8) (m f : Nat) (p : SolverPosType) :
+    (d32 : UInt8) (m f : Nat) (p : PosType) :
     KingVacates
       (if d32 - UInt8.ofNat m == 1 && VALUE (B + UInt8.ofNat m) == 13
         then {suitOfCode (SUIT B) hs4} else ∅)
@@ -71,7 +72,7 @@ realizes any configuration `k''` whose piled (clear-bit) suits are among `k'`'s.
 This is how the soundness chain picks `MoveSimulated`'s witness — e.g. a suit
 whose run just drained to the foundation may own a spare empty pile, but nothing
 forces that reading. -/
-theorem RealizesKingConfig.mono {s : State} {p : SolverPosType} {k' k'' : Fin 16}
+theorem RealizesKingConfig.mono {s : State} {p : PosType} {k' k'' : Fin 16}
     (h : RealizesKingConfig s p k')
     (hsub : ∀ su : Suit, ¬ CfgBitSet k'' su → ¬ CfgBitSet k' su) :
     RealizesKingConfig s p k'' := by
@@ -121,7 +122,7 @@ theorem clearCfgBit_ne : ∀ (su su' : Suit) (k : Fin 16), su' ≠ su →
 
 /-- `OwnsPile` only reads the pile's depth, the suit's `kings` entry, and the
 column itself. -/
-theorem OwnsPile.frame {s s' : State} {p p' : SolverPosType} {su : Suit} {i : Fin 10}
+theorem OwnsPile.frame {s s' : State} {p p' : PosType} {su : Suit} {i : Fin 10}
     (h : OwnsPile s p su i)
     (hd : p'.pileDepth.get i = p.pileDepth.get i)
     (hk : p'.kings.get (finOfSuit su) = p.kings.get (finOfSuit su))
@@ -136,7 +137,7 @@ theorem OwnsPile.frame {s s' : State} {p p' : SolverPosType} {su : Suit} {i : Fi
 pile may *become* solver-empty only if its new column carries nothing of the
 suit — the two ways that happens in practice are a freshly drained source pile
 (empty column) and a vacate for a *different* suit. -/
-theorem NoKingPile.frame {s s' : State} {p p' : SolverPosType} {su : Suit}
+theorem NoKingPile.frame {s s' : State} {p p' : PosType} {su : Suit}
     (h : NoKingPile s p su)
     (hframe : ∀ i : Fin 10, (p'.pileDepth.get i).toNat = 0 →
       ((p.pileDepth.get i).toNat = 0 ∧ s'.tableau i = s.tableau i) ∨
@@ -149,7 +150,7 @@ theorem NoKingPile.frame {s s' : State} {p p' : SolverPosType} {su : Suit}
 
 /-! ## `Simulates` for the two halves of a cleanup
 
-`SolverCleanupPile` factors as `preCleanupPile` — merge plus the freed-predecessor
+`cleanupPile` factors as `preCleanupPile` — merge plus the freed-predecessor
 extension, the only card-moving part — and, in the lone-king case, `kingMove`
 (`cleanupRunResult_eq`).  Each half gets its `Simulates`, and `Simulates.trans`
 composes them; `preCleanupPile` contributes the neutral mask, `kingMove` the
@@ -167,7 +168,7 @@ start owning it) or its *column* is physically empty, so a suit could only claim
 vacuously and `no_pile` survives either way.  `preCleanupPile` takes the first
 alternative (its merge count satisfies `m < pileDepth[a]`); the drain's sync step
 takes the second when it plays a depth-1 pile out entirely. -/
-theorem StateMatchesKingConfig.framePile {g : Globals} {s v : State} {p q : SolverPosType}
+theorem StateMatchesKingConfig.framePile {g : Globals} {s v : State} {p q : PosType}
     {k : Fin 16} {a : Fin 10} (hk : StateMatchesKingConfig g s p k)
     (hreach : NormReach s v) (hmatch : StateMatchesSolverPos g v q)
     (hda : 0 < (p.pileDepth.get a).toNat)
@@ -196,7 +197,7 @@ theorem StateMatchesKingConfig.framePile {g : Globals} {s v : State} {p q : Solv
 
 /-! ## The two shapes of a phase-1 flute move
 
-`SolverMove`'s first phase realizes as either
+`move`'s first phase realizes as either
 
 * **park** — `parkMoves a cells`, the whole flute into the cells (`EXTRA`, and a
   king pile whose stack is itself in the cells); one column changes; or
@@ -218,7 +219,7 @@ mentions has its bit clear, so `OwnsPile.frame` still applies to all of them. -/
 /-- **The flute went to the cells.**  `framePile` with the `kings` hypothesis
 weakened to the piled suits — which is what the to-cells king destination needs,
 since the suit it writes is precisely one whose bit is set. -/
-theorem StateMatchesKingConfig.frameToCells {g : Globals} {s v : State} {p q : SolverPosType}
+theorem StateMatchesKingConfig.frameToCells {g : Globals} {s v : State} {p q : PosType}
     {k : Fin 16} {a : Fin 10} (hk : StateMatchesKingConfig g s p k)
     (hreach : Reach s v) (hmatch : StateMatchesSolverPos g v q)
     (hda : 0 < (p.pileDepth.get a).toNat)
@@ -263,7 +264,7 @@ exactly what pins it down.
 Note `hqkings` excludes `b`'s own suit: a king destination advances exactly that
 suit's frontier (`movePre_kings_kingDest`), and that suit is not framed — its
 `OwnsPile` is re-established directly by `hbown`. -/
-theorem RealizesKingConfig.frameToPile {g : Globals} {s v : State} {p q : SolverPosType}
+theorem RealizesKingConfig.frameToPile {g : Globals} {s v : State} {p q : PosType}
     {k : Fin 16} {a b : Fin 10} {assign : Suit → Option (Fin 10)}
     (hown : ∀ su i, assign su = some i → OwnsPile s p su i)
     (hinj : ∀ su su' i, assign su = some i → assign su' = some i → su = su')
@@ -322,7 +323,7 @@ suit is freed yet, which is the case here.  That reading does not survive the
 `kings` write, so the assignment is re-pointed at the vacated column either way,
 and `clearCfgBit` leaves an already-clear bit alone.  Injectivity is what makes
 the re-pointing safe: no other suit can have owned `a`, since `a` had depth `1`. -/
-theorem StateMatchesKingConfig.vacatePile {g : Globals} {s v : State} {p q : SolverPosType}
+theorem StateMatchesKingConfig.vacatePile {g : Globals} {s v : State} {p q : PosType}
     {k : Fin 16} {a : Fin 10} {su : Suit} (hk : StateMatchesKingConfig g s p k)
     (hreach : NormReach s v) (hmatch : StateMatchesSolverPos g v q)
     (hda : 0 < (p.pileDepth.get a).toNat)
@@ -407,7 +408,7 @@ equations from the `SolverSpec` field lemmas. -/
 `cleanupPileSim`; `hqda` (the pile is still non-empty afterwards) is the caller's,
 since it follows from the merge count's `m < pileDepth[pile]` — read off with
 `cleanupRunResult_fields_ordinary`. -/
-theorem SimulatesNorm.preCleanupPile {g : Globals} {s v : State} {p : SolverPosType}
+theorem SimulatesNorm.preCleanupPile {g : Globals} {s v : State} {p : PosType}
     {k : Fin 16}
     {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {ph : UInt32}
     (hs4 : (SUIT B).toUInt32.toNat < 4) {m f : Nat}
@@ -433,7 +434,7 @@ exactly the vacated suit.  `hsucode` is the bridge from the solver's suit *code*
 the `Rules` suit, and `hbot` says the depth-1 column really is topped out at that
 suit's king (which is the branch's own `VALUE (B + m) = 13` test, transported to
 the state — the derivation inside `cleanupPileSimKing`). -/
-theorem SimulatesNorm.kingMove {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
+theorem SimulatesNorm.kingMove {g : Globals} {s : State} {p : PosType} {k : Fin 16}
     {pile : UInt32} (hpile : pile.toNat < 10) {suit : UInt8}
     (hs4 : suit.toUInt32.toNat < 4) {ph : UInt32} {su : Suit}
     (hk : StateMatchesKingConfig g s p k)
@@ -462,7 +463,7 @@ indexed in `Nat`.  This is the conversion — the same two steps
 `chain_of_mergeGuards` makes, starting one stage later (from the slot facts rather
 than from the raw guards). -/
 
-theorem chain_of_mcards {g : Globals} {p : SolverPosType} {pile : UInt32}
+theorem chain_of_mcards {g : Globals} {p : PosType} {pile : UInt32}
     (hpile : pile.toNat < 10) {B : UInt8} {m : Nat}
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hd5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat ≤ 5)
@@ -516,7 +517,7 @@ theorem chain_of_mcards {g : Globals} {p : SolverPosType} {pile : UInt32}
       = ((p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 - j) + 1 := by omega
   rw [hstep, UInt8.ofNat_add, UInt8.ofNat_one, UInt8.add_assoc]
 
-/-! ## `Simulates` for a whole `SolverCleanupPile` call
+/-! ## `Simulates` for a whole `cleanupPile` call
 
 The position and the mask are the solver's own `cleanupRunResult`, so composing
 this with `cleanupPile_nonempty_eq` turns the monadic run into a `Simulates` —
@@ -531,7 +532,7 @@ only pile either touches is the cleaned one.  Composing with the no-op
 `Simulates.refl` reproduces the mask exactly as the code accumulates it
 (`0xffff &&& kingOnPileMap[suit]`), with `FK = ∅ ∪ {suit}`. -/
 
-theorem SimulatesNorm.cleanupPile {g : Globals} {s v : State} {p : SolverPosType}
+theorem SimulatesNorm.cleanupPile {g : Globals} {s v : State} {p : PosType}
     {k : Fin 16} {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {ph : UInt32}
     (hs4 : (SUIT B).toUInt32.toNat < 4) {m f : Nat}
     (hk : StateMatchesKingConfig g s p k)
@@ -621,10 +622,10 @@ theorem SimulatesNorm.cleanupPile {g : Globals} {s v : State} {p : SolverPosType
 `cleanupRunResult_sim` now exports everything the configuration side needs: the
 `Reach`, the matching, the frame, and — in the lone-king branch — that the vacated
 column's deepest card is the boundary suit's king.  Gluing the two gives a
-`Simulates` for a whole `SolverCleanupPile` call from the same hypotheses the
+`Simulates` for a whole `cleanupPile` call from the same hypotheses the
 matching simulation takes. -/
 
-theorem SimulatesNorm.ofCleanupRun {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
+theorem SimulatesNorm.ofCleanupRun {g : Globals} {s : State} {p : PosType} {k : Fin 16}
     (hwf : WellFormedLayout g) (hb : SolverInvLocal g p)
     (hk : StateMatchesKingConfig g s p k)
     {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {ph : UInt32} {m f : Nat}
@@ -684,7 +685,7 @@ free card is same-suit with a lower rank. -/
 /-- **A free card in a column sits above its pile's boundary.**  The bottom
 `pileDepth` cards of a column are the dealt ones, and a dealt card at or below the
 boundary is never free (`depth_card_not_free`). -/
-theorem StateMatchesSolverPos.free_above_boundary {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.free_above_boundary {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
     (q : Fin 10) {i : Nat} (hi : i < (s.tableau q).length)
     (hfree : isFreeCard g p (encodeCard ((s.tableau q)[i]'hi))) :
@@ -706,7 +707,7 @@ theorem StateMatchesSolverPos.free_above_boundary {g : Globals} {s : State} {p :
 /-- **A card above a free card in a column is same-suit and lower.**  Position `a`
 is nearer the top than `b`; freeness of `b` places it above the pile's boundary,
 hence inside the same-suit descending run, and `a` is then further up that run. -/
-theorem StateMatchesSolverPos.column_above {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.column_above {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p)
     (q : Fin 10) {a b : Nat} (hab : a < b) (hblt : b < (s.tableau q).length)
     (hfreeb : isFreeCard g p (encodeCard ((s.tableau q)[b]'hblt))) :
@@ -863,7 +864,7 @@ theorem isRun_of_succ : ∀ {l : List Card},
     · exact h (a + 1) (by simpa using ha)
 
 /-- **The top of a column, down to and including the boundary, is a run.** -/
-theorem StateMatchesSolverPos.isRun_take {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.isRun_take {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10)
     (hd : 0 < (p.pileDepth.get i).toNat) (m : Nat)
     (hm : m ≤ (s.tableau i).length + 1 - (p.pileDepth.get i).toNat) :
@@ -902,7 +903,7 @@ theorem StateMatchesSolverPos.isRun_take {g : Globals} {s : State} {p : SolverPo
 unchanged: every owned pile keeps its depth, its `kings` entry and its column, and no
 new solver-empty pile appears.  This is the drain's tail, where the whole run comes out
 of the cells. -/
-theorem StateMatchesKingConfig.frameAll {g : Globals} {s v : State} {p q : SolverPosType}
+theorem StateMatchesKingConfig.frameAll {g : Globals} {s v : State} {p q : PosType}
     {k : Fin 16} (hk : StateMatchesKingConfig g s p k)
     (hreach : NormReach s v) (hmatch : StateMatchesSolverPos g v q)
     (hframe : ∀ i : Fin 10, v.tableau i = s.tableau i)

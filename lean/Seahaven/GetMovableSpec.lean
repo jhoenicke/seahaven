@@ -1,11 +1,12 @@
 import Seahaven.RecCheckSound
 
 open Rules
+open Solver
 
 /-!
-# What `solverGetMovable` returns
+# What `getMovable` returns
 
-`solverGetMovable` (`Solver.lean:406`) answers a single question: *which king
+`getMovable` (`Solver.lean:406`) answers a single question: *which king
 configurations of this position can afford the move?*  A move of a `fluteLen`-card
 flute needs
 
@@ -39,7 +40,7 @@ theorem bitSet_kingOnPileMap (su : Suit) (k : Fin 16) :
 /-! ## The spec -/
 
 set_option maxHeartbeats 1000000 in
-/-- **`solverGetMovable` charges the right number of cells.**  A set bit `i` in the
+/-- **`getMovable` charges the right number of cells.**  A set bit `i` in the
 returned mask certifies, for the configuration `globalCfg ci i`, exactly the
 free-cell count the corresponding destination needs.
 
@@ -51,10 +52,10 @@ The four conclusions are, in order: the flute is short enough to be moved at all
 a column destination affords `fluteLen - 1` cells; `EXTRA` affords `fluteLen`; and a
 king destination affords `fluteLen` when the suit's stack is in the cells
 (`CfgBitSet`) and `fluteLen - 1` when it owns a pile. -/
-theorem getMovable_cells {g : Globals} {p : SolverPosType} {ki : KingInfo}
+theorem getMovable_cells {g : Globals} {p : PosType} {ki : KingInfo}
     (hchar : KingInfoCorrect p ki)
     {fluteLen toPile : UInt8} {mv : UInt16} (h1 : 1 ≤ fluteLen.toNat)
-    (hmv : EStateM.run (solverGetMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
+    (hmv : EStateM.run (getMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
       = .ok mv g)
     {i : Nat} (hi : i < (closureInfoOf p).numBits.toNat)
     (hbit : BitSet mv ⟨min i 15, by omega⟩) :
@@ -81,9 +82,9 @@ theorem getMovable_cells {g : Globals} {p : SolverPosType} {ki : KingInfo}
     have hgt : ((5 : UInt8) < fluteLen) = true := by
       simpa using UInt8.lt_iff_toNat_lt.2 (show (5 : UInt8).toNat < fluteLen.toNat by
         simp only [show ((5 : UInt8).toNat = 5) from rfl]; omega)
-    have hz : EStateM.run (solverGetMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
+    have hz : EStateM.run (getMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
         = .ok 0 g := by
-      simp only [EStateM.run, solverGetMovable, bind, pure, EStateM.pure, hgt, reduceIte]
+      simp only [EStateM.run, getMovable, bind, pure, EStateM.pure, hgt, reduceIte]
     rw [(EStateM.Result.ok.inj (hmv.symm.trans hz)).1] at hbit
     exact hbit0 hbit
   -- the two `possibleKings` indices, and what `kingSpaces_spec` says about them
@@ -110,9 +111,9 @@ theorem getMovable_cells {g : Globals} {p : SolverPosType} {ki : KingInfo}
     have h10b : (toPile < 10) = true := by
       simpa using UInt8.lt_iff_toNat_lt.2 (by
         simp only [show ((10 : UInt8).toNat = 10) from rfl]; omega)
-    have hz : EStateM.run (solverGetMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
+    have hz : EStateM.run (getMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
         = .ok (ki.possibleKings.get ⟨(fluteLen - 1).toUInt32.toNat, hi1⟩).toUInt16 g := by
-      simp only [EStateM.run, solverGetMovable, bind, EStateM.bind, pure, EStateM.pure,
+      simp only [EStateM.run, getMovable, bind, EStateM.bind, pure, EStateM.pure,
         hg1, Bool.false_eq_true, reduceIte, Vector.getE, getElem?_pos, hi1, h10b]
       rfl
     rw [(EStateM.Result.ok.inj (hmv.symm.trans hz)).1] at hbit
@@ -125,9 +126,9 @@ theorem getMovable_cells {g : Globals} {p : SolverPosType} {ki : KingInfo}
     have h14b : (toPile < 14) = false := by
       simpa using UInt8.le_iff_toNat_le.2 (show (14 : UInt8).toNat ≤ toPile.toNat by
         simp only [show ((14 : UInt8).toNat = 14) from rfl]; omega)
-    have hz : EStateM.run (solverGetMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
+    have hz : EStateM.run (getMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
         = .ok (ki.possibleKings.get ⟨fluteLen.toUInt32.toNat, hi0⟩).toUInt16 g := by
-      simp only [EStateM.run, solverGetMovable, bind, EStateM.bind, pure, EStateM.pure,
+      simp only [EStateM.run, getMovable, bind, EStateM.bind, pure, EStateM.pure,
         hg1, Bool.false_eq_true, reduceIte, Vector.getE, getElem?_pos, hi0, h10b, h14b]
       rfl
     rw [(EStateM.Result.ok.inj (hmv.symm.trans hz)).1] at hbit
@@ -149,12 +150,12 @@ theorem getMovable_cells {g : Globals} {p : SolverPosType} {ki : KingInfo}
     have hk4 : (toPile - 10).toUInt32.toNat < 4 := by rw [hk4v]; exact suitToNat_lt su
     have hkeq : kingOnPileMap.get ⟨(toPile - 10).toUInt32.toNat, hk4⟩
         = kingOnPileMap.get (finOfSuit su) := congrArg kingOnPileMap.get (Fin.ext hk4v)
-    have hz : EStateM.run (solverGetMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
+    have hz : EStateM.run (getMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
         = .ok ((ki.possibleKings.get ⟨fluteLen.toUInt32.toNat, hi0⟩).toUInt16 |||
             ((ki.possibleKings.get ⟨(fluteLen - 1).toUInt32.toNat, hi1⟩).toUInt16 &&&
               ((kingOnPileMap.get ⟨(toPile - 10).toUInt32.toNat, hk4⟩)
                 >>> (closureInfoOf p).shiftValue.toUInt16))) g := by
-      simp only [EStateM.run, solverGetMovable, bind, EStateM.bind, pure, EStateM.pure,
+      simp only [EStateM.run, getMovable, bind, EStateM.bind, pure, EStateM.pure,
         hg1, Bool.false_eq_true, reduceIte, Vector.getE, getElem?_pos, hi0, hi1, hk4,
         h10b, h14b]
       rfl
@@ -178,13 +179,13 @@ theorem getMovable_cells {g : Globals} {p : SolverPosType} {ki : KingInfo}
 how many cells `s` actually has free.  `freeCellsOf_le` is the bridge: the
 configuration's cell budget never exceeds the real one. -/
 
-/-- **`solverGetMovable`'s answer, as `movePre_run`'s two hypotheses.**  Instantiate
+/-- **`getMovable`'s answer, as `movePre_run`'s two hypotheses.**  Instantiate
 `fluteLen := p.pileFlute[pile]` and `su := c.suit` and the two conclusions are
 literally `hcellsCol` and `hcellsFull`. -/
-theorem getMovable_freeCells {g : Globals} {s : State} {p : SolverPosType} {ki : KingInfo}
+theorem getMovable_freeCells {g : Globals} {s : State} {p : PosType} {ki : KingInfo}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (hchar : KingInfoCorrect p ki)
     {fluteLen toPile : UInt8} {mv : UInt16} (h1 : 1 ≤ fluteLen.toNat)
-    (hmv : EStateM.run (solverGetMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
+    (hmv : EStateM.run (getMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
       = .ok mv g)
     {i : Nat} (hi : i < (closureInfoOf p).numBits.toNat)
     (hk : StateMatchesKingConfig g s p (globalCfg (closureInfoOf p) i))
@@ -218,10 +219,10 @@ The `fluteLen ≤ 5` guard needs no hypothesis: `freeCellsOf ≤ 4` always (it i
 `4 - (usedSpace - kingRefund)` and `kingRefund ≤ usedSpace` on a canonical position),
 so a flute of six or more is never affordable in the first place — which is exactly
 why the solver may return `0` there. -/
-theorem getMovable_bitSet {g : Globals} {p : SolverPosType} {ki : KingInfo}
+theorem getMovable_bitSet {g : Globals} {p : PosType} {ki : KingInfo}
     (hchar : KingInfoCorrect p ki)
     {fluteLen toPile : UInt8} {mv : UInt16} (h1 : 1 ≤ fluteLen.toNat) (h5 : fluteLen.toNat ≤ 5)
-    (hmv : EStateM.run (solverGetMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
+    (hmv : EStateM.run (getMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
       = .ok mv g)
     {i : Nat} (hi : i < (closureInfoOf p).numBits.toNat)
     (haff : (fluteLen.toNat : Int) ≤ freeCellsOf p (globalCfg (closureInfoOf p) i)
@@ -259,9 +260,9 @@ theorem getMovable_bitSet {g : Globals} {p : SolverPosType} {ki : KingInfo}
     have h10b : (toPile < 10) = true := by
       simpa using UInt8.lt_iff_toNat_lt.2 (by
         simp only [show ((10 : UInt8).toNat = 10) from rfl]; omega)
-    have hz : EStateM.run (solverGetMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
+    have hz : EStateM.run (getMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
         = .ok (ki.possibleKings.get ⟨(fluteLen - 1).toUInt32.toNat, hi1⟩).toUInt16 g := by
-      simp only [EStateM.run, solverGetMovable, bind, EStateM.bind, pure, EStateM.pure,
+      simp only [EStateM.run, getMovable, bind, EStateM.bind, pure, EStateM.pure,
         hg1, Bool.false_eq_true, reduceIte, Vector.getE, getElem?_pos, hi1, h10b]
       rfl
     rw [(EStateM.Result.ok.inj (hmv.symm.trans hz)).1]
@@ -283,12 +284,12 @@ theorem getMovable_bitSet {g : Globals} {p : SolverPosType} {ki : KingInfo}
         rw [UInt8.toNat_toUInt32, UInt8.toNat_sub_of_le _ _ h10le]
         simp only [show ((10 : UInt8).toNat = 10) from rfl]
       have hk4 : (toPile - 10).toUInt32.toNat < 4 := by rw [hk4v]; omega
-      have hz : EStateM.run (solverGetMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
+      have hz : EStateM.run (getMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
           = .ok ((ki.possibleKings.get ⟨fluteLen.toUInt32.toNat, hi0⟩).toUInt16 |||
               ((ki.possibleKings.get ⟨(fluteLen - 1).toUInt32.toNat, hi1⟩).toUInt16 &&&
                 ((kingOnPileMap.get ⟨(toPile - 10).toUInt32.toNat, hk4⟩)
                   >>> (closureInfoOf p).shiftValue.toUInt16))) g := by
-        simp only [EStateM.run, solverGetMovable, bind, EStateM.bind, pure, EStateM.pure,
+        simp only [EStateM.run, getMovable, bind, EStateM.bind, pure, EStateM.pure,
           hg1, Bool.false_eq_true, reduceIte, Vector.getE, getElem?_pos, hi0, hi1, hk4,
           h10b, h14b]
         rfl
@@ -316,9 +317,9 @@ theorem getMovable_bitSet {g : Globals} {p : SolverPosType} {ki : KingInfo}
       have h14b : (toPile < 14) = false := by
         simpa using UInt8.le_iff_toNat_le.2 (show (14 : UInt8).toNat ≤ toPile.toNat by
           simp only [show ((14 : UInt8).toNat = 14) from rfl]; omega)
-      have hz : EStateM.run (solverGetMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
+      have hz : EStateM.run (getMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
           = .ok (ki.possibleKings.get ⟨fluteLen.toUInt32.toNat, hi0⟩).toUInt16 g := by
-        simp only [EStateM.run, solverGetMovable, bind, EStateM.bind, pure, EStateM.pure,
+        simp only [EStateM.run, getMovable, bind, EStateM.bind, pure, EStateM.pure,
           hg1, Bool.false_eq_true, reduceIte, Vector.getE, getElem?_pos, hi0, h10b, h14b]
         rfl
       rw [(EStateM.Result.ok.inj (hmv.symm.trans hz)).1]

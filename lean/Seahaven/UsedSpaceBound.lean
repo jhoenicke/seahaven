@@ -2,6 +2,7 @@ import Seahaven.SoundnessSkeleton
 import Seahaven.SolverSpecCommon
 
 open Rules
+open Solver
 
 /-!
 # `usedSpace` bounds the cards outside the piles
@@ -139,7 +140,7 @@ theorem NoDupState.column_nodup {s : State} (hnd : NoDupState s) (i : Fin 10) :
 dealt slot, in a pile of positive depth.  The contrapositive is what the counting
 argument needs. -/
 theorem StateMatchesSolverPos.mem_of_not_isFreeCard {g : Globals} {s : State}
-    {p : SolverPosType} (hwf : WellFormedLayout g) (h : StateMatchesSolverPos g s p)
+    {p : PosType} (hwf : WellFormedLayout g) (h : StateMatchesSolverPos g s p)
     (d : Card) (hnf : ¬ isFreeCard g p (encodeCard d)) :
     ∃ i : Fin 10, d ∈ s.tableau i ∧ 0 < (p.pileDepth.get i).toNat := by
   have hreal : IsRealCard (encodeCard d) := encodeCard_real d
@@ -169,7 +170,7 @@ theorem StateMatchesSolverPos.mem_of_not_isFreeCard {g : Globals} {s : State}
   exact List.get_mem ..
 
 /-- A card in a cell is free. -/
-theorem StateMatchesSolverPos.isFreeCard_of_cell {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.isFreeCard_of_cell {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (h : StateMatchesSolverPos g s p) {d : Card} {i : Fin 4}
     (hc : s.cells i = some d) : isFreeCard g p (encodeCard d) := by
   by_contra hnf
@@ -178,7 +179,7 @@ theorem StateMatchesSolverPos.isFreeCard_of_cell {g : Globals} {s : State} {p : 
 
 /-- A card on a pile the solver treats as empty is free. -/
 theorem StateMatchesSolverPos.isFreeCard_of_empty_pile {g : Globals} {s : State}
-    {p : SolverPosType} (hwf : WellFormedLayout g) (h : StateMatchesSolverPos g s p)
+    {p : PosType} (hwf : WellFormedLayout g) (h : StateMatchesSolverPos g s p)
     {d : Card} {i : Fin 10} (hd0 : (p.pileDepth.get i).toNat = 0)
     (hmem : d ∈ s.tableau i) : isFreeCard g p (encodeCard d) := by
   by_contra hnf
@@ -189,7 +190,7 @@ theorem StateMatchesSolverPos.isFreeCard_of_empty_pile {g : Globals} {s : State}
 /-! ## Cards outside the piles outrank their foundation -/
 
 /-- The solver-side reading of "not covered by the foundation". -/
-theorem StateMatchesSolverPos.aces_lt {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.aces_lt {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (d : Card)
     (hlt : optRankToNat (s.foundations d.suit) < rankToNat d.rank)
     (hs : (SUIT (encodeCard d)).toNat < 4) :
@@ -215,7 +216,7 @@ theorem StateMatchesSolverPos.aces_lt {g : Globals} {s : State} {p : SolverPosTy
 /-- **A flute-interior code is the code of a card physically in that column.**
 `boundary[j] - m`, for `1 ≤ m < pileFlute[j]`, is the `m`-th card above the
 boundary — which by `flute_match` is really sitting there. -/
-theorem StateMatchesSolverPos.flute_interior_mem {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.flute_interior_mem {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (j : Fin 10)
     (hdj : 0 < (p.pileDepth.get j).toNat)
     (hidx : (p.pileDepth.get j).toNat - 1 < 5)
@@ -266,18 +267,18 @@ asks for. -/
 def cellList (s : State) : List Card := (List.finRange 4).filterMap s.cells
 
 /-- The cards sitting on piles the solver treats as empty (the king stacks). -/
-def kingList (s : State) (p : SolverPosType) : List Card :=
+def kingList (s : State) (p : PosType) : List Card :=
   ((List.finRange 10).filter
     (fun i => decide ((p.pileDepth.get i).toNat = 0))).flatMap s.tableau
 
 /-- Everything outside the piles proper. -/
-def outsideList (s : State) (p : SolverPosType) : List Card := cellList s ++ kingList s p
+def outsideList (s : State) (p : PosType) : List Card := cellList s ++ kingList s p
 
 @[simp] theorem mem_cellList {s : State} {d : Card} :
     d ∈ cellList s ↔ ∃ i : Fin 4, s.cells i = some d := by
   simp only [cellList, List.mem_filterMap, List.mem_finRange, true_and]
 
-@[simp] theorem mem_kingList {s : State} {p : SolverPosType} {d : Card} :
+@[simp] theorem mem_kingList {s : State} {p : PosType} {d : Card} :
     d ∈ kingList s p ↔ ∃ i : Fin 10, (p.pileDepth.get i).toNat = 0 ∧ d ∈ s.tableau i := by
   simp only [kingList, List.mem_flatMap, List.mem_filter, List.mem_finRange, true_and,
     decide_eq_true_eq]
@@ -300,14 +301,14 @@ theorem cellList_length_add_freeCells (s : State) :
   omega
 
 /-- `kingList`'s length is the total size of the king stacks. -/
-theorem kingList_length (s : State) (p : SolverPosType) :
+theorem kingList_length (s : State) (p : PosType) :
     (kingList s p).length
       = (((List.finRange 10).filter
           (fun i => decide ((p.pileDepth.get i).toNat = 0))).map
         (fun i => (s.tableau i).length)).sum := by
   rw [kingList, List.length_flatMap]
 
-theorem mem_outsideList {s : State} {p : SolverPosType} {d : Card}
+theorem mem_outsideList {s : State} {p : PosType} {d : Card}
     (hd : d ∈ outsideList s p) :
     (∃ i : Fin 4, s.cells i = some d) ∨
       (∃ i : Fin 10, (p.pileDepth.get i).toNat = 0 ∧ d ∈ s.tableau i) := by
@@ -316,7 +317,7 @@ theorem mem_outsideList {s : State} {p : SolverPosType} {d : Card}
   · exact Or.inl (mem_cellList.1 hc)
   · exact Or.inr (mem_kingList.1 hp)
 
-theorem outsideList_nodup {s : State} (hnd : NoDupState s) (p : SolverPosType) :
+theorem outsideList_nodup {s : State} (hnd : NoDupState s) (p : PosType) :
     (outsideList s p).Nodup := by
   refine List.nodup_append.2 ⟨?_, ?_, ?_⟩
   · refine List.Nodup.filterMap ?_ (List.nodup_finRange 4)
@@ -337,7 +338,7 @@ theorem outsideList_nodup {s : State} (hnd : NoDupState s) (p : SolverPosType) :
 /-- **Every card outside the piles is free, above its foundation, and not a flute
 interior** — the three obligations of `usedSpace_ge_of_free_above`, all three from
 `cards_count = 1`. -/
-theorem StateMatchesSolverPos.usedSpace_ge_outside {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.usedSpace_ge_outside {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p) :
     ((outsideList s p).length : Int) ≤ p.usedSpace.toInt := by
   have hnd := h.noDup
@@ -382,7 +383,7 @@ theorem StateMatchesSolverPos.usedSpace_ge_outside {g : Globals} {s : State} {p 
 for the king stacks together, so whatever it does not spend on king stacks bounds
 the used cells — i.e. at least `4 - (usedSpace - Σ king stacks)` cells are free.
 This is the concrete counterpart of `computeKingSpaces`' refund arithmetic. -/
-theorem StateMatchesSolverPos.freeCells_ge {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.freeCells_ge {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (h : StateMatchesSolverPos g s p) :
     (4 : Int) - (p.usedSpace.toInt - ((kingList s p).length : Int))
       ≤ ((freeCells s).length : Int) := by
@@ -402,7 +403,7 @@ and the bound above applies verbatim. -/
 private theorem finOfSuit_natToSuit (su : Fin 4) : finOfSuit (natToSuit su) = su :=
   Fin.ext (suitToNat_natToSuit su)
 
-private theorem kingRefund_eq_sum (p : SolverPosType) (k : Fin 16) :
+private theorem kingRefund_eq_sum (p : PosType) (k : Fin 16) :
     kingRefund p k = ∑ su : Fin 4,
       (if ¬ CfgBitSet k (natToSuit su) then ((13 : Int) - (VALUE (p.kings.get su)).toNat)
         else 0) := by
@@ -417,7 +418,7 @@ private theorem kingRefund_eq_sum (p : SolverPosType) (k : Fin 16) :
   · rw [if_neg hc, if_neg (fun hn => hc (hb.2 hn))]
 
 /-- **The configuration's refund is really on the columns.** -/
-theorem StateMatchesKingConfig.kingRefund_le {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesKingConfig.kingRefund_le {g : Globals} {s : State} {p : PosType}
     {k : Fin 16} (hk : StateMatchesKingConfig g s p k) :
     kingRefund p k ≤ ((kingList s p).length : Int) := by
   obtain ⟨assign, hown, hinj, hiff⟩ := hk.realizes
@@ -480,9 +481,9 @@ theorem StateMatchesKingConfig.kingRefund_le {g : Globals} {s : State} {p : Solv
 /-- **The free cells a realized king configuration guarantees.**  `freeCellsOf` —
 the quantity `computeKingSpaces` compares against `fluteLen` — never overstates
 the cells actually free.  This is what discharges the free-cell preconditions of
-the `MoveSim` phase-1 theorems once `KingSpacesSpec`/`solverGetMovable` supply the
+the `MoveSim` phase-1 theorems once `KingSpacesSpec`/`getMovable` supply the
 abstract affordability. -/
-theorem StateMatchesKingConfig.freeCellsOf_le {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesKingConfig.freeCellsOf_le {g : Globals} {s : State} {p : PosType}
     {k : Fin 16} (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hk : StateMatchesKingConfig g s p k) :
     freeCellsOf p k ≤ ((freeCells s).length : Int) := by

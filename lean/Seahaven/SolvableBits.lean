@@ -2,11 +2,12 @@ import Seahaven.MatchesPos
 import Mathlib.Data.Nat.Bitwise
 
 open Rules
+open Solver
 
 /-!
 # What the solver's king-configuration bitmasks mean
 
-`solverRecCheckSolvable` and the memo table in `Globals` answer the same
+`recCheckSolvable` and the memo table in `Globals` answer the same
 question, in the same encoding, so they get one shared specification:
 `SolvableBits`.
 
@@ -25,7 +26,7 @@ the set of grlex indices `k` with `grlex2bits[k]` even, i.e. bit 0 clear.)
 Masks are indexed in *graded lexicographic* order by `bits2grlex`, so that all
 configurations with the same popcount are contiguous.  `closureInfos[freePiles]`
 selects that contiguous block: `shiftValue` is where it starts and `numBits` how
-long it is.  `solverRecCheckSolvable` therefore returns a **local** bitmask whose
+long it is.  `recCheckSolvable` therefore returns a **local** bitmask whose
 bit `i` refers to global grlex index `shiftValue + i`, and `subsetTable` closes a
 local set under king reshuffling, expanding it back to a full 16-bit global set.
 
@@ -61,28 +62,28 @@ in `SoundnessSkeleton`).
 
 /-! ## Pure, total accessors
 
-`solve` and `solverRecCheckSolvable` index `closureInfos` and `subsetTable`
+`solve` and `recCheckSolvable` index `closureInfos` and `subsetTable`
 monadically, with bounds discharged at run time.  For specification purposes we
 want total functions; both are clamped, and under `SolverInvMerged` the clamp
 never fires (`freePiles ≤ 10`, and `offset + v` stays inside the table). -/
 
 /-- `closureInfos` entry for a position's free-pile count. -/
-def closureInfoOf (p : SolverPosType) : ClosureInfo :=
+def closureInfoOf (p : PosType) : ClosureInfo :=
   closureInfos.get ⟨min p.freePiles.toNat 10, by omega⟩
 
 /-- `subsetTable` lookup. -/
 def subsetAt (idx : Nat) : UInt16 := subsetTable.get ⟨min idx 99, by omega⟩
 
 /-- A local bitmask is one that fits in its block.  The value
-`solverRecCheckSolvable` returns (and the memo table stores) must satisfy this —
+`recCheckSolvable` returns (and the memo table stores) must satisfy this —
 `subsetTable` is only meaningful at in-block indices, so the property has to be
 threaded through the recursion (`RecCheckSolvableSpec`, `HashmapCorrect`). -/
-def LocalMask (p : SolverPosType) (v : UInt16) : Prop :=
+def LocalMask (p : PosType) (v : UInt16) : Prop :=
   v.toNat < 2 ^ (closureInfoOf p).numBits.toNat
 
 /-- Intersecting only shrinks a local mask (`childSolvable &&& (forcedKings >>> …)`
 stays in the block). -/
-theorem LocalMask.and_left {p : SolverPosType} {a : UInt16} (b : UInt16)
+theorem LocalMask.and_left {p : PosType} {a : UInt16} (b : UInt16)
     (ha : LocalMask p a) : LocalMask p (a &&& b) :=
   lt_of_le_of_lt (by rw [UInt16.toNat_and]; exact Nat.and_le_left) ha
 
@@ -136,7 +137,7 @@ theorem grlex_bits_inv (b : Fin 16) :
     (grlex2bits.get ⟨(bits2grlex.get b).toNat, bits2grlex_lt b⟩).toNat = b.val := by
   fin_cases b <;> decide
 
-/-- **The bit polarity.**  `kingOnPileMap su` — the mask `SolverCleanupPile`
+/-- **The bit polarity.**  `kingOnPileMap su` — the mask `cleanupPile`
 intersects `forcedKings` with when suit `su`'s king vacates a pile — is exactly
 the set of grlex indices whose mask has bit `su` *clear*.  So a clear bit means
 "this suit has a pile of its own". -/
@@ -175,7 +176,7 @@ foundation).
 The second disjunct must carry that side condition.  Without it any suit could
 reserve any empty pile — including one a flute move just emptied — and claim a
 `computeKingSpaces` refund for a stack that is really still in the cells. -/
-def OwnsPile (s : State) (p : SolverPosType) (su : Suit) (i : Fin 10) : Prop :=
+def OwnsPile (s : State) (p : PosType) (su : Suit) (i : Fin 10) : Prop :=
   (p.pileDepth.get i).toNat = 0 ∧
     ((∃ c ∈ (s.tableau i).getLast?, c.suit = su ∧ c.rank = Rank.king) ∨
       (s.tableau i = [] ∧ (VALUE (p.kings.get (finOfSuit su))).toNat = 13))
@@ -190,7 +191,7 @@ instance (k : Fin 16) (su : Suit) : Decidable (CfgBitSet k su) :=
 
 /-- `s` can be read as realizing king configuration `k`: the suits whose bit is
 clear are assigned distinct piles that they own. -/
-def RealizesKingConfig (s : State) (p : SolverPosType) (k : Fin 16) : Prop :=
+def RealizesKingConfig (s : State) (p : PosType) (k : Fin 16) : Prop :=
   ∃ assign : Suit → Option (Fin 10),
     (∀ su i, assign su = some i → OwnsPile s p su i) ∧
     (∀ su su' i, assign su = some i → assign su' = some i → su = su') ∧
@@ -200,7 +201,7 @@ def RealizesKingConfig (s : State) (p : SolverPosType) (k : Fin 16) : Prop :=
 carries a card of that suit.  The exact negation of the physical half of
 `OwnsPile` — a genuinely empty column reserved for a suit is *not* excluded, since
 nothing of the suit sits on it. -/
-def NoKingPile (s : State) (p : SolverPosType) (su : Suit) : Prop :=
+def NoKingPile (s : State) (p : PosType) (su : Suit) : Prop :=
   ∀ i : Fin 10, (p.pileDepth.get i).toNat = 0 →
     ∀ d ∈ (s.tableau i).getLast?, d.suit ≠ su
 
@@ -224,14 +225,14 @@ That information is what `k` adds, and both directions of it are needed:
 Reading a configuration off a state stays many-to-many, as it must: a suit whose
 stack has entirely reached the foundation satisfies both branches, so it may be
 recorded as owning a spare empty column or as owning nothing. -/
-structure StateMatchesKingConfig (g : Globals) (s : State) (p : SolverPosType)
+structure StateMatchesKingConfig (g : Globals) (s : State) (p : PosType)
     (k : Fin 16) : Prop where
   toMatches : StateMatchesSolverPos g s p
   realizes : RealizesKingConfig s p k
   no_pile : ∀ su : Suit, CfgBitSet k su → NoKingPile s p su
 
 /-- A suit with its bit clear owns a column. -/
-theorem StateMatchesKingConfig.owns {g : Globals} {s : State} {p : SolverPosType} {k : Fin 16}
+theorem StateMatchesKingConfig.owns {g : Globals} {s : State} {p : PosType} {k : Fin 16}
     (h : StateMatchesKingConfig g s p k) {su : Suit} (hk : ¬ CfgBitSet k su) :
     ∃ i : Fin 10, OwnsPile s p su i := by
   obtain ⟨assign, hown, _, hiff⟩ := h.realizes
@@ -239,7 +240,7 @@ theorem StateMatchesKingConfig.owns {g : Globals} {s : State} {p : SolverPosType
   exact ⟨i, hown su i hi⟩
 
 /-- A suit with its bit set has its freed run in the cells, not on a column. -/
-theorem StateMatchesKingConfig.noKingPile {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesKingConfig.noKingPile {g : Globals} {s : State} {p : PosType}
     {k : Fin 16} (h : StateMatchesKingConfig g s p k) {su : Suit} (hk : CfgBitSet k su) :
     NoKingPile s p su := h.no_pile su hk
 
@@ -253,7 +254,7 @@ has empty columns. -/
 
 /-- Injectivity of the assignment, as a count: at most as many suits have their
 bit clear as there are piles the solver treats as empty. -/
-theorem RealizesKingConfig.card_clear_le_empty {s : State} {p : SolverPosType} {k : Fin 16}
+theorem RealizesKingConfig.card_clear_le_empty {s : State} {p : PosType} {k : Fin 16}
     (h : RealizesKingConfig s p k) :
     (Finset.univ.filter (fun su : Suit => ¬ CfgBitSet k su)).card
       ≤ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card := by
@@ -277,7 +278,7 @@ theorem RealizesKingConfig.card_clear_le_empty {s : State} {p : SolverPosType} {
 
 /-- The number of piles of depth `0`, as a `Finset` card, is what `freePiles`
 counts. -/
-theorem card_empty_piles_eq_freePiles {g : Globals} {p : SolverPosType}
+theorem card_empty_piles_eq_freePiles {g : Globals} {p : PosType}
     (hm : SolverInvMerged g p) :
     (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card
       = p.freePiles.toNat := by
@@ -299,7 +300,7 @@ theorem card_empty_piles_eq_freePiles {g : Globals} {p : SolverPosType}
 
 /-- **A configuration cannot claim more king piles than `freePiles`.** -/
 theorem RealizesKingConfig.card_clear_le_freePiles {g : Globals} {s : State}
-    {p : SolverPosType} {k : Fin 16} (h : RealizesKingConfig s p k)
+    {p : PosType} {k : Fin 16} (h : RealizesKingConfig s p k)
     (hm : SolverInvMerged g p) :
     (Finset.univ.filter (fun su : Suit => ¬ CfgBitSet k su)).card ≤ p.freePiles.toNat := by
   rw [← card_empty_piles_eq_freePiles hm]
@@ -312,17 +313,17 @@ correct answer for position `p`.
 
 For every concrete state `s` that `p` stands for *at configuration `k`*, `s` is
 solvable exactly when `k`'s bit is set in the `subsetTable` expansion of `v`.
-This is the property shared by `solverRecCheckSolvable`'s return value and by
+This is the property shared by `recCheckSolvable`'s return value and by
 whatever the memo table holds for `p.hash`.
 
 The hypothesis must be `StateMatchesKingConfig`, not bare `RealizesKingConfig` —
 see the module docstring for the counterexample otherwise. -/
-def SolvableBits (g : Globals) (p : SolverPosType) (v : UInt16) : Prop :=
+def SolvableBits (g : Globals) (p : PosType) (v : UInt16) : Prop :=
   ∀ (s : State) (k : Fin 16), StateMatchesKingConfig g s p k →
     (Solvable s ↔ BitSet (subsetAt ((closureInfoOf p).offset.toNat + v.toNat)) k)
 
 /-- Matching reads only the deal arrays, never the memo table. -/
-theorem StateMatchesSolverPos.hashmap_iff {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.hashmap_iff {g : Globals} {s : State} {p : PosType}
     (hm : Vector UInt16 BIG_HASH_SIZE) :
     StateMatchesSolverPos { g with hashmap := hm } s p ↔ StateMatchesSolverPos g s p := by
   constructor <;> intro h <;>
@@ -332,7 +333,7 @@ theorem StateMatchesSolverPos.hashmap_iff {g : Globals} {s : State} {p : SolverP
 
 /-- `StateMatchesKingConfig` likewise never reads the memo table — its two extra
 clauses mention `g` not at all. -/
-theorem StateMatchesKingConfig.hashmap_iff {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesKingConfig.hashmap_iff {g : Globals} {s : State} {p : PosType}
     {k : Fin 16} (hm : Vector UInt16 BIG_HASH_SIZE) :
     StateMatchesKingConfig { g with hashmap := hm } s p k ↔ StateMatchesKingConfig g s p k := by
   constructor <;> intro h
@@ -342,7 +343,7 @@ theorem StateMatchesKingConfig.hashmap_iff {g : Globals} {s : State} {p : Solver
             realizes := h.realizes, no_pile := h.no_pile }
 
 /-- Consequently a memo-table write cannot invalidate a `SolvableBits` fact. -/
-theorem SolvableBits.set_hashmap {g : Globals} {p : SolverPosType} {v : UInt16}
+theorem SolvableBits.set_hashmap {g : Globals} {p : PosType} {v : UInt16}
     (hm : Vector UInt16 BIG_HASH_SIZE) (h : SolvableBits g p v) :
     SolvableBits { g with hashmap := hm } p v :=
   fun s k hs => h s k ((StateMatchesKingConfig.hashmap_iff hm).1 hs)
@@ -350,7 +351,7 @@ theorem SolvableBits.set_hashmap {g : Globals} {p : SolverPosType} {v : UInt16}
 /-- **Each hash identifies at most one canonical position.**  This is what makes
 `HashmapCorrect` well posed: a slot keyed by `p.hash` can only ever be about `p`.
 Composition of the two theorems already in `SolverInvariant`. -/
-theorem IsCanonicalPos_of_hash_eq (g : Globals) (p q : SolverPosType)
+theorem IsCanonicalPos_of_hash_eq (g : Globals) (p q : PosType)
     (hwf : WellFormedLayout g) (hp : IsCanonicalPos g p) (hq : IsCanonicalPos g q)
     (h : p.hash = q.hash) : p = q :=
   IsCanonicalPos_unique g p q hwf hp hq (IsCanonicalPos_hash_inj g p q hp hq h)
@@ -363,7 +364,7 @@ The `LocalMask` conjunct is needed because consumers feed the stored mask to
 `subsetTable` arithmetic that is only meaningful in-block, and `getSlot` by
 itself can return up to 7 bits — wider than any block. -/
 def HashmapCorrect (g : Globals) : Prop :=
-  ∀ (p : SolverPosType), IsCanonicalPos g p →
+  ∀ (p : PosType), IsCanonicalPos g p →
     ∀ v : UInt8, EStateM.run (getSlot p.hash) g = .ok v g →
       v = UInt8.ofNat FREESLOT ∨ (SolvableBits g p v.toUInt16 ∧ LocalMask p v.toUInt16)
 
@@ -373,7 +374,7 @@ Written as named `Prop`s rather than `sorry`d theorems, so that the eventual
 proofs read `theorem … : RecCheckSolvableSpec := …` and nothing here is
 unproved. -/
 
-/-- What `solverRecCheckSolvable` must satisfy.  To be proved by well-founded
+/-- What `recCheckSolvable` must satisfy.  To be proved by well-founded
 induction on the pile depths (equivalently on `hash`, which strictly decreases
 on every child — see `IsCanonicalPos_hash_inj`).  Note it must also *carry the
 memo invariant forward*, since the function writes to the table.
@@ -385,19 +386,19 @@ come from the spec.  (Provable: `computeKingSpaces` sets only bits `< numBits`,
 `componentTable` entries fit their block — `componentTable_localBound` — the
 `hash == 0` leaf returns 1, and the memo path carries it via `HashmapCorrect`.) -/
 def RecCheckSolvableSpec : Prop :=
-  ∀ (g : Globals) (p : SolverPosType),
+  ∀ (g : Globals) (p : PosType),
     WellFormedLayout g → IsCanonicalPos g p → HashmapCorrect g →
     ∃ (v : UInt16) (g' : Globals),
-      EStateM.run (solverRecCheckSolvable p) g = .ok v g' ∧
+      EStateM.run (recCheckSolvable p) g = .ok v g' ∧
       (SolvableBits g p v ∧ LocalMask p v) ∧ HashmapCorrect g' ∧ g'.pos2card = g.pos2card
 
 /-- **The specification, read at a run the caller already has.**  `EStateM` is
 deterministic, so the existential pins the caller's own `v` and `g'`.  This is the
 form every consumer used before totality was part of the statement. -/
 theorem RecCheckSolvableSpec.apply (h : RecCheckSolvableSpec) {g g' : Globals}
-    {p : SolverPosType} {v : UInt16}
+    {p : PosType} {v : UInt16}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p) (hcor : HashmapCorrect g)
-    (hrun : EStateM.run (solverRecCheckSolvable p) g = .ok v g') :
+    (hrun : EStateM.run (recCheckSolvable p) g = .ok v g') :
     (SolvableBits g p v ∧ LocalMask p v) ∧ HashmapCorrect g' ∧ g'.pos2card = g.pos2card := by
   obtain ⟨v', g'', hrun', hres⟩ := h g p hwf hcan hcor
   obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj (hrun'.symm.trans hrun)
@@ -414,7 +415,7 @@ suits have none.  With bare `RealizesKingConfig` a state with an unreported king
 pile could masquerade as `pk[10]` and the equivalence would be false (module
 docstring). -/
 def SolveSpec : Prop :=
-  ∀ (g g' : Globals) (s : State) (p : SolverPosType) (pk : Vector UInt8 11) (r : UInt8),
+  ∀ (g g' : Globals) (s : State) (p : PosType) (pk : Vector UInt8 11) (r : UInt8),
     WellFormedLayout g → HashmapCorrect g → IsCanonicalPos g p →
     (∃ k : Fin 16, StateMatchesKingConfig g s p k ∧ (pk.get 10) = (grlex2bits.get k) ^^^ 0xf) →
     EStateM.run (solve pk) g = .ok r g' →

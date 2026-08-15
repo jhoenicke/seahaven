@@ -2,19 +2,20 @@ import Seahaven.SolvableBits
 import Seahaven.SolverSpecMove
 
 open Rules
+open Solver
 
 /-!
-# Simulating one `SolverMove`, part 1: the flute move
+# Simulating one `move`, part 1: the flute move
 
-`SolverMove pile toPile` is three phases:
+`move pile toPile` is three phases:
 
 1. **destination bookkeeping** (`moveDestPre`: the flute merge / `kings` /
-   `usedSpace` write) followed by `SolverRemoveFlute`'s own preamble
+   `usedSpace` write) followed by `removeFlute`'s own preamble
    (`removeFlutePre`: `pileDepth[pile] -= 1`, `hash -= pileHashes[pile]`) and the
    flute reset `pileFlute[pile] := 1` (`fluteNorm`);
-2. `SolverCleanupPile pile` — merge the newly exposed run, absorb freed
+2. `cleanupPile pile` — merge the newly exposed run, absorb freed
    predecessors, vacate a lone king;
-3. the `busyAces` drain — `SolverMoveAces` until no suit is pending.
+3. the `busyAces` drain — `moveAces` until no suit is pending.
 
 This file does **phase 1**, on the `Rules` side, for all four solver
 destinations.  Two of them land on a column — a genuine pile, and a king pile that
@@ -34,13 +35,13 @@ trivial `1` even though a run may now be exposed).  That is fine — matching
 Phases 2 and 3 are `CPStep`/`PlaysAll` work and are not in this file.
 
 Two preconditions are assumed here and discharged by the caller, i.e. by
-`solverRecCheckSolvable`'s pile loop:
+`recCheckSolvable`'s pile loop:
 
 * the source pile is non-empty — the loop `continue`s on `pileDepth[pile] == 0`.
   It appears here as `hrest : |rest| + 1 = pileDepth[pile]`, which is also what
   `flute_split` needs, so no separate hypothesis is required;
 * the move is affordable — enough free cells for the flute, which is what
-  `solverGetMovable` decides.  See the free-cell discussion at "Phase 1, end to
+  `getMovable` decides.  See the free-cell discussion at "Phase 1, end to
   end" below.
 -/
 
@@ -110,7 +111,7 @@ theorem PileMatches_of_suffix {g : Globals} {col : Column} {p : Fin 10} {n m : F
 landed on it: `c` itself if `b` was empty, otherwise `b`'s own deepest card. -/
 def stackBottom (c : Card) (col : Column) : Card := col.getLast?.getD c
 
-/-- **What phase 1 of `SolverMove a → b` does to the abstract position**, stated
+/-- **What phase 1 of `move a → b` does to the abstract position**, stated
 as the field equations `StateMatchesSolverPos` actually reads, and only those.
 
 `fl` is the flute length (`= |top| + 1`).  Both column destinations satisfy this:
@@ -125,7 +126,7 @@ as the field equations `StateMatchesSolverPos` actually reads, and only those.
 what is *not* mentioned: `usedSpace`, `freePiles`, `busyAces`, `hash`.  Matching
 does not read them; the invariant side (`SolverSpecMove`) is where they are
 accounted for. -/
-structure FluteMoveAbs (s : State) (c : Card) (p q : SolverPosType) (a b : Fin 10)
+structure FluteMoveAbs (s : State) (c : Card) (p q : PosType) (a b : Fin 10)
     (fl : Nat) : Prop where
   /-- The source pile loses its boundary card. -/
   depth_src : (q.pileDepth.get a).toNat + 1 = (p.pileDepth.get a).toNat
@@ -159,7 +160,7 @@ structure FluteMoveAbs (s : State) (c : Card) (p q : SolverPosType) (a b : Fin 1
 
 /-- The physical run above a pile's boundary card is `pileFlute - 1` long.  Lets a
 caller phrase `FluteMoveAbs`'s `fl` as the solver's `pileFlute[a]`. -/
-theorem StateMatchesSolverPos.flute_len {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.flute_len {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (a : Fin 10) {top rest : Column} {c : Card}
     (hcol : s.tableau a = top ++ c :: rest)
     (hrest : rest.length + 1 = (p.pileDepth.get a).toNat) :
@@ -182,7 +183,7 @@ in a state matching the abstract successor position.
 The three hypotheses about `s` beyond matching — `hcol`, `hrest`, `hrun` — are
 exactly what `StateMatchesSolverPos.flute_split` provides, and `cells.length =
 |top|` is `pileFlute[a] - 1` free cells (`flute_len`). -/
-theorem StateMatchesSolverPos.fluteMove {g : Globals} {s : State} {p q : SolverPosType}
+theorem StateMatchesSolverPos.fluteMove {g : Globals} {s : State} {p q : PosType}
     {a b : Fin 10} {top rest : Column} {c : Card} {cells : List (Fin 4)}
     (h : StateMatchesSolverPos g s p)
     (hab : a ≠ b)
@@ -307,7 +308,7 @@ theorem StateMatchesSolverPos.fluteMove {g : Globals} {s : State} {p q : SolverP
 
 /-! ## Instantiating at the real solver functions
 
-`SolverMove`'s phase 1 is the composition `fluteNorm ∘ removeFlutePre ∘
+`move`'s phase 1 is the composition `fluteNorm ∘ removeFlutePre ∘
 moveDestPre` — the state at which `removeFlute_merged` and the `cleanupPile`
 specs are stated, i.e. exactly the point where phase 1 hands over to phase 2. -/
 
@@ -318,11 +319,11 @@ private theorem vget_eq {α : Type} {n : Nat} (v : Vector α n) (i : Nat) (hi : 
 
 namespace SolverSpec
 
-/-- **Phase 1 of `SolverMove pile toPile`, as a pure state transform.**
-Destination bookkeeping, then `SolverRemoveFlute`'s own depth/hash decrement,
+/-- **Phase 1 of `move pile toPile`, as a pure state transform.**
+Destination bookkeeping, then `removeFlute`'s own depth/hash decrement,
 then the source flute reset. -/
 def movePre (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (p : SolverPosType) : SolverPosType :=
+    (p : PosType) : PosType :=
   fluteNorm pile hpile (removeFlutePre pile hpile (moveDestPre pile toPile hpile p))
 
 /-! ### The fields of `movePre`
@@ -331,32 +332,32 @@ Stated per field so that the simulation proofs never unfold the composition. -/
 
 /-- The destination write touches neither depths nor foundations. -/
 theorem moveDestPre_depth_aces (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (p : SolverPosType) :
+    (p : PosType) :
     (moveDestPre pile toPile hpile p).pileDepth = p.pileDepth ∧
       (moveDestPre pile toPile hpile p).aces = p.aces := by
   unfold moveDestPre
   split_ifs <;> exact ⟨rfl, rfl⟩
 
 theorem movePre_pileDepth (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (p : SolverPosType) :
+    (p : PosType) :
     (movePre pile toPile hpile p).pileDepth
       = p.pileDepth.set pile.toNat ((p.pileDepth[pile.toNat]'hpile) - 1) hpile := by
   show ((moveDestPre pile toPile hpile p).pileDepth.set pile.toNat _ hpile) = _
   rw [(moveDestPre_depth_aces pile toPile hpile p).1]
 
 theorem movePre_aces (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (p : SolverPosType) : (movePre pile toPile hpile p).aces = p.aces :=
+    (p : PosType) : (movePre pile toPile hpile p).aces = p.aces :=
   (moveDestPre_depth_aces pile toPile hpile p).2
 
 theorem movePre_depth_self (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (p : SolverPosType) :
+    (p : PosType) :
     (movePre pile toPile hpile p).pileDepth.get ⟨pile.toNat, hpile⟩
       = (p.pileDepth.get ⟨pile.toNat, hpile⟩) - 1 := by
   rw [vget_eq, movePre_pileDepth, Vector.getElem_set_self hpile]
   rfl
 
 theorem movePre_depth_ne (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (p : SolverPosType) (i : Fin 10) (hi : i.val ≠ pile.toNat) :
+    (p : PosType) (i : Fin 10) (hi : i.val ≠ pile.toNat) :
     (movePre pile toPile hpile p).pileDepth.get i = p.pileDepth.get i := by
   show (movePre pile toPile hpile p).pileDepth[i.val] = p.pileDepth[i.val]
   rw [movePre_pileDepth, Vector.getElem_set_ne hpile i.isLt (Ne.symm hi)]
@@ -364,7 +365,7 @@ theorem movePre_depth_ne (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 
 /-- Pile-to-pile: the destination flute absorbs the source's, then the source
 flute is reset. -/
 theorem movePre_pileFlute_lt10 (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (h10 : toPile.toNat < 10) (p : SolverPosType) :
+    (h10 : toPile.toNat < 10) (p : PosType) :
     (movePre pile toPile hpile p).pileFlute
       = (p.pileFlute.set toPile.toNat
           ((p.pileFlute[toPile.toNat]'h10) + (p.pileFlute[pile.toNat]'hpile)) h10).set
@@ -375,7 +376,7 @@ theorem movePre_pileFlute_lt10 (pile : UInt32) (toPile : UInt8) (hpile : pile.to
 
 /-- King pile or `EXTRA`: only the source flute is reset. -/
 theorem movePre_pileFlute_ge10 (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (h10 : ¬ toPile.toNat < 10) (p : SolverPosType) :
+    (h10 : ¬ toPile.toNat < 10) (p : PosType) :
     (movePre pile toPile hpile p).pileFlute = p.pileFlute.set pile.toNat 1 hpile := by
   show ((moveDestPre pile toPile hpile p).pileFlute.set pile.toNat 1 hpile) = _
   unfold moveDestPre
@@ -383,7 +384,7 @@ theorem movePre_pileFlute_ge10 (pile : UInt32) (toPile : UInt8) (hpile : pile.to
   split_ifs <;> rfl
 
 theorem movePre_flute_self (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (p : SolverPosType) :
+    (p : PosType) :
     (movePre pile toPile hpile p).pileFlute.get ⟨pile.toNat, hpile⟩ = 1 := by
   rw [vget_eq]
   by_cases h10 : toPile.toNat < 10
@@ -392,7 +393,7 @@ theorem movePre_flute_self (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat 
 
 /-- Pile-to-pile, at the destination. -/
 theorem movePre_flute_dst (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (h10 : toPile.toNat < 10) (hne : pile.toNat ≠ toPile.toNat) (p : SolverPosType) :
+    (h10 : toPile.toNat < 10) (hne : pile.toNat ≠ toPile.toNat) (p : PosType) :
     (movePre pile toPile hpile p).pileFlute.get ⟨toPile.toNat, h10⟩
       = (p.pileFlute.get ⟨toPile.toNat, h10⟩) + (p.pileFlute.get ⟨pile.toNat, hpile⟩) := by
   rw [vget_eq, movePre_pileFlute_lt10 pile toPile hpile h10 p,
@@ -400,7 +401,7 @@ theorem movePre_flute_dst (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat <
   rfl
 
 theorem movePre_flute_ne_lt10 (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (h10 : toPile.toNat < 10) (p : SolverPosType) (i : Fin 10)
+    (h10 : toPile.toNat < 10) (p : PosType) (i : Fin 10)
     (hia : i.val ≠ pile.toNat) (hib : i.val ≠ toPile.toNat) :
     (movePre pile toPile hpile p).pileFlute.get i = p.pileFlute.get i := by
   show (movePre pile toPile hpile p).pileFlute[i.val] = p.pileFlute[i.val]
@@ -409,7 +410,7 @@ theorem movePre_flute_ne_lt10 (pile : UInt32) (toPile : UInt8) (hpile : pile.toN
     Vector.getElem_set_ne h10 i.isLt (Ne.symm hib)]
 
 theorem movePre_flute_ne_ge10 (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (h10 : ¬ toPile.toNat < 10) (p : SolverPosType) (i : Fin 10) (hia : i.val ≠ pile.toNat) :
+    (h10 : ¬ toPile.toNat < 10) (p : PosType) (i : Fin 10) (hia : i.val ≠ pile.toNat) :
     (movePre pile toPile hpile p).pileFlute.get i = p.pileFlute.get i := by
   show (movePre pile toPile hpile p).pileFlute[i.val] = p.pileFlute[i.val]
   rw [movePre_pileFlute_ge10 pile toPile hpile h10 p,
@@ -417,7 +418,7 @@ theorem movePre_flute_ne_ge10 (pile : UInt32) (toPile : UInt8) (hpile : pile.toN
 
 /-- Pile-to-pile and `EXTRA` leave the king frontiers alone. -/
 theorem movePre_kings_of_not_king (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (p : SolverPosType) (hnk : toPile.toNat < 10 ∨ ¬ toPile.toNat < 14) :
+    (p : PosType) (hnk : toPile.toNat < 10 ∨ ¬ toPile.toNat < 14) :
     (movePre pile toPile hpile p).kings = p.kings := by
   show (moveDestPre pile toPile hpile p).kings = p.kings
   unfold moveDestPre
@@ -427,7 +428,7 @@ theorem movePre_kings_of_not_king (pile : UInt32) (toPile : UInt8) (hpile : pile
 
 /-- The king-pile branch advances one suit's frontier by the flute length. -/
 theorem movePre_kings_kingDest (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (h10 : ¬ toPile.toNat < 10) (h14 : toPile.toNat < 14) (p : SolverPosType) :
+    (h10 : ¬ toPile.toNat < 10) (h14 : toPile.toNat < 14) (p : PosType) :
     (movePre pile toPile hpile p).kings
       = p.kings.set (toPile.toNat - 10)
           ((p.kings[toPile.toNat - 10]'(by omega)) - (p.pileFlute[pile.toNat]'hpile))
@@ -463,7 +464,7 @@ private theorem VALUE_sub_toNat {k f : UInt8} (h : f.toNat ≤ (VALUE k).toNat) 
 /-- **The pile-to-pile branch of phase 1 satisfies `FluteMoveAbs`.**  `hsum` (the
 merged flute does not wrap `UInt8`) is what `SolverInvBase.flute_le_value` gives:
 each flute is at most `13`. -/
-theorem fluteMoveAbs_pileDest {g : Globals} {s : State} {p : SolverPosType}
+theorem fluteMoveAbs_pileDest {g : Globals} {s : State} {p : PosType}
     {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10) (h10 : toPile.toNat < 10)
     (hne : pile.toNat ≠ toPile.toNat) {top rest : Column} {c : Card}
     (h : StateMatchesSolverPos g s p)
@@ -501,7 +502,7 @@ theorem suitToNat_inj {su su' : Suit} (h : suitToNat su = suitToNat su') : su = 
 already shows that suit's king as its deepest card — and a card is in one pile
 only — or the king is still somewhere with positive depth, so no empty pile can
 hold it. -/
-theorem StateMatchesSolverPos.empty_pile_owner {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.empty_pile_owner {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) {b : Fin 10} {su : Suit}
     (hdb : (p.pileDepth.get b).toNat = 0)
     (hown : (∃ e ∈ (s.tableau b).getLast?, e.suit = su) ∨
@@ -526,9 +527,9 @@ theorem StateMatchesSolverPos.empty_pile_owner {g : Globals} {s : State} {p : So
 for a suit whose configuration bit is clear:
 column `b` is the one carrying `c.suit`'s freed king run — or is genuinely empty
 because nothing of the suit is freed yet.  `hsu` is the solver's own choice of
-destination (`solverGetDestination` returns `KINGPILE + SUIT B`), and `hval` is
+destination (`getDestination` returns `KINGPILE + SUIT B`), and `hval` is
 `king_frontier`: the frontier is at least a whole flute above the foundation. -/
-theorem fluteMoveAbs_kingDest {g : Globals} {s : State} {p : SolverPosType}
+theorem fluteMoveAbs_kingDest {g : Globals} {s : State} {p : PosType}
     {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
     (h10 : ¬ toPile.toNat < 10) (h14 : toPile.toNat < 14)
     {b : Fin 10} {top rest : Column} {c : Card}
@@ -606,7 +607,7 @@ theorem fluteMoveAbs_kingDest {g : Globals} {s : State} {p : SolverPosType}
 
 The shape the move-simulation obligation (`MoveSimulated`) consumes: from a state
 matching `p`, the concrete moves run, are legal (`Reach`), and land in a state
-matching the position phase 1 of `SolverMove` computes.  Here for the two column
+matching the position phase 1 of `move` computes.  Here for the two column
 destinations; `movePre_extra`/`movePre_kingCells` below are the cell ones.
 
 **The free-cell budget.**  These take the affordability condition in the solver's
@@ -618,13 +619,13 @@ themselves, since which ones are used is immaterial:
 * a cell destination needs `pileFlute[pile]` cells (the boundary card is parked
   too).
 
-That is exactly what `solverGetMovable` decides — `possibleKings[fluteLen - 1]`
+That is exactly what `getMovable` decides — `possibleKings[fluteLen - 1]`
 versus `possibleKings[fluteLen]` — so this hypothesis is where its (unwritten)
 spec will plug in.  `flute_len` is what turns the solver's `pileFlute[pile]` into
 the physical run length `|top| + 1` that `fluteMoves`/`parkMoves` consume. -/
 
 /-- **Pile-to-pile.** -/
-theorem StateMatchesSolverPos.movePre_pileDest {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.movePre_pileDest {g : Globals} {s : State} {p : PosType}
     {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10) (h10 : toPile.toNat < 10)
     (hne : pile.toNat ≠ toPile.toNat) {top rest : Column} {c : Card}
     (h : StateMatchesSolverPos g s p)
@@ -652,7 +653,7 @@ theorem StateMatchesSolverPos.movePre_pileDest {g : Globals} {s : State} {p : So
   exact ⟨v, cells, reach_fluteMoves hfold, hfold, hm.1, hm.2.1, hm.2.2.1, hm.2.2.2⟩
 
 /-- **To a king pile that physically sits on the empty column `b`.** -/
-theorem StateMatchesSolverPos.movePre_kingDest {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.movePre_kingDest {g : Globals} {s : State} {p : PosType}
     {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
     (h10 : ¬ toPile.toNat < 10) (h14 : toPile.toNat < 14)
     {b : Fin 10} {top rest : Column} {c : Card}
@@ -699,7 +700,7 @@ them), so this direction is strictly easier than the column destinations: no
 cells.**  Note the flute length does not appear in any field: abstractly it feeds
 only `usedSpace`, which matching does not read.  It is still needed on the
 concrete side — it is the number of cells `parkMove` must be handed. -/
-structure ParkMoveAbs (s : State) (p q : SolverPosType) (a : Fin 10) : Prop where
+structure ParkMoveAbs (s : State) (p q : PosType) (a : Fin 10) : Prop where
   /-- The source pile loses its boundary card. -/
   depth_src : (q.pileDepth.get a).toNat + 1 = (p.pileDepth.get a).toNat
   /-- No other depth changes. -/
@@ -722,7 +723,7 @@ exactly the solver's `pileFlute[a]` — one cell more than a column destination
 needs.  That count is the concrete content of the abstract `pileDepth[a] -= 1,
 pileFlute[a] := 1`: those `pileFlute[a]` cards leave the pile, and all of them go
 to cells. -/
-theorem StateMatchesSolverPos.parkMove {g : Globals} {s : State} {p q : SolverPosType}
+theorem StateMatchesSolverPos.parkMove {g : Globals} {s : State} {p q : PosType}
     {a : Fin 10} {top rest : Column} {c : Card} {cells : List (Fin 4)}
     (h : StateMatchesSolverPos g s p)
     (hcol : s.tableau a = top ++ c :: rest)
@@ -804,7 +805,7 @@ theorem StateMatchesSolverPos.parkMove {g : Globals} {s : State} {p q : SolverPo
 
 /-- **The `EXTRA` branch of phase 1 satisfies `ParkMoveAbs`.**  Nothing but
 `usedSpace` moves besides the source pile's own bookkeeping. -/
-theorem parkMoveAbs_extra {s : State} {p : SolverPosType}
+theorem parkMoveAbs_extra {s : State} {p : PosType}
     {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10) (h14 : ¬ toPile.toNat < 14)
     (hd : 0 < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat) :
     ParkMoveAbs s p (SolverSpec.movePre pile toPile hpile p) ⟨pile.toNat, hpile⟩ := by
@@ -826,7 +827,7 @@ pile" — `StateMatchesKingConfig.noKingPile` for a suit whose configuration bit
 set.  It is load-bearing, not bookkeeping — if some column did carry a partial
 stack of `c.suit`, that column's `king_pile` clause would break as soon as
 `kings[c.suit]` drops, and the successor state would match no position at all. -/
-theorem parkMoveAbs_kingDest {s : State} {p : SolverPosType}
+theorem parkMoveAbs_kingDest {s : State} {p : PosType}
     {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
     (h10 : ¬ toPile.toNat < 10) (h14 : toPile.toNat < 14) {c : Card}
     (hd : 0 < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
@@ -849,7 +850,7 @@ theorem parkMoveAbs_kingDest {s : State} {p : SolverPosType}
 /-! ### Phase 1 with a cell destination, end to end -/
 
 /-- **To `EXTRA`.** -/
-theorem StateMatchesSolverPos.movePre_extra {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.movePre_extra {g : Globals} {s : State} {p : PosType}
     {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10) (h14 : ¬ toPile.toNat < 14)
     {top rest : Column} {c : Card}
     (h : StateMatchesSolverPos g s p)
@@ -869,7 +870,7 @@ theorem StateMatchesSolverPos.movePre_extra {g : Globals} {s : State} {p : Solve
   exact ⟨v, cells, reach_of_foldl hfold, hfold, hm.1, hm.2.1, hm.2.2⟩
 
 /-- **To a king pile whose stack is in the cells.** -/
-theorem StateMatchesSolverPos.movePre_kingCells {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.movePre_kingCells {g : Globals} {s : State} {p : PosType}
     {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
     (h10 : ¬ toPile.toNat < 10) (h14 : toPile.toNat < 14)
     {top rest : Column} {c : Card}
@@ -893,12 +894,12 @@ theorem StateMatchesSolverPos.movePre_kingCells {g : Globals} {s : State} {p : S
 
 /-! ## Phase 1 of a king-pile move, dispatched by the king configuration
 
-`solverGetDestination` returns `KINGPILE + SUIT B` without saying where that
+`getDestination` returns `KINGPILE + SUIT B` without saying where that
 suit's freed run physically is; the king configuration does.  A clear bit hands
 over a column to move onto (`fluteMoves`, `fluteLen - 1` cells), a set bit says the
 run is in the cells and the whole flute joins it there (`parkMoves`, `fluteLen`
 cells).  The two free-cell hypotheses are guarded accordingly, mirroring
-`solverGetMovable`'s `possibleKings[fluteLen] ||| (possibleKings[fluteLen-1] &&&
+`getMovable`'s `possibleKings[fluteLen] ||| (possibleKings[fluteLen-1] &&&
 kingOnPile)` exactly. -/
 
 /-! ### Frame helpers shared by the four destinations -/
@@ -906,7 +907,7 @@ kingOnPile)` exactly. -/
 /-- The source pile, as `frameToCells`/`frameToPile` want it: non-empty before, and
 afterwards either still non-empty or with a physically empty column. -/
 theorem movePre_source_frame (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (p : SolverPosType) {v : State} {rest : Column}
+    (p : PosType) {v : State} {rest : Column}
     (hrest : rest.length + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hva : v.tableau ⟨pile.toNat, hpile⟩ = rest) :
     0 < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat ∧
@@ -924,14 +925,14 @@ theorem movePre_source_frame (pile : UInt32) (toPile : UInt8) (hpile : pile.toNa
 
 /-- The depths away from the source are untouched, in `Fin`-index form. -/
 theorem movePre_depth_frame (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (p : SolverPosType) (i : Fin 10) (hi : i ≠ ⟨pile.toNat, hpile⟩) :
+    (p : PosType) (i : Fin 10) (hi : i ≠ ⟨pile.toNat, hpile⟩) :
     (SolverSpec.movePre pile toPile hpile p).pileDepth.get i = p.pileDepth.get i :=
   SolverSpec.movePre_depth_ne pile toPile hpile p i (fun hc => hi (Fin.ext hc))
 
 /-- A king destination advances **one** suit's frontier; every other suit's entry
 is untouched. -/
 theorem movePre_kings_frame (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (h10 : ¬ toPile.toNat < 10) (h14 : toPile.toNat < 14) (p : SolverPosType)
+    (h10 : ¬ toPile.toNat < 10) (h14 : toPile.toNat < 14) (p : PosType)
     {c : Card} (hsu : toPile.toNat - 10 = suitToNat c.suit) {x : Suit} (hx : x ≠ c.suit) :
     (SolverSpec.movePre pile toPile hpile p).kings.get (finOfSuit x)
       = p.kings.get (finOfSuit x) := by
@@ -942,7 +943,7 @@ theorem movePre_kings_frame (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat
     Vector.getElem_set_ne (by omega) (finOfSuit x).isLt (Ne.symm hne)]
   rfl
 
-theorem StateMatchesKingConfig.movePre_king {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesKingConfig.movePre_king {g : Globals} {s : State} {p : PosType}
     {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
     (h10 : ¬ toPile.toNat < 10) (h14 : toPile.toNat < 14)
     {top rest : Column} {c : Card}
@@ -951,7 +952,7 @@ theorem StateMatchesKingConfig.movePre_king {g : Globals} {s : State} {p : Solve
     (hrest : rest.length + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hrun : IsRun (top ++ [c]))
     (hsu : toPile.toNat - 10 = suitToNat c.suit)
-    -- affordability, as `solverGetMovable` splits it
+    -- affordability, as `getMovable` splits it
     (hcellsPile : ¬ CfgBitSet k c.suit →
       (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat - 1 ≤ (freeCells s).length)
     (hcellsExtra : CfgBitSet k c.suit →
@@ -975,15 +976,15 @@ theorem StateMatchesKingConfig.movePre_king {g : Globals} {s : State} {p : Solve
 /-! ## Phase 1, all destinations
 
 The dispatch on `toPile`, closing phase 1: whatever destination
-`solverGetDestination` returned, phase 1 of `SolverMove` is realized by legal moves
+`getDestination` returned, phase 1 of `move` is realized by legal moves
 and lands in a state matching `movePre`.
 
 Every hypothesis is guarded by the branch that needs it, which is also how the
-solver itself splits them: `solverGetMovable` charges `fluteLen - 1` cells for a
+solver itself splits them: `getMovable` charges `fluteLen - 1` cells for a
 column destination and `fluteLen` for a cell destination, and the destination facts
 (`hdstPile`/`hdstKing`, `hsu`, `hval`) are what the `getDestination` bridge will
 supply. -/
-theorem StateMatchesKingConfig.movePre_run {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesKingConfig.movePre_run {g : Globals} {s : State} {p : PosType}
     {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
     {top rest : Column} {c : Card}
     (hk : StateMatchesKingConfig g s p k)
@@ -991,7 +992,7 @@ theorem StateMatchesKingConfig.movePre_run {g : Globals} {s : State} {p : Solver
     (hrest : rest.length + 1 = (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hrun : IsRun (top ++ [c]))
     -- affordability: `fluteLen - 1` cells for a column destination, `fluteLen` for a
-    -- cell destination — exactly how `solverGetMovable` splits it
+    -- cell destination — exactly how `getMovable` splits it
     (hcellsCol : (toPile.toNat < 10 ∨
       (¬ toPile.toNat < 10 ∧ toPile.toNat < 14 ∧ ¬ CfgBitSet k c.suit)) →
       (p.pileFlute.get ⟨pile.toNat, hpile⟩).toNat - 1 ≤ (freeCells s).length)
@@ -1032,7 +1033,7 @@ theorem StateMatchesKingConfig.movePre_run {g : Globals} {s : State} {p : Solver
 
 /-! ## The king-destination bridge
 
-`solverGetDestination` returns `KINGPILE + SUIT B` exactly when the pile's boundary
+`getDestination` returns `KINGPILE + SUIT B` exactly when the pile's boundary
 card *is* the suit's king frontier: `card == kings[suit]`.  That single fact implies
 both remaining destination hypotheses:
 
@@ -1079,7 +1080,7 @@ theorem IsRun.length_lt_rank {l : List Card} {c : Card} (h : IsRun (l ++ [c])) :
   omega
 
 /-- **The column a suit owns accepts the suit's frontier card.** -/
-theorem StateMatchesSolverPos.head_of_ownsPile {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.head_of_ownsPile {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) {c : Card} {b : Fin 10}
     (hkc : encodeCard c = p.kings.get (finOfSuit c.suit))
     (hown : OwnsPile s p c.suit b) :
@@ -1135,10 +1136,10 @@ theorem StateMatchesSolverPos.head_of_ownsPile {g : Globals} {s : State} {p : So
     rfl
 
 /-- **Phase 1 to a king pile, from the solver's own frontier test.**  `hkc` is
-exactly `solverGetDestination`'s `card == kings[suit]`; the destination and
+exactly `getDestination`'s `card == kings[suit]`; the destination and
 flute-fits hypotheses are derived from it. -/
 theorem StateMatchesKingConfig.movePre_king_of_frontier {g : Globals} {s : State}
-    {p : SolverPosType} {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
+    {p : PosType} {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
     (h10 : ¬ toPile.toNat < 10) (h14 : toPile.toNat < 14)
     {top rest : Column} {c : Card}
     (hk : StateMatchesKingConfig g s p k)
@@ -1159,7 +1160,7 @@ theorem StateMatchesKingConfig.movePre_king_of_frontier {g : Globals} {s : State
 
 /-- **Phase 1, all destinations, with the king branch reduced to the frontier test.** -/
 theorem StateMatchesKingConfig.movePre_run_of_frontier {g : Globals} {s : State}
-    {p : SolverPosType} {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
+    {p : PosType} {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
     {top rest : Column} {c : Card}
     (hk : StateMatchesKingConfig g s p k)
     (hcol : s.tableau ⟨pile.toNat, hpile⟩ = top ++ c :: rest)
@@ -1188,7 +1189,7 @@ theorem StateMatchesKingConfig.movePre_run_of_frontier {g : Globals} {s : State}
 
 /-! ## The pile-destination bridge
 
-`solverGetDestination` walks up from the source boundary `B_src` over free cards and
+`getDestination` walks up from the source boundary `B_src` over free cards and
 stops at the first resident one, returning its pile when that card is the pile's own
 *boundary*.  So the destination boundary is `B_src + n`, and the `n - 1` cards
 between them are free — which under `flute_maximal` makes the destination's flute
@@ -1200,7 +1201,7 @@ Both facts below are stated on that gap, so the solver side owes only "same suit
 "`VALUE B_dst = VALUE B_src + pileFlute[dst]`". -/
 
 /-- The code of a matching pile's *exposed* card: `pileFlute - 1` below its boundary. -/
-theorem StateMatchesSolverPos.head_code {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.head_code {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (i : Fin 10)
     (hd : 0 < (p.pileDepth.get i).toNat)
     (hidx : (p.pileDepth.get i).toNat - 1 < 5) :
@@ -1216,7 +1217,7 @@ theorem StateMatchesSolverPos.head_code {g : Globals} {s : State} {p : SolverPos
   rw [List.head?_eq_getElem?, List.getElem?_eq_getElem hpos]
 
 /-- `c` is the source pile's boundary card. -/
-theorem StateMatchesSolverPos.boundary_code {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.boundary_code {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (a : Fin 10) {top rest : Column} {c : Card}
     (hcol : s.tableau a = top ++ c :: rest)
     (hrest : rest.length + 1 = (p.pileDepth.get a).toNat)
@@ -1246,7 +1247,7 @@ theorem StateMatchesSolverPos.boundary_code {g : Globals} {s : State} {p : Solve
 
 /-- **The pile-destination bridge.**  If the destination's flute length is the gap
 between the two boundary cards, the destination exposes `nextCard c`. -/
-theorem StateMatchesSolverPos.head_of_flute_gap {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.head_of_flute_gap {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) {a b : Fin 10} {top rest : Column} {c : Card}
     (hcol : s.tableau a = top ++ c :: rest)
     (hrest : rest.length + 1 = (p.pileDepth.get a).toNat)
@@ -1271,14 +1272,14 @@ theorem StateMatchesSolverPos.head_of_flute_gap {g : Globals} {s : State} {p : S
 Neither destination hypothesis mentions the concrete state any more:
 
 * a pile destination needs only that its boundary card sits `pileFlute[toPile]`
-  above the source's, in the same suit — what `solverGetDestination`'s walk
+  above the source's, in the same suit — what `getDestination`'s walk
   establishes together with `flute_maximal`;
 * a king destination needs only `encodeCard c = kings[c.suit]` — the walk's
   `card == kings[suit]` test.
 
 What is left over (`hne`, `hdb`, `hsum`) is pure bookkeeping about `toPile`. -/
 theorem StateMatchesKingConfig.movePre_run_of_dest {g : Globals} {s : State}
-    {p : SolverPosType} {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
+    {p : PosType} {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
     {top rest : Column} {c : Card}
     (hk : StateMatchesKingConfig g s p k)
     (hcol : s.tableau ⟨pile.toNat, hpile⟩ = top ++ c :: rest)
@@ -1330,7 +1331,7 @@ the note on `movePre_run_of_dest_inv`. -/
 
 /-- **Every flute is at most 13 cards.**  Empty piles carry the trivial flute; on a
 non-empty pile `flute_le_value` bounds it by the boundary card's value. -/
-theorem SolverInvBase.pileFlute_le_13 {g : Globals} {p : SolverPosType}
+theorem SolverInvBase.pileFlute_le_13 {g : Globals} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p) (i : Fin 10) :
     (p.pileFlute.get i).toNat ≤ 13 := by
   by_cases hd : (p.pileDepth.get i).toNat = 0
@@ -1346,7 +1347,7 @@ theorem SolverInvBase.pileFlute_le_13 {g : Globals} {p : SolverPosType}
 
 /-- **A pile is never its own destination.**  The gap fact makes the destination
 boundary strictly above the source's, and a flute is at least one card long. -/
-theorem ne_of_flute_gap {g : Globals} {p : SolverPosType} (hb : SolverInvBase g p)
+theorem ne_of_flute_gap {g : Globals} {p : PosType} (hb : SolverInvBase g p)
     {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10) (h10 : toPile.toNat < 10)
     (hib : (p.pileDepth.get ⟨toPile.toNat, h10⟩).toNat - 1 < 5)
     (hia : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5)
@@ -1373,13 +1374,13 @@ theorem ne_of_flute_gap {g : Globals} {p : SolverPosType} (hb : SolverInvBase g 
 
 `hdb` (the destination pile is non-empty) stays a hypothesis on purpose: it does
 *not* follow from `SolverInvBase` plus the gap.  It comes from the walk itself —
-`solverGetDestination` stops only when `posFromTop = pileDepth[toPile] -
+`getDestination` stops only when `posFromTop = pileDepth[toPile] -
 cardDepth[card] > 0`, which gives `pileDepth[toPile] ≥ 1` directly.  (Without it the
 gap alone is satisfiable: a card dealt to an empty pile can sit as another pile's
 flute card, and then the physical destination would be that other pile — exactly the
 case `posFromTop ≤ 0` makes the walk skip.) -/
 theorem StateMatchesKingConfig.movePre_run_of_dest_inv {g : Globals} {s : State}
-    {p : SolverPosType} {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
+    {p : PosType} {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
     {top rest : Column} {c : Card}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hk : StateMatchesKingConfig g s p k)

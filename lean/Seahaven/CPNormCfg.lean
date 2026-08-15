@@ -2,12 +2,13 @@ import Seahaven.CPNormMatch
 import Seahaven.EmptyPileCfg
 
 open Rules
+open Solver
 
 /-!
 # CP-normalizing keeps the king configuration
 
 Step 3 of the completeness argument, finished.  Fix the successor position `q` —
-the game after `SolverMove` and `SolverCleanupPile`, *before* the `SolverMoveAces`
+the game after `move` and `cleanupPile`, *before* the `moveAces`
 drain — and the state `v` the play reaches by making the critical move.  The
 middle layer already matches (`DepthPlusKingsCfg g v q k_t`); what is wanted is a
 state matching `q` **outright**, at the same configuration.
@@ -30,11 +31,11 @@ Consequently `k_t` needs no adjustment: the CP-normal successor matches `q` at
 `k_t` itself, no `forcedKings` correction enters here, and nothing has to be
 re-chosen.  (A king moving from the cells onto an *empty* column is a legal move,
 but it is not a `CPStep`; that is the solver's `kingMove`, and it is accounted for
-by `SolverCleanupPile`'s `forcedKings` — i.e. it has already happened by the time
+by `cleanupPile`'s `forcedKings` — i.e. it has already happened by the time
 `q` is fixed.)
 
 The foundations need no argument either: the critical move is not a foundation
-move, and neither `SolverMove` nor `SolverCleanupPile` touches `aces`, so
+move, and neither `move` nor `cleanupPile` touches `aces`, so
 `aces_match` travels from the critical state to `v` and on to its CP-normal form
 (`CPReach.foundations`).
 -/
@@ -96,28 +97,28 @@ theorem CPReach.nil_iff {u v : State} (h : CPReach u v) (i : Fin 10) :
   | refl => exact Iff.rfl
   | tail _ hbc ih => exact (hbc.nil_iff i).trans ih
 
-theorem CPReach.ownsPile_iff {u v : State} (h : CPReach u v) (p : SolverPosType)
+theorem CPReach.ownsPile_iff {u v : State} (h : CPReach u v) (p : PosType)
     (su : Suit) (i : Fin 10) : OwnsPile v p su i ↔ OwnsPile u p su i := by
   unfold OwnsPile
   rw [h.getLast?_eq i, h.nil_iff i]
 
-theorem CPReach.realizes {u v : State} {p : SolverPosType} {k : Fin 16}
+theorem CPReach.realizes {u v : State} {p : PosType} {k : Fin 16}
     (h : CPReach u v) (hr : RealizesKingConfig u p k) : RealizesKingConfig v p k := by
   obtain ⟨assign, hown, hinj, hiff⟩ := hr
   exact ⟨assign, fun su i ha => (h.ownsPile_iff p su i).2 (hown su i ha), hinj, hiff⟩
 
-theorem CPReach.noKingPile {u v : State} {p : SolverPosType} {su : Suit}
+theorem CPReach.noKingPile {u v : State} {p : PosType} {su : Suit}
     (h : CPReach u v) (hn : NoKingPile u p su) : NoKingPile v p su := by
   intro i hd0 d hd
   exact hn i hd0 d (by rwa [← h.getLast?_eq i])
 
-theorem CPReach.piledSuit_iff {u v : State} (h : CPReach u v) (p : SolverPosType)
+theorem CPReach.piledSuit_iff {u v : State} (h : CPReach u v) (p : PosType)
     (su : Suit) : PiledSuit v p su ↔ PiledSuit u p su := by
   unfold PiledSuit
   simp only [h.getLast?_eq]
 
 /-- **The configuration is literally unchanged.** -/
-theorem CPReach.cfgOf_eq {u v : State} (h : CPReach u v) (p : SolverPosType) :
+theorem CPReach.cfgOf_eq {u v : State} (h : CPReach u v) (p : PosType) :
     cfgOf v p = cfgOf u p :=
   cfgOf_congr (fun su => h.piledSuit_iff p su)
 
@@ -129,7 +130,7 @@ only that it matches the successor position's depths and foundations. -/
 /-- **The CP-normal form matches the successor position at the same
 configuration.**  The depth half is `exists_match_of_depthMatch`; the
 configuration half is the invariance above. -/
-theorem exists_matchCfg_of_depthMatch {g : Globals} {v : State} {q : SolverPosType}
+theorem exists_matchCfg_of_depthMatch {g : Globals} {v : State} {q : PosType}
     {k : Fin 16} (hwf : WellFormedLayout g) (hb : SolverInvBase g q)
     (hpm : ∀ i : Fin 10, PileMerged g q i (hb.pileDepth_bound i))
     (hdm : DepthMatchesV g v (depthVec q (fun i => by have := hb.pileDepth_bound i; omega)))
@@ -150,10 +151,10 @@ state that matches the successor position at the middle layer and stands for
 `k_t`; exhausting the cell→pile drops turns that into a full match — at `k_t`
 itself — without changing solvability either way.
 
-`q` is the game after `SolverMove` and `SolverCleanupPile` and before the
-`SolverMoveAces` drain, which is exactly the position whose piles are merged. -/
+`q` is the game after `move` and `cleanupPile` and before the
+`moveAces` drain, which is exactly the position whose piles are merged. -/
 theorem DepthPlusKingsCfg.exists_cpNormal_match {g : Globals} {v : State}
-    {q : SolverPosType} {k : Fin 16} (hwf : WellFormedLayout g) (hb : SolverInvBase g q)
+    {q : PosType} {k : Fin 16} (hwf : WellFormedLayout g) (hb : SolverInvBase g q)
     (hpm : ∀ i : Fin 10, PileMerged g q i (hb.pileDepth_bound i))
     (h : DepthPlusKingsCfg g v q k) :
     ∃ u : State, CPReach v u ∧ StateMatchesKingConfig g u q k ∧ (Solvable v ↔ Solvable u) :=
@@ -164,7 +165,7 @@ theorem DepthPlusKingsCfg.exists_cpNormal_match {g : Globals} {v : State}
 the play supplies, and `Solvable u` is what the induction hypothesis at `q`
 consumes. -/
 theorem DepthPlusKingsCfg.exists_cpNormal_solvable {g : Globals} {v : State}
-    {q : SolverPosType} {k : Fin 16} (hwf : WellFormedLayout g) (hb : SolverInvBase g q)
+    {q : PosType} {k : Fin 16} (hwf : WellFormedLayout g) (hb : SolverInvBase g q)
     (hpm : ∀ i : Fin 10, PileMerged g q i (hb.pileDepth_bound i))
     (h : DepthPlusKingsCfg g v q k) (hsolv : Solvable v) :
     ∃ u : State, StateMatchesKingConfig g u q k ∧ Solvable u := by

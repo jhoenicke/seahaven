@@ -1,6 +1,8 @@
 import Seahaven.GetDestination
 import Seahaven.SoundnessSkeleton
 
+open Solver
+
 /-!
 # `computeKingSpaces`: model, loop invariants, and its specification
 
@@ -28,7 +30,7 @@ open Lean Lean.Order
 
 /-- Body of the refund fold: subtract suit `suit`'s freed king stack when the
 configuration puts that suit on a pile (bit clear). -/
-def spaceBody (game : SolverPosType) (kb : UInt8) :
+def spaceBody (game : PosType) (kb : UInt8) :
     Nat → Int32 → EStateM Error Globals (ForInStep Int32) :=
   fun suit u => do
     if kb &&& ((1 : UInt8) <<< UInt8.ofNat suit) == 0 then
@@ -52,7 +54,7 @@ def bitBody (bit : UInt8) : Unit → BitAcc → EStateM Error Globals (ForInStep
       return .done r
 
 /-- Body of the outer per-configuration loop. -/
-def blockBody (shiftValue : UInt8) (game : SolverPosType) :
+def blockBody (shiftValue : UInt8) (game : PosType) :
     Nat → KingInfo → EStateM Error Globals (ForInStep KingInfo) :=
   fun i ki => do
     let kingBitmap ← grlex2bits.getE (shiftValue + UInt8.ofNat i).toUInt32
@@ -62,7 +64,7 @@ def blockBody (shiftValue : UInt8) (game : SolverPosType) :
     return .yield r.fst
 
 /-- Explicit-loop twin of `computeKingSpaces`. -/
-def kingSpacesExplicit (shiftValue numBits : UInt8) (game : SolverPosType) :
+def kingSpacesExplicit (shiftValue numBits : UInt8) (game : PosType) :
     EStateM Error Globals KingInfo := do
   let ki : KingInfo := { possibleKings := mkVector 6 0 }
   let ki ← forIn (List.range numBits.toNat) ki (blockBody shiftValue game)
@@ -77,18 +79,18 @@ Four steps over a literal list, so its exact run is a matter of unrolling.  The
 result is the position's `usedSpace` minus the refund the configuration claims. -/
 
 /-- One step of the refund fold. -/
-def effStep (game : SolverPosType) (kb : UInt8) (suit : Fin 4) (u : Int32) : Int32 :=
+def effStep (game : PosType) (kb : UInt8) (suit : Fin 4) (u : Int32) : Int32 :=
   if kb &&& ((1 : UInt8) <<< UInt8.ofNat suit.val) == 0 then
     u - Int32.ofNat (13 - (VALUE (game.kings.get suit)).toNat)
   else u
 
 /-- The effective `usedSpace` of configuration `kb`: what the middle loop leaves
 in the mutable `usedSpace`. -/
-def effSpace (game : SolverPosType) (kb : UInt8) : Int32 :=
+def effSpace (game : PosType) (kb : UInt8) : Int32 :=
   effStep game kb 3 (effStep game kb 2 (effStep game kb 1
     (effStep game kb 0 game.usedSpace.toInt32)))
 
-theorem spaceLoop_run (game : SolverPosType) (kb : UInt8) (s : Globals) :
+theorem spaceLoop_run (game : PosType) (kb : UInt8) (s : Globals) :
     forIn (List.range 4) game.usedSpace.toInt32 (spaceBody game kb) s
       = .ok (effSpace game kb) s := by
   have h4 : List.range 4 = [0, 1, 2, 3] := rfl
@@ -252,17 +254,17 @@ def blockBitmap (shiftValue : UInt8) (i : Nat) : UInt8 :=
   if h : cfgIdx shiftValue i < 16 then grlex2bits.get ⟨cfgIdx shiftValue i, h⟩ else 0
 
 /-- The effective space of local index `i`. -/
-def blockSpace (shiftValue : UInt8) (game : SolverPosType) (i : Nat) : Int32 :=
+def blockSpace (shiftValue : UInt8) (game : PosType) (i : Nat) : Int32 :=
   effSpace game (blockBitmap shiftValue i)
 
 /-- One suit's refund as an `Int`, with the **`Nat` truncation the solver uses**:
 `13 - VALUE kings[su]` never goes negative here.  Under `SolverInvBase` (where
 `VALUE kings[su] ≤ 13`) this agrees with `kingRefund`'s `Int` subtraction. -/
-def refundInt (game : SolverPosType) (kb : UInt8) (suit : Fin 4) : Int :=
+def refundInt (game : PosType) (kb : UInt8) (suit : Fin 4) : Int :=
   if kb &&& ((1 : UInt8) <<< UInt8.ofNat suit.val) == 0 then
     ((13 - (VALUE (game.kings.get suit)).toNat : Nat) : Int) else 0
 
-private theorem refundInt_bounds (game : SolverPosType) (kb : UInt8) (suit : Fin 4) :
+private theorem refundInt_bounds (game : PosType) (kb : UInt8) (suit : Fin 4) :
     0 ≤ refundInt game kb suit ∧ refundInt game kb suit ≤ 13 := by
   unfold refundInt
   split
@@ -272,7 +274,7 @@ private theorem refundInt_bounds (game : SolverPosType) (kb : UInt8) (suit : Fin
 private theorem int32_ofNat_toInt (n : Nat) (h : n ≤ 13) : (Int32.ofNat n).toInt = (n : Int) := by
   interval_cases n <;> decide
 
-private theorem effStep_toInt (game : SolverPosType) (kb : UInt8) (suit : Fin 4) (u : Int32)
+private theorem effStep_toInt (game : PosType) (kb : UInt8) (suit : Fin 4) (u : Int32)
     (h1 : -100 ≤ u.toInt) (h2 : u.toInt ≤ 300) :
     (effStep game kb suit u).toInt = u.toInt - refundInt game kb suit := by
   have hv : (VALUE (game.kings.get suit)).toNat ≤ 15 := by
@@ -287,7 +289,7 @@ private theorem effStep_toInt (game : SolverPosType) (kb : UInt8) (suit : Fin 4)
     omega
 
 /-- **The effective space, in `Int`.** -/
-theorem effSpace_toInt (game : SolverPosType) (kb : UInt8) :
+theorem effSpace_toInt (game : PosType) (kb : UInt8) :
     (effSpace game kb).toInt = (game.usedSpace.toNat : Int)
       - refundInt game kb 0 - refundInt game kb 1 - refundInt game kb 2
       - refundInt game kb 3 := by
@@ -313,7 +315,7 @@ theorem effSpace_toInt (game : SolverPosType) (kb : UInt8) :
     (effStep game kb 0 game.usedSpace.toInt32)))).toInt = _
   rw [effStep_toInt _ _ _ _ (by rw [e2]; omega) (by rw [e2]; omega), e2]
 
-theorem blockSpace_bounds (shiftValue : UInt8) (game : SolverPosType) (i : Nat) :
+theorem blockSpace_bounds (shiftValue : UInt8) (game : PosType) (i : Nat) :
     -52 ≤ (blockSpace shiftValue game i).toInt
       ∧ (blockSpace shiftValue game i).toInt ≤ 255 := by
   have h := effSpace_toInt game (blockBitmap shiftValue i)
@@ -330,7 +332,7 @@ theorem blockSpace_bounds (shiftValue : UInt8) (game : SolverPosType) (i : Nat) 
 private theorem estateM_pure_apply {α : Type} (a : α) (t : Globals) :
     (EStateM.pure a : EStateM Error Globals α) t = .ok a t := rfl
 
-theorem blockBody_run (shiftValue : UInt8) (game : SolverPosType) (s : Globals) (i : Nat)
+theorem blockBody_run (shiftValue : UInt8) (game : PosType) (s : Globals) (i : Nat)
     (ki : KingInfo) (hcfg : cfgIdx shiftValue i < 16)
     (hu : -1 ≤ (blockSpace shiftValue game i).toInt) :
     ∃ res : KingInfo, blockBody shiftValue game i ki s = .ok (.yield res) s ∧
@@ -349,7 +351,7 @@ theorem blockBody_run (shiftValue : UInt8) (game : SolverPosType) (s : Globals) 
   simp only [hgrl, estateM_pure_apply, spaceLoop_run, blockSpace] at hres ⊢
   rw [hres]
 
-theorem blockBody_err (shiftValue : UInt8) (game : SolverPosType) (s : Globals) (i : Nat)
+theorem blockBody_err (shiftValue : UInt8) (game : PosType) (s : Globals) (i : Nat)
     (ki : KingInfo) (hcfg : cfgIdx shiftValue i < 16)
     (hu : (blockSpace shiftValue game i).toInt ≤ -2) :
     blockBody shiftValue game i ki s = .error Error.ArrayOutOfBounds s := by
@@ -378,7 +380,7 @@ private theorem or_shift_testBit_iff (x : UInt8) (i b : Nat) (hi : i < 8) (hb : 
   rw [UInt8.toNat_or, Nat.testBit_or, Bool.or_eq_true, hkey ⟨i, hi⟩ ⟨b, hb⟩]
   simp
 
-theorem outerLoop_ok (shiftValue : UInt8) (game : SolverPosType) (s : Globals) :
+theorem outerLoop_ok (shiftValue : UInt8) (game : PosType) (s : Globals) :
     ∀ (l : List Nat) (ki : KingInfo),
       (∀ i ∈ l, cfgIdx shiftValue i < 16) →
       (∀ i ∈ l, i < 8) →
@@ -428,7 +430,7 @@ theorem outerLoop_ok (shiftValue : UInt8) (game : SolverPosType) (s : Globals) :
             · exact absurd hc' hci
             · exact Or.inr ⟨hb', hc'⟩
 
-theorem outerLoop_err (shiftValue : UInt8) (game : SolverPosType) (s : Globals) :
+theorem outerLoop_err (shiftValue : UInt8) (game : PosType) (s : Globals) :
     ∀ (l : List Nat) (ki : KingInfo),
       (∀ i ∈ l, cfgIdx shiftValue i < 16) →
       (∃ i ∈ l, (blockSpace shiftValue game i).toInt ≤ -2) →
@@ -504,7 +506,7 @@ private theorem bit_clear_iff (kb : UInt8) (i : Nat) (hi : i < 8) :
     exact absurd (hbit.1 hx) (by omega)
 
 /-- `kingRefund`, unfolded to its four summands. -/
-private theorem kingRefund_four (p : SolverPosType) (k : Fin 16) :
+private theorem kingRefund_four (p : PosType) (k : Fin 16) :
     kingRefund p k
       = (if (grlex2bits.get k).toNat / 2 ^ (0 : Fin 4).val % 2 = 0
           then ((13 : Int) - (VALUE (p.kings.get 0)).toNat) else 0)
@@ -521,7 +523,7 @@ private theorem kingRefund_four (p : SolverPosType) (k : Fin 16) :
 
 /-- **The loop's effective space is `usedSpace - kingRefund`.**  This is where
 `SolverInvBase` is needed: the loop truncates `13 - VALUE kings[su]` in `Nat`. -/
-theorem blockSpace_toInt_eq {g : Globals} (p : SolverPosType) (hb : SolverInvBase g p)
+theorem blockSpace_toInt_eq {g : Globals} (p : PosType) (hb : SolverInvBase g p)
     (sv : UInt8) (i : Nat) (h : sv.toNat + i ≤ 15) :
     (blockSpace sv p i).toInt
       = p.usedSpace.toInt - kingRefund p ⟨min (sv.toNat + i) 15, by omega⟩ := by
@@ -570,12 +572,12 @@ private theorem uint8_eq_zero_of_testBit (x : UInt8)
 
 /-! ## The specification -/
 
-private theorem closureInfoOf_numBits_le (p : SolverPosType) :
+private theorem closureInfoOf_numBits_le (p : PosType) :
     (closureInfoOf p).numBits.toNat ≤ 6 := by
   have h : ∀ f : Fin 11, (closureInfos.get f).numBits.toNat ≤ 6 := by decide
   exact h _
 
-private theorem closureInfoOf_fits (p : SolverPosType) :
+private theorem closureInfoOf_fits (p : PosType) :
     (closureInfoOf p).shiftValue.toNat + (closureInfoOf p).numBits.toNat ≤ 16 :=
   closureInfo_shift_add_numBits _
 

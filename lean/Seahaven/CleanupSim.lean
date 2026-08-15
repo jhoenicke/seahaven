@@ -3,11 +3,12 @@ import Seahaven.GetDestination
 import Seahaven.CPNormal
 
 open Rules
+open Solver
 
 /-!
-# Simulating `SolverCleanupPile`, phase 2 of `SolverMove`
+# Simulating `cleanupPile`, phase 2 of `move`
 
-`SolverCleanupPile` does four things to the pile it is called on; only one of them
+`cleanupPile` does four things to the pile it is called on; only one of them
 moves a card:
 
 1. **merge** (`while depth > 1 && pos2card[pile][depth-2] == card + 1`) — reclassify
@@ -25,7 +26,7 @@ moves a card:
    implication about the same `s`, trading `pileDepth = 1` for `pileDepth = 0` plus
    `king_pile`.
 
-So the concrete move list of a whole `SolverCleanupPile` call is exactly the
+So the concrete move list of a whole `cleanupPile` call is exactly the
 extension's `unparkMoves`.
 -/
 
@@ -58,7 +59,7 @@ run; physically they are sitting in cells, and returning them is exactly
 `unparkMoves` (each step a `CPStep`).  `depth` is untouched, so the only abstract
 change matching sees is `pileFlute` growing by the number of returned cards —
 which is also how much the column grows. -/
-theorem StateMatchesSolverPos.cleanupExtend {g : Globals} {s : State} {p q : SolverPosType}
+theorem StateMatchesSolverPos.cleanupExtend {g : Globals} {s : State} {p q : PosType}
     (h : StateMatchesSolverPos g s p) (a : Fin 10)
     {ds rest : Column} {e : Card} {cells : List (Fin 4)}
     (hcol : s.tableau a = e :: rest)
@@ -236,7 +237,7 @@ theorem cpReach_of_unparkMoves {a : Fin 10} :
 /-- **`cleanupExtend`, with its reach upgraded — from outside.**  The lemma already
 publishes the move list, so no change to `CleanupSim` is needed to see that its run is
 normalizing. -/
-theorem StateMatchesSolverPos.cleanupExtend_cp {g : Globals} {s : State} {p q : SolverPosType}
+theorem StateMatchesSolverPos.cleanupExtend_cp {g : Globals} {s : State} {p q : PosType}
     (h : StateMatchesSolverPos g s p) (a : Fin 10)
     {ds rest : Column} {e : Card} {cells : List (Fin 4)}
     (hcol : s.tableau a = e :: rest)
@@ -257,7 +258,7 @@ theorem StateMatchesSolverPos.cleanupExtend_cp {g : Globals} {s : State} {p q : 
 
 /-- **The lone-king vacate moves no card.**  It trades `pileDepth[a] = 1` for
 `pileDepth[a] = 0` plus the `king_pile` bookkeeping, on the *same* state. -/
-theorem StateMatchesSolverPos.cleanupVacate {g : Globals} {s : State} {p q : SolverPosType}
+theorem StateMatchesSolverPos.cleanupVacate {g : Globals} {s : State} {p q : PosType}
     (h : StateMatchesSolverPos g s p) (a : Fin 10)
     (hd1 : (p.pileDepth.get a).toNat = 1)
     (hking : (VALUE ((g.pos2card.get a).get ⟨0, by omega⟩)).toNat = 13)
@@ -439,7 +440,7 @@ theorem PileMatches_lower {g : Globals} {col : Column} {a : Fin 10} {n₀ n₁ :
 by the same amount, on the *same* state: the column is untouched, and the merged
 dealt cards are re-read as flute cards, which `PileMatches_lower` justifies from the
 very equalities the merge loop tests. -/
-theorem StateMatchesSolverPos.cleanupMerge {g : Globals} {s : State} {p q : SolverPosType}
+theorem StateMatchesSolverPos.cleanupMerge {g : Globals} {s : State} {p q : PosType}
     (hwf : WellFormedLayout g) (h : StateMatchesSolverPos g s p) (a : Fin 10)
     (h1 : 1 ≤ (q.pileDepth.get a).toNat)
     (hle : (q.pileDepth.get a).toNat ≤ (p.pileDepth.get a).toNat)
@@ -547,7 +548,7 @@ theorem NoDupState.location {s : State} (hnd : ∀ c : Card, countState s c = 1)
       rw [if_neg hne]
 
 /-- **A card above its suit's foundation top is not covered by the foundation.** -/
-theorem StateMatchesSolverPos.not_covered {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.not_covered {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (d : Card)
     (hs : (SUIT (encodeCard d)).toNat < 4)
     (haces : p.aces.get ⟨(SUIT (encodeCard d)).toNat, hs⟩ < encodeCard d) :
@@ -574,7 +575,7 @@ theorem StateMatchesSolverPos.not_covered {g : Globals} {s : State} {p : SolverP
 /-- **What a card in a column is**: a resident dealt card (hence not free), or the
 `m`-th flute card above the pile's boundary for some `1 ≤ m < pileFlute`, or a card
 of a solver-empty pile's king run (whose length pins `kings` for that suit). -/
-theorem StateMatchesSolverPos.column_cases {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.column_cases {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (h : StateMatchesSolverPos g s p)
     (j : Fin 10) {d : Card} (hmem : d ∈ s.tableau j) :
     (¬ isFreeCard g p (encodeCard d)) ∨
@@ -677,7 +678,7 @@ whose boundary is `B` already carries — its own flute, `m₀`.  Then the card 
 is in a cell for every `k` past that run: it is somewhere, it is not on a foundation,
 and each of the three ways of being in a column is excluded — the `m = k` case being
 exactly "it is one of the cards the pile already carries", which `m₀ ≤ k` rules out. -/
-theorem StateMatchesSolverPos.extension_in_cell {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.extension_in_cell {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvLocal g p) (h : StateMatchesSolverPos g s p)
     {B : UInt8} (hBreal : IsRealCard B) (hBnotfree : ¬ isFreeCard g p B)
     {m₀ : Nat} (hBflute : ∀ (j : Fin 10), 0 < (p.pileDepth.get j).toNat →
@@ -826,7 +827,7 @@ branch.**  `hash`/`usedSpace`/`busyAces` are untouched by matching, so only thes
 four matter. -/
 theorem cleanupRunResult_fields_ordinary (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (d32 : UInt8) (m f : Nat) (p : SolverPosType)
+    (d32 : UInt8) (m f : Nat) (p : PosType)
     (hnk : ¬ ((d32 - UInt8.ofNat m == 1) && (VALUE (B + UInt8.ofNat m) == 13)) = true) :
     (cleanupRunResult pile hpile B ph hs4 d32 m f p).2.pileDepth
         = p.pileDepth.set pile.toNat (d32 - UInt8.ofNat m) hpile ∧
@@ -967,7 +968,7 @@ theorem exists_extension_cards {B : UInt8} (hB : IsRealCard B) (f : Nat)
 The target position is given by field equations — `cleanupRunResult`'s, read off by
 `cleanupRunResult_fields_ordinary`. -/
 
-/-- **A whole non-lone-king `SolverCleanupPile` is simulated by cell→pile moves.**  `m`
+/-- **A whole non-lone-king `cleanupPile` is simulated by cell→pile moves.**  `m`
 is the merge count and `f` the freed-predecessor count; the hypotheses on them are what
 the two loop guards say.
 
@@ -976,7 +977,7 @@ much of it (the boundary card plus `m₀ - 1` of the freed predecessors), so onl
 remaining `f + 1 - m₀` cards are fetched out of the cells.  The `m₀ = 1` case — the pile
 carries nothing but its dealt cards — is what the solver's own cleanup entry point is at;
 `ConvertMatch`'s entry state is the general one. -/
-theorem StateMatchesSolverPos.cleanupPileSim {g : Globals} {s : State} {p q : SolverPosType}
+theorem StateMatchesSolverPos.cleanupPileSim {g : Globals} {s : State} {p q : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvLocal g p) (h : StateMatchesSolverPos g s p)
     {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {m f : Nat}
     (hidx : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5)
@@ -1072,7 +1073,7 @@ theorem StateMatchesSolverPos.cleanupPileSim {g : Globals} {s : State} {p q : So
       exact hdscode i (by rw [hdslen]; omega)
   obtain ⟨cells, hcnd, hhold⟩ := holdsCards_of_mem_cells ds hdsnd hdscell
   -- (1) the merge: same state, `depth ↓ m`, `flute ↑ m`
-  set p₁ : SolverPosType := { p with
+  set p₁ : PosType := { p with
     pileDepth := p.pileDepth.set pile.toNat
       (UInt8.ofNat ((p.pileDepth.get a).toNat - m)) hpile,
     pileFlute := p.pileFlute.set pile.toNat (UInt8.ofNat (m₀ + m)) hpile } with hp₁
@@ -1141,7 +1142,7 @@ This is why `cleanupRunResult_sim` need not take the side condition as a hypothe
 It would be the wrong thing to assume in general — a suit may perfectly well have its
 top cards freed onto an empty column while a lower card of it is still some pile's
 boundary — and it is only ever *used* in the lone-king branch, where it is free. -/
-theorem StateMatchesSolverPos.noshare_of_king {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.noshare_of_king {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvLocal g p) (h : StateMatchesSolverPos g s p)
     {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {m : Nat}
     (hidx : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5)
@@ -1221,11 +1222,11 @@ theorem StateMatchesSolverPos.noshare_of_king {g : Globals} {s : State} {p : Sol
       (by rw [h.empty_pile_king i hdi hdlast, rank_king_of_13 herank])
   exact hi (h.noDup.pile_unique (hde ▸ List.mem_of_getLast? hdlast) hemem)
 
-/-- **A whole lone-king `SolverCleanupPile` is simulated**, again by just the `f`
+/-- **A whole lone-king `cleanupPile` is simulated**, again by just the `f`
 cell→pile moves of the extension.  `hkingval` is the branch's own test
 (`VALUE (B + m) = 13`), and `hqk_self` is its `kings` write. -/
 theorem StateMatchesSolverPos.cleanupPileSimKing {g : Globals} {s : State}
-    {p q : SolverPosType} (hwf : WellFormedLayout g) (hb : SolverInvLocal g p)
+    {p q : PosType} (hwf : WellFormedLayout g) (hb : SolverInvLocal g p)
     (h : StateMatchesSolverPos g s p)
     {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {m f : Nat}
     (hidx : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5)
@@ -1321,7 +1322,7 @@ theorem StateMatchesSolverPos.cleanupPileSimKing {g : Globals} {s : State}
     by_contra hne
     exact hknotfree ((hb.king_frontier ⟨(SUIT B).toNat, hs4⟩).2 _ hksuit (by omega) (by omega))
   -- merge + extension, landing on the intermediate position
-  set p₂ : SolverPosType := { p with
+  set p₂ : PosType := { p with
     pileDepth := p.pileDepth.set pile.toNat (UInt8.ofNat 1) hpile,
     pileFlute := p.pileFlute.set pile.toNat (UInt8.ofNat (1 + m + f)) hpile } with hp₂
   have hp₂d : (p₂.pileDepth.get a).toNat = 1 := by
@@ -1413,7 +1414,7 @@ theorem StateMatchesSolverPos.cleanupPileSimKing {g : Globals} {s : State}
     rw [hv]
     omega
 
-/-! ## The whole `SolverCleanupPile`, either branch
+/-! ## The whole `cleanupPile`, either branch
 
 `cleanupRunResult` is what `cleanupPile_nonempty_eq` rewrites the run to, so a
 simulation of it *is* a simulation of the call.  The branch test is decided here
@@ -1422,7 +1423,7 @@ and dispatched to `cleanupPileSim` / `cleanupPileSimKing`. -/
 /-- `cleanupRunResult`'s matching-relevant fields, lone-king branch. -/
 theorem cleanupRunResult_fields_king (pile : UInt32) (hpile : pile.toNat < 10)
     (B : UInt8) (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4)
-    (d32 : UInt8) (m f : Nat) (p : SolverPosType)
+    (d32 : UInt8) (m f : Nat) (p : PosType)
     (hk : ((d32 - UInt8.ofNat m == 1) && (VALUE (B + UInt8.ofNat m) == 13)) = true) :
     (cleanupRunResult pile hpile B ph hs4 d32 m f p).2.pileDepth
         = p.pileDepth.set pile.toNat (0 : UInt8) hpile ∧
@@ -1458,14 +1459,14 @@ private theorem flute2_toNat {m f : Nat} (hmf : 1 + m + f ≤ 13) :
     show ((1 : UInt8).toNat = 1) from rfl]
   omega
 
-/-- **A whole `SolverCleanupPile` call is simulated by the extension's `f` moves.**
+/-- **A whole `cleanupPile` call is simulated by the extension's `f` moves.**
 
 The position is the solver's own `cleanupRunResult`, so composing this with
 `cleanupPile_nonempty_eq` turns the monadic run into a `Reach` plus a matching fact.
 `hnoshare` is the king-configuration side condition: no *other* solver-empty pile
 carries `B`'s suit, so only the vacated pile's frontier moves. -/
 theorem StateMatchesSolverPos.cleanupRunResult_sim {g : Globals} {s : State}
-    {p : SolverPosType} (hwf : WellFormedLayout g) (hb : SolverInvLocal g p)
+    {p : PosType} (hwf : WellFormedLayout g) (hb : SolverInvLocal g p)
     (h : StateMatchesSolverPos g s p)
     {pile : UInt32} (hpile : pile.toNat < 10) {B : UInt8} {ph : UInt32} {m f : Nat}
     (hs4' : (SUIT B).toUInt32.toNat < 4)
@@ -1653,7 +1654,7 @@ needed is the `Int32` index conversion into the `Nat` form `PileMatches_lower`
 consumes. -/
 
 /-- **The merge guards give `cleanupPileSim`'s chain hypothesis.** -/
-theorem chain_of_mergeGuards {g : Globals} {p : SolverPosType} {pile : UInt32}
+theorem chain_of_mergeGuards {g : Globals} {p : PosType} {pile : UInt32}
     (hpile : pile.toNat < 10) (ph : UInt32) {B : UInt8} {m : Nat}
     (hidx : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)

@@ -3,6 +3,7 @@ import Seahaven.ComponentComplete
 import Seahaven.Phase1Sim
 
 open Rules
+open Solver
 
 /-!
 # The pile loop misses no solvable configuration
@@ -47,7 +48,7 @@ solved, *is* solvable.  That case is the caller's `hash = 0` leaf, which answers
 
 /-- A non-empty pile, from a non-zero hash.  (The converse of
 `pileDepth_eq_zero_of_hash_zero`, which is all the leaf needed.) -/
-theorem exists_pos_pileDepth_of_hash_ne_zero {g : Globals} {p : SolverPosType}
+theorem exists_pos_pileDepth_of_hash_ne_zero {g : Globals} {p : PosType}
     (hb : SolverInvBase g p) (hz : p.hash ≠ 0) : ∃ i : Fin 10, 0 < (p.pileDepth.get i).toNat := by
   by_contra hcon
   push Not at hcon
@@ -104,13 +105,13 @@ theorem recLoopComplete : RecLoopComplete := by
     have hij : jc = il := block_index_eq_of_freePiles_four hfp4 hjc hil
     exact key jc hjc (by rw [hij]; exact hbitl) hsubc
 
-/-- **`solverRecCheckSolvable` meets its specification**, on the same two semantic
+/-- **`recCheckSolvable` meets its specification**, on the same two semantic
 hypotheses the soundness half runs on. -/
 theorem recCheck_spec_of_loops (hSS : SubsetSound) (hMS : MoveSimulated) :
     RecCheckSolvableSpec :=
   recCheck_spec hSS hMS recLoopComplete
 
-/-- **`solverRecCheckSolvable` meets its specification, unconditionally.**  Both
+/-- **`recCheckSolvable` meets its specification, unconditionally.**  Both
 semantic hypotheses are theorems (`KingMoveSim.subsetSound`, `Phase1Sim.moveSimulated`),
 the same two that make `Phase1Sim.recCheckSolvableSound` hypothesis-free — so the
 recursion is now closed in *both* directions, and what stands between this and

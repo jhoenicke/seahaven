@@ -7,13 +7,14 @@ import Seahaven.SolverMoveSim
 import Seahaven.RecCheckSound
 
 open Rules
+open Solver
 
 /-!
 # The critical move, simulated forward
 
-Route B's payload for one iteration of `solverRecCheckSolvable`'s pile loop: from the
+Route B's payload for one iteration of `recCheckSolvable`'s pile loop: from the
 critical state `t₀` and the move the play makes out of it, the solver's own
-`SolverMove` reaches a canonical child that a **solvable** state matches.
+`move` reaches a canonical child that a **solvable** state matches.
 
 Nothing here is constructed — the play supplies the post-move state, and the whole job
 is to show it matches, then to hand over.  The chain is
@@ -28,7 +29,7 @@ is to show it matches, then to hand over.  The chain is
 3. `SimulatesNorm.moveTail` — the cleanup and the `busyAces` drain, **unmodified**.
 
 The source pile must be skipped in step 2: a cp drop onto it is precisely the cleanup's
-freed-predecessor extension, which belongs to `SolverCleanupPile` rather than to
+freed-predecessor extension, which belongs to `cleanupPile` rather than to
 `movePre`.  Note also that `movePre` is *not* merged at the source, which is why the
 match is built clause by clause here instead of through `matches_of_depth_match`.
 
@@ -40,7 +41,7 @@ open Lean Lean.Order
 
 /-! ## Depths only fall -/
 
-theorem movePre_depth_le {g : Globals} {p : SolverPosType} (hb : SolverInvBase g p)
+theorem movePre_depth_le {g : Globals} {p : PosType} (hb : SolverInvBase g p)
     (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
     (hda : 0 < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat) (i : Fin 10) :
     ((SolverSpec.movePre pile toPile hpile p).pileDepth.get i).toNat
@@ -57,7 +58,7 @@ theorem movePre_depth_le {g : Globals} {p : SolverPosType} (hb : SolverInvBase g
 field can undercount by one — which is the safe direction for the pigeonhole that finds
 a spare column (`exists_spare_col`).  This is what lets the king re-assembly run at
 `movePre`, which is *not* `SolverInvMerged`. -/
-theorem freePiles_le_card_of_cleanupReady {g : Globals} {q : SolverPosType} {pile : UInt32}
+theorem freePiles_le_card_of_cleanupReady {g : Globals} {q : PosType} {pile : UInt32}
     (h : SolverSpec.CleanupReady g q pile) :
     q.freePiles.toNat ≤ (Finset.univ.filter (fun i : Fin 10 => q.pileDepth.get i = 0)).card := by
   obtain ⟨-, -, hfp⟩ := h
@@ -82,7 +83,7 @@ column's *deepest* card: the take is elsewhere, and a drop only pushes a card on
 a column that already had one. -/
 
 theorem piledSuit_of_move {t₀ t₁ : State} {mv : Move} (hap : applyMove t₀ mv = some t₁)
-    {a : Fin 10} (hsrc : mv.src = Position.pile a) {p q : SolverPosType}
+    {a : Fin 10} (hsrc : mv.src = Position.pile a) {p q : PosType}
     (hda : 0 < (p.pileDepth.get a).toNat)
     (hdq : ∀ i : Fin 10, (q.pileDepth.get i).toNat ≤ (p.pileDepth.get i).toNat)
     {su : Suit} (hp : PiledSuit t₀ p su) : PiledSuit t₁ q su := by
@@ -132,13 +133,13 @@ turns it into a state matching `SolverSpec.movePre` outright, and from there the
 existing `SimulatesNorm.moveTail` runs the cleanup and the drain unmodified.
 
 Why the source pile is skipped: a cp drop onto it is the cleanup's freed-predecessor
-extension, which belongs to `SolverCleanupPile`, not to `movePre`.  Every *other* pile
+extension, which belongs to `cleanupPile`, not to `movePre`.  Every *other* pile
 is `PileMerged` at `movePre` (`CleanupReady`), so its flute is maximal there and the
 restricted normal form pins `flute_match` exactly; the source pile is exact by
 construction (`|column| = pileDepth`, `pileFlute = 1`), its column being literally
 untouched by the run (`CPReachExcept.tableau_eq`). -/
 theorem exists_child_of_critical
-    {g : Globals} {t₀ t₁ : State} {p : SolverPosType}
+    {g : Globals} {t₀ t₁ : State} {p : PosType}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
     {kCrit : Fin 16} (hkc : DepthPlusKingsCfg g t₀ p kCrit)
     {pile : UInt32} (hpile : pile.toNat < 10)
@@ -149,12 +150,12 @@ theorem exists_child_of_critical
     (hdst : mv.dest ≠ Position.pile ⟨pile.toNat, hpile⟩)
     (hap : applyMove t₀ mv = some t₁) (hsolv : Solvable t₁)
     {toPile : UInt8}
-    (hdest : EStateM.run (solverGetDestination p pile) g = .ok toPile g)
+    (hdest : EStateM.run (getDestination p pile) g = .ok toPile g)
     (hpres : ∀ su : Suit, PiledSuit t₁ p su → ¬ CfgBitSet kCrit su)
     {i : Nat} (hi : i < (closureInfoOf p).numBits.toNat)
     (hms : MaskSub (globalCfg (closureInfoOf p) i) kCrit) :
-    ∃ (fk : UInt16) (p' : SolverPosType) (s' : State) (k' : Fin 16) (FK : Finset Suit),
-      EStateM.run (_root_.SolverMove pile toPile) (g, p) = .ok fk (g, p') ∧
+    ∃ (fk : UInt16) (p' : PosType) (s' : State) (k' : Fin 16) (FK : Finset Suit),
+      EStateM.run (Solver.move pile toPile) (g, p) = .ok fk (g, p') ∧
       IsCanonicalPos g p' ∧ SolverSpec.DepthSum p' < SolverSpec.DepthSum p ∧
       StateMatchesKingConfig g s' p' k' ∧ Solvable s' ∧
       KingVacates FK fk ∧ BitSet fk k' ∧

@@ -1,11 +1,12 @@
 import Seahaven.UsedSpaceBound
 
 open Rules
+open Solver
 
 /-!
 # A canonical position only ever matches a *normalized* state
 
-`SolverCleanupPile` leaves a pile *merged*, and the `SolverMoveAces` drain leaves
+`cleanupPile` leaves a pile *merged*, and the `moveAces` drain leaves
 the position with `busyAces = 0`.  Read through the matching relation, those
 invariants say exactly that the concrete state admits **no normalizing move** —
 neither a `CPStep` (cell → non-empty pile) nor an `FMStep` (foundation move), the
@@ -69,7 +70,7 @@ theorem optRankToNat_le (r : Option Rank) : optRankToNat r ≤ 13 := by
 /-- **A card in a cell is above its suit's foundation top.**  The `<`-form of
 `NoDupState.foundation_lt_of_cell`, read through `aces_match`; the converse of
 `not_covered`. -/
-theorem StateMatchesSolverPos.aces_lt_of_cell {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.aces_lt_of_cell {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) {d : Card} {i : Fin 4} (hc : s.cells i = some d) :
     p.aces.get (finOfSuit d.suit) < encodeCard d := by
   have hlt := h.noDup.foundation_lt_of_cell hc
@@ -87,7 +88,7 @@ The abstract position records nothing about *which* cell a freed card sits in �
 foundations, and the cells enter only through `cards_count`.  So a state produced
 by parking a run into cells in a different order than some reference construction
 matches exactly the same positions. -/
-theorem StateMatchesSolverPos.congr_of_tableau {g : Globals} {s t : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.congr_of_tableau {g : Globals} {s t : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) (hcount : ∀ c : Card, countState t c = 1)
     (htab : t.tableau = s.tableau) (hfnd : t.foundations = s.foundations) :
     StateMatchesSolverPos g t p where
@@ -106,7 +107,7 @@ subtraction wrapping. -/
 
 /-- **The top card of a pile of positive depth** is the outermost flute card:
 same suit as the boundary, and `pileFlute - 1` below it in value. -/
-theorem StateMatchesSolverPos.top_code_pos {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.top_code_pos {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) {q : Fin 10} (hdpos : 0 < (p.pileDepth.get q).toNat)
     {e : Card} (hhe : (s.tableau q).head? = some e)
     (hidx5 : (p.pileDepth.get q).toNat - 1 < 5) :
@@ -133,7 +134,7 @@ theorem StateMatchesSolverPos.top_code_pos {g : Globals} {s : State} {p : Solver
 
 /-- **The top card of a solver-empty pile** is one value above the suit's king
 frontier: the column holds the run `13 … kings[su]+1`. -/
-theorem StateMatchesSolverPos.top_code_zero {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.top_code_zero {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) {q : Fin 10} (hd0 : (p.pileDepth.get q).toNat = 0)
     {e d : Card} (hhe : (s.tableau q).head? = some e)
     (hlast : (s.tableau q).getLast? = some d) :
@@ -173,7 +174,7 @@ theorem StateMatchesSolverPos.top_code_zero {g : Globals} {s : State} {p : Solve
 /-- **The cell→pile move the state might allow is refuted by the invariant.**
 See the module docstring. -/
 theorem StateMatchesSolverPos.head_ne_nextCard_of_cell {g : Globals} {s : State}
-    {p : SolverPosType} (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
+    {p : PosType} (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (h : StateMatchesSolverPos g s p) {i : Fin 4} {c : Card} (hcell : s.cells i = some c)
     {q : Fin 10} (hmerged : PileMerged g p q (hb.pileDepth_bound q))
     (hne : s.tableau q ≠ []) :
@@ -251,7 +252,7 @@ theorem StateMatchesSolverPos.head_ne_nextCard_of_cell {g : Globals} {s : State}
         exact hnf hfree
 
 /-- **A state matching a merged position admits no `CPStep`.** -/
-theorem StateMatchesSolverPos.no_cpStep {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.no_cpStep {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hpm : ∀ j : Fin 10, PileMerged g p j (hb.pileDepth_bound j))
     (h : StateMatchesSolverPos g s p) : ∀ t, ¬ CPStep s t := by
@@ -267,7 +268,7 @@ theorem StateMatchesSolverPos.no_cpStep {g : Globals} {s : State} {p : SolverPos
 /-! ## No card can be advanced to a foundation -/
 
 /-- A card ready for its foundation has code `aces[su] + 1`. -/
-theorem StateMatchesSolverPos.ready_code {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.ready_code {g : Globals} {s : State} {p : PosType}
     (h : StateMatchesSolverPos g s p) {c : Card}
     (hready : some c.rank = nextRank (s.foundations c.suit)) :
     rankToNat c.rank = optRankToNat (s.foundations c.suit) + 1 ∧
@@ -289,7 +290,7 @@ theorem StateMatchesSolverPos.ready_code {g : Globals} {s : State} {p : SolverPo
 /-- **A free card is never ready for its foundation** once the drain has run:
 `foundation_maximal_weak` says the next foundation card is unfree, and
 `busyAces = 0` closes its escape clause. -/
-theorem StateMatchesSolverPos.not_ready_of_free {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.not_ready_of_free {g : Globals} {s : State} {p : PosType}
     (hb : SolverInvBase g p) (hz : p.busyAces = 0) (h : StateMatchesSolverPos g s p)
     {c : Card} (hfree : isFreeCard g p (encodeCard c)) :
     some c.rank ≠ nextRank (s.foundations c.suit) := by
@@ -309,7 +310,7 @@ theorem StateMatchesSolverPos.not_ready_of_free {g : Globals} {s : State} {p : S
   · rw [hz] at hbusy; simp at hbusy
 
 /-- **A state matching a canonical position admits no `FMStep`.** -/
-theorem StateMatchesSolverPos.no_fmStep {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.no_fmStep {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
     (h : StateMatchesSolverPos g s p) : ∀ t, ¬ FMStep s t := by
   have hb : SolverInvBase g p := hcan.toSolverInvBase
@@ -395,7 +396,7 @@ theorem StateMatchesSolverPos.no_fmStep {g : Globals} {s : State} {p : SolverPos
 /-- **Every state a canonical position matches is already normalized.**  So
 normalizing a state that matches `p` can only be the identity, and in particular
 no foundation move and no cell→pile move is available. -/
-theorem StateMatchesSolverPos.normalized {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.normalized {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
     (h : StateMatchesSolverPos g s p) : Normalized s := by
   rintro t (hfm | hcp)

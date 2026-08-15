@@ -1,6 +1,7 @@
 import Seahaven.DepthUnique
 
 open Rules
+open Solver
 
 /-!
 # CP-normalizing after the critical move
@@ -86,7 +87,7 @@ child the solver computed — no reasoning about the merge loop is required. -/
 
 /-- **The bridge into step 4.**  A CP-normal state matching a merged position's depths
 and foundations matches the position outright. -/
-theorem matches_of_cpNormal {g : Globals} {t : State} {p : SolverPosType}
+theorem matches_of_cpNormal {g : Globals} {t : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hpm : ∀ i : Fin 10, PileMerged g p i (hb.pileDepth_bound i))
     (hdm : DepthMatchesV g t (depthVec p (fun i => by have := hb.pileDepth_bound i; omega)))
@@ -98,7 +99,7 @@ theorem matches_of_cpNormal {g : Globals} {t : State} {p : SolverPosType}
 /-- **Step 3 and step 4 in one go.**  From a state whose depth vector and foundations
 are those of a merged position `p`, the play reaches — by cell→pile drops only, so
 solvability is untouched in both directions — a state that matches `p` outright. -/
-theorem exists_match_of_depthMatch {g : Globals} {u : State} {p : SolverPosType}
+theorem exists_match_of_depthMatch {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hpm : ∀ i : Fin 10, PileMerged g p i (hb.pileDepth_bound i))
     (hdm : DepthMatchesV g u (depthVec p (fun i => by have := hb.pileDepth_bound i; omega)))

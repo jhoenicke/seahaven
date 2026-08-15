@@ -1,16 +1,17 @@
 import Seahaven.SoundnessSkeleton
 
 open Rules
+open Solver
 
 /-!
-# One contribution of `solverRecCheckSolvable`'s pile loop
+# One contribution of `recCheckSolvable`'s pile loop
 
 The inner loop (`Solver.lean:436-456`) computes, for each non-empty pile,
 
 ```
-movable   = solverGetMovable kingInfo shift fluteLen toPile
-fk, p'    = SolverMove pile toPile
-cs        = solverRecCheckSolvable p'                       -- the recursive call
+movable   = getMovable kingInfo shift fluteLen toPile
+fk, p'    = move pile toPile
+cs        = recCheckSolvable p'                       -- the recursive call
 cs'       = cs &&& (fk >>> childShift)                      -- the forcedKings filter
 movable'  = movable &&& (subsetTable[childOff + cs'] >>> shift)
 movable'' = if movable' &&& component ≠ 0 then movable' ||| component else movable'
@@ -25,7 +26,7 @@ meant to:
   is the induction hypothesis of the eventual well-founded induction (`hash`
   strictly decreases, `IsCanonicalPos_hash_inj`), so it cannot be anything else
   here.
-* the simulation of the `SolverMove` — either `MoveSimulated` (the named
+* the simulation of the `move` — either `MoveSimulated` (the named
   obligation in `SoundnessSkeleton`) or, in `recStep_sound_of_sim`, just the
   `Simulates` package it produces, which is what `Simulates.move` in
   `SolverMoveSim` returns.
@@ -73,7 +74,7 @@ Note which position each `closureInfo` belongs to: the expansion is read in the
 **child's** block (`closureInfoOf p'` — the code's `nextClosureInfo`), at the
 **parent's** configuration.  That mismatch is the whole point of the
 `forcedKings` intersection and is resolved by `Simulates.transport`. -/
-theorem recStep_sound_of_sim {g : Globals} {s : State} {p p' : SolverPosType}
+theorem recStep_sound_of_sim {g : Globals} {s : State} {p p' : PosType}
     {i : Nat} {cs fk : UInt16}
     (hsim : ∃ (s' : State) (k' : Fin 16) (FK : Finset Suit),
       Simulates g s p (globalCfg (closureInfoOf p) i) s' p' k' FK fk)
@@ -94,7 +95,7 @@ are solvable.
 The hypotheses split cleanly in two: `hi`/`hwf`/`hcanon`/`hs`/`hmv`/`hrun` are
 what `MoveSimulated` consumes about *this* move, and `hcs`/`hchild` are the
 induction hypothesis about the recursive call. -/
-theorem recStep_sound (hMS : MoveSimulated) {g : Globals} {s : State} {p p' : SolverPosType}
+theorem recStep_sound (hMS : MoveSimulated) {g : Globals} {s : State} {p p' : PosType}
     {pile : UInt32} {toPile : UInt8} {mv cs fk : UInt16} {kingInfo : KingInfo} {i : Nat}
     (hi : i < (closureInfoOf p).numBits.toNat)
     (hwf : WellFormedLayout g) (hcanon : IsCanonicalPos g p)
@@ -102,10 +103,10 @@ theorem recStep_sound (hMS : MoveSimulated) {g : Globals} {s : State} {p p' : So
     (hkic : KingInfoCorrect p kingInfo)
     (hpile : pile.toNat < 10)
     (hdepth : 0 < (p.pileDepth.get ⟨pile.toNat % 10, by omega⟩).toNat)
-    (hdest : EStateM.run (solverGetDestination p pile) g = .ok toPile g)
-    (hmv : EStateM.run (solverGetMovable kingInfo (closureInfoOf p).shiftValue
+    (hdest : EStateM.run (getDestination p pile) g = .ok toPile g)
+    (hmv : EStateM.run (getMovable kingInfo (closureInfoOf p).shiftValue
         (p.pileFlute.get ⟨pile.toNat % 10, by omega⟩) toPile) g = .ok mv g)
-    (hrun : EStateM.run (SolverMove pile toPile) (g, p) = .ok fk (g, p'))
+    (hrun : EStateM.run (move pile toPile) (g, p) = .ok fk (g, p'))
     (hcs : LocalMask p' cs) (hchild : SoundBits g p' cs)
     (hbit : BitSet (mv &&& (subsetAt ((closureInfoOf p').offset.toNat +
         (cs &&& (fk >>> (closureInfoOf p').shiftValue.toUInt16)).toNat)

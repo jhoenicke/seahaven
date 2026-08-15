@@ -2,6 +2,7 @@ import Seahaven.CPNormal
 import Seahaven.CleanupSim
 
 open Rules
+open Solver
 
 /-!
 # The depth vector determines the match
@@ -170,7 +171,7 @@ theorem PileMatches.succ_below {g : Globals} {col : Column} {a : Fin 10} {n : Fi
 column exactly at the boundary. -/
 
 /-- A card resident below the depth is not free. -/
-theorem not_free_of_index_lt {g : Globals} {u : State} {p : SolverPosType}
+theorem not_free_of_index_lt {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
@@ -182,7 +183,7 @@ theorem not_free_of_index_lt {g : Globals} {u : State} {p : SolverPosType}
 
 /-- **A card at or above the boundary is free.**  Otherwise it would also be
     sitting at its own dealt slot, i.e. twice in the state. -/
-theorem free_of_index_ge {g : Globals} {u : State} {p : SolverPosType}
+theorem free_of_index_ge {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
@@ -228,7 +229,7 @@ theorem free_of_index_ge {g : Globals} {u : State} {p : SolverPosType}
     since dropping it on the exposed successor is a `CPStep`; and it cannot be in a
     column, since there its own successor sits directly beneath it
     (`succ_below`) and therefore is not a column top. -/
-theorem no_free_succ_exposed {g : Globals} {u : State} {p : SolverPosType}
+theorem no_free_succ_exposed {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
@@ -310,7 +311,7 @@ theorem head?_reverse_last {col : Column} (hne : 0 < col.length)
   rw [List.head?_eq_getElem?, List.getElem?_eq_getElem hne, h0]
 
 /-- `aces` is below any card its foundation has not reached. -/
-theorem aces_lt_of_foundation_lt {u : State} {p : SolverPosType}
+theorem aces_lt_of_foundation_lt {u : State} {p : PosType}
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
     {d : Card} (h : optRankToNat (u.foundations d.suit) < rankToNat d.rank) :
     p.aces.get (finOfSuit d.suit) < encodeCard d := by
@@ -321,7 +322,7 @@ theorem aces_lt_of_foundation_lt {u : State} {p : SolverPosType}
   omega
 
 /-- Conversely, a card above `aces` is not on its foundation. -/
-theorem uncovered_of_aces_lt {u : State} {p : SolverPosType}
+theorem uncovered_of_aces_lt {u : State} {p : PosType}
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
     {d : Card} (h : p.aces.get (finOfSuit d.suit) < encodeCard d) :
     countFoundation u.foundations d ≠ 1 := by
@@ -334,7 +335,7 @@ theorem uncovered_of_aces_lt {u : State} {p : SolverPosType}
   omega
 
 /-- A card sitting in a column is above its foundation. -/
-theorem aces_lt_of_mem_column {u : State} {p : SolverPosType}
+theorem aces_lt_of_mem_column {u : State} {p : PosType}
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
     (hcount : ∀ c : Card, countState u c = 1) {d : Card} {j : Fin 10} (hmem : d ∈ u.tableau j) :
     p.aces.get (finOfSuit d.suit) < encodeCard d :=
@@ -349,10 +350,10 @@ than `t` cards above `B`: the card sitting at that height would be free
 (`free_of_index_ge`) and, sitting in a column, not on its foundation
 (`aces_lt_of_mem_column`).
 
-The walk `SolverCleanupPile` performs stops at exactly such a card, which is what bounds
+The walk `cleanupPile` performs stops at exactly such a card, which is what bounds
 the run a state may carry at the pile being cleaned; instantiated at `t = pileFlute`,
 with `flute_maximal` supplying `hstop`, it is `flute_le_of_depth`. -/
-theorem column_reach_lt {g : Globals} {u : State} {p : SolverPosType}
+theorem column_reach_lt {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
@@ -416,7 +417,7 @@ boundary is free (`free_of_index_ge`) and, sitting in a column, is not on its
 foundation — while `flute_maximal` says `boundary - pileFlute` is one or the other.
 So the column cannot reach that far.  Note this half needs *no* CP-normality: it is
 the `flute_le` field of `DepthPlusKings`, valid at every parked state. -/
-theorem flute_le_of_depth {g : Globals} {u : State} {p : SolverPosType}
+theorem flute_le_of_depth {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
@@ -448,7 +449,7 @@ theorem flute_le_of_depth {g : Globals} {u : State} {p : SolverPosType}
       rw [htof]
       exact hmax
 
-theorem flute_match_of_depth {g : Globals} {u : State} {p : SolverPosType}
+theorem flute_match_of_depth {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
@@ -545,7 +546,7 @@ theorem flute_match_of_depth {g : Globals} {u : State} {p : SolverPosType}
 /-- **A king stack never exceeds what `kings` records.**  The mirror of
 `flute_le_of_depth`, from `king_frontier` instead of `flute_maximal`, and likewise
 free of CP-normality: it holds at a state whose king run is partly parked. -/
-theorem king_le_of_depth {g : Globals} {u : State} {p : SolverPosType}
+theorem king_le_of_depth {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
@@ -632,7 +633,7 @@ theorem king_le_of_depth {g : Globals} {u : State} {p : SolverPosType}
   -- nor can it stop above it
   exact hup
 
-theorem king_pile_of_depth {g : Globals} {u : State} {p : SolverPosType}
+theorem king_pile_of_depth {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
@@ -740,7 +741,7 @@ theorem king_pile_of_depth {g : Globals} {u : State} {p : SolverPosType}
 /-- **A merged position matches every CP-normal state with its depths.**  The
 converse of `StateMatchesSolverPos.no_cpStep`: together they say that, at a merged
 position, the depth vector (plus the foundations) is all there is to the match. -/
-theorem matches_of_depth_match_at {g : Globals} {u : State} {p : SolverPosType}
+theorem matches_of_depth_match_at {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hpm : ∀ i : Fin 10, PileMerged g p i (hb.pileDepth_bound i))
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
@@ -757,7 +758,7 @@ theorem matches_of_depth_match_at {g : Globals} {u : State} {p : SolverPosType}
   aces_match := haces
 
 /-- The global form, as the existing callers use it. -/
-theorem matches_of_depth_match {g : Globals} {u : State} {p : SolverPosType}
+theorem matches_of_depth_match {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hpm : ∀ i : Fin 10, PileMerged g p i (hb.pileDepth_bound i))
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)

@@ -2,6 +2,7 @@ import Seahaven.EmptyPileCfg
 import Seahaven.MaximalCfg
 
 open Rules
+open Solver
 
 /-!
 # `componentTable`, read backwards
@@ -48,7 +49,7 @@ theorem exists_localIdx (f : Fin 11) (c : Fin 16) (hcard : (piledSet c).card = m
 /-! ## `InComponent` sets the bit -/
 
 /-- The number of suits a block configuration piles, with the guard in force. -/
-private theorem card_piledSet_block {p : SolverPosType} (hfp3 : p.freePiles.toNat ≤ 3)
+private theorem card_piledSet_block {p : PosType} (hfp3 : p.freePiles.toNat ≤ 3)
     {i : Nat} (hi : i < (closureInfoOf p).numBits.toNat) :
     (piledSet (globalCfg (closureInfoOf p) i)).card = p.freePiles.toNat := by
   rw [card_piledSet_globalCfg p i hi]
@@ -59,7 +60,7 @@ private theorem card_piledSet_block {p : SolverPosType} (hfp3 : p.freePiles.toNa
 give a column back has its component bit set: the configuration one suit smaller
 is feasible, hence enumerated by the loop, and `componentTable` sends it back up
 to every block configuration above it. -/
-theorem component_bit_of_inComponent {g : Globals} {p : SolverPosType} {comp : UInt8}
+theorem component_bit_of_inComponent {g : Globals} {p : PosType} {comp : UInt8}
     (hb : SolverInvBase g p) (hfp1 : 1 ≤ p.freePiles.toNat) (hfp3 : p.freePiles.toNat ≤ 3)
     (hrun : EStateM.run (computeComponentKingBits p) g = .ok comp g)
     {i : Nat} (hi : i < (closureInfoOf p).numBits.toNat)
@@ -99,7 +100,7 @@ theorem component_bit_of_inComponent {g : Globals} {p : SolverPosType} {comp : U
 it in the component.**  Any suit the block configuration piles and the spare
 subset does not is one that can be moved back into the cells: what is left still
 covers the spare subset, which fits. -/
-theorem inComponent_of_hasSpareSubset {g : Globals} {p : SolverPosType} (hb : SolverInvBase g p)
+theorem inComponent_of_hasSpareSubset {g : Globals} {p : PosType} (hb : SolverInvBase g p)
     (hfp3 : p.freePiles.toNat ≤ 3) {i : Nat} (hi : i < (closureInfoOf p).numBits.toNat)
     {k : Fin 16} (hks : MaskSub (globalCfg (closureInfoOf p) i) k) (hsp : HasSpareSubset p k) :
     InComponent p (globalCfg (closureInfoOf p) i) := by
@@ -129,7 +130,7 @@ play's prefix carries `s` to `t`, and `s` stands for `k` while `t` stands for
 `k_t`, then either the two configurations are equal — and the bit established at
 `k_t` *is* the bit asked about — or both are in the component, and the loop's
 `movable' ||| component` widening carries the bit from one to the other. -/
-theorem cfg_eq_or_component_bits {g : Globals} {p : SolverPosType} {comp : UInt8}
+theorem cfg_eq_or_component_bits {g : Globals} {p : PosType} {comp : UInt8}
     {s t : State} {k kt : Fin 16} (hm : SolverInvMerged g p)
     (hfp1 : 1 ≤ p.freePiles.toNat) (hfp3 : p.freePiles.toNat ≤ 3)
     (hrun : EStateM.run (computeComponentKingBits p) g = .ok comp g)
@@ -159,7 +160,7 @@ king can move at all, and with four the block holds a single configuration. -/
 /-- At four or more free piles every suit can have a column of its own, so the
 block holds a single configuration: whatever `k` and `k_t` are, they are covered
 by the *same* bit and nothing has to be transported. -/
-theorem block_index_eq_of_freePiles_four {p : SolverPosType} (hfp : 4 ≤ p.freePiles.toNat)
+theorem block_index_eq_of_freePiles_four {p : PosType} (hfp : 4 ≤ p.freePiles.toNat)
     {i j : Nat} (hi : i < (closureInfoOf p).numBits.toNat)
     (hj : j < (closureInfoOf p).numBits.toNat) : i = j := by
   have h : (closureInfoOf p).numBits.toNat = 1 := by
@@ -171,7 +172,7 @@ theorem block_index_eq_of_freePiles_four {p : SolverPosType} (hfp : 4 ≤ p.free
 
 /-- With every solver-empty column occupied there is nothing to reshuffle, so at
 `freePiles = 0` the two configurations always agree. -/
-theorem cfg_eq_of_freePiles_zero {g : Globals} {p : SolverPosType} {s t : State} {k kt : Fin 16}
+theorem cfg_eq_of_freePiles_zero {g : Globals} {p : PosType} {s t : State} {k kt : Fin 16}
     (hm : SolverInvMerged g p) (hfp : p.freePiles.toNat = 0)
     (hs : DepthPlusKingsCfg g s p k) (ht : DepthPlusKingsCfg g t p kt)
     (hr : PrefixReach g p s t) : k = kt := by

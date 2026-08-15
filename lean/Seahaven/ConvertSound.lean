@@ -1,7 +1,9 @@
 import Seahaven.ConvertInv
 
+open Solver
+
 /-!
-# `SolverConvertFromPilesKings` produces a canonical position
+# `convertFromPilesKings` produces a canonical position
 
 Assembling the three pieces:
 
@@ -18,17 +20,17 @@ open Lean Lean.Order
 
 /-! ## Loop 3: the per-pile cleanup -/
 
-theorem cvCleanupBody_run (i : Nat) (fk fk0 : UInt16) (g : Globals) (q q' : SolverPosType)
-    (h : EStateM.run (_root_.SolverCleanupPile (UInt32.ofNat i)) (g, q) = .ok fk0 (g, q')) :
+theorem cvCleanupBody_run (i : Nat) (fk fk0 : UInt16) (g : Globals) (q q' : PosType)
+    (h : EStateM.run (Solver.cleanupPile (UInt32.ofNat i)) (g, q) = .ok fk0 (g, q')) :
     cvCleanupBody i fk (g, q) = .ok (.yield (fk &&& fk0)) (g, q') := by
-  have h' : _root_.SolverCleanupPile (UInt32.ofNat i) (g, q) = .ok fk0 (g, q') := h
+  have h' : Solver.cleanupPile (UInt32.ofNat i) (g, q) = .ok fk0 (g, q') := h
   simp only [cvCleanupBody, bind, EStateM.bind, pure, EStateM.pure, h']
 
 /-- **The cleanup loop reaches the merged layer.**  One `solverCleanupPile_step`
     per iteration, carrying `MergedUpTo`. -/
 theorem cvCleanupLoop_run (g : Globals) (hwf : WellFormedLayout g) :
-    ∀ (n k : Nat), k + n = 10 → ∀ (fk : UInt16) (q : SolverPosType), MergedUpTo g q k →
-      ∃ (fk' : UInt16) (q' : SolverPosType),
+    ∀ (n k : Nat), k + n = 10 → ∀ (fk : UInt16) (q : PosType), MergedUpTo g q k →
+      ∃ (fk' : UInt16) (q' : PosType),
         forIn (List.range' k n) fk cvCleanupBody (g, q) = .ok fk' (g, q') ∧
         MergedUpTo g q' 10 := by
   intro n
@@ -50,13 +52,13 @@ theorem cvCleanupLoop_run (g : Globals) (hwf : WellFormedLayout g) :
 
 /-! ## The whole call -/
 
-/-- **`SolverConvertFromPilesKings` produces a canonical state.**  Given a
+/-- **`convertFromPilesKings` produces a canonical state.**  Given a
     well-formed layout and a legal pile-depth vector, converting from any starting
     position (the function overwrites every field) succeeds, leaves `globals`
-    untouched, and yields a canonical `SolverPosType`. -/
-theorem convert_canonical (g : Globals) (p0 : SolverPosType) (pk : Vector UInt8 11)
+    untouched, and yields a canonical `PosType`. -/
+theorem convert_canonical (g : Globals) (p0 : PosType) (pk : Vector UInt8 11)
     (hwf : WellFormedLayout g) (hpk : ValidDepths pk) :
-    ∃ fk p', EStateM.run (_root_.SolverConvertFromPilesKings pk) (g, p0) = .ok fk (g, p') ∧
+    ∃ fk p', EStateM.run (Solver.convertFromPilesKings pk) (g, p0) = .ok fk (g, p') ∧
       IsCanonicalPos g p' := by
   have hcount : CvCountBound g pk := cvCountBound g hwf pk hpk
   -- loop 3
@@ -67,7 +69,7 @@ theorem convert_canonical (g : Globals) (p0 : SolverPosType) (pk : Vector UInt8 
   -- loop 4
   obtain ⟨fk2, q2, hrun2, hcan, -⟩ := drain_canonical g q1 fk1 hwf hmerged
   refine ⟨fk2, q2, ?_, hcan⟩
-  show _root_.SolverConvertFromPilesKings pk (g, p0) = _
+  show Solver.convertFromPilesKings pk (g, p0) = _
   rw [convert_run_eq g hwf pk p0 hpk hcount]
   show (forIn (List.range 10) (0xffff : UInt16) cvCleanupBody >>= fun fk =>
       Loop.forIn Loop.mk fk drainBody >>= fun r => pure r) (g, convertPre g pk) = _

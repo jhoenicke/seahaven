@@ -2,6 +2,7 @@ import Seahaven.MatchesDepth
 import Seahaven.DeckCount
 
 open Rules
+open Solver
 
 /-!
 # Matching a depth vector, and the critical move
@@ -36,11 +37,11 @@ def DepthMatchesV (g : Globals) (u : State) (d : Fin 10 → Fin 6) : Prop :=
   ∀ i : Fin 10, PileMatches g (u.tableau i) i (d i)
 
 /-- The depth vector a position's `pileDepth` denotes. -/
-def depthVec (p : SolverPosType) (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
+def depthVec (p : PosType) (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (i : Fin 10) : Fin 6 :=
   ⟨(p.pileDepth.get i).toNat, hd6 i⟩
 
-theorem depthMatchesV_iff_depth_match {g : Globals} {u : State} {p : SolverPosType}
+theorem depthMatchesV_iff_depth_match {g : Globals} {u : State} {p : PosType}
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6) :
     DepthMatchesV g u (depthVec p hd6)
       ↔ ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩ :=
@@ -256,7 +257,7 @@ Three layers, in increasing strength:
 /-- **`StateMatchesSolverPos` without `flute_match`.**  The flute clause is weakened
 to the inequality a parked state satisfies: a column never holds *more* than its
 flute, but it may hold less, the difference sitting in cells. -/
-structure DepthPlusKings (g : Globals) (u : State) (p : SolverPosType) : Prop where
+structure DepthPlusKings (g : Globals) (u : State) (p : PosType) : Prop where
   cards_count : ∀ c : Card, countState u c = 1
   depth_lt6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6
   depth_match : ∀ i : Fin 10,
@@ -274,23 +275,23 @@ structure DepthPlusKings (g : Globals) (u : State) (p : SolverPosType) : Prop wh
 
 /-- The same, together with a king configuration — the shape the refund bound
 (`DeckCount.kingList_le_kingRefund`) consumes. -/
-structure DepthPlusKingsCfg (g : Globals) (u : State) (p : SolverPosType) (k : Fin 16) : Prop where
+structure DepthPlusKingsCfg (g : Globals) (u : State) (p : PosType) (k : Fin 16) : Prop where
   toDepthPlusKings : DepthPlusKings g u p
   realizes : RealizesKingConfig u p k
   no_pile : ∀ su : Suit, CfgBitSet k su → NoKingPile u p su
 
 /-! ### Between the layers -/
 
-theorem DepthPlusKings.toDepthMatchesV {g : Globals} {u : State} {p : SolverPosType}
+theorem DepthPlusKings.toDepthMatchesV {g : Globals} {u : State} {p : PosType}
     (h : DepthPlusKings g u p) : DepthMatchesV g u (depthVec p h.depth_lt6) :=
   h.depth_match
 
-theorem DepthPlusKings.noDup {g : Globals} {u : State} {p : SolverPosType}
+theorem DepthPlusKings.noDup {g : Globals} {u : State} {p : PosType}
     (h : DepthPlusKings g u p) : NoDupState u :=
   fun c => le_of_eq (h.cards_count c)
 
 /-- A full match is a middle-layer match: `flute_match`'s equality gives `flute_le`. -/
-theorem StateMatchesSolverPos.toDepthPlusKings {g : Globals} {u : State} {p : SolverPosType}
+theorem StateMatchesSolverPos.toDepthPlusKings {g : Globals} {u : State} {p : PosType}
     (h : StateMatchesSolverPos g u p) : DepthPlusKings g u p where
   cards_count := h.cards_count
   depth_lt6 := h.depth_lt6
@@ -300,7 +301,7 @@ theorem StateMatchesSolverPos.toDepthPlusKings {g : Globals} {u : State} {p : So
   flute_le := fun i hi => by rw [h.flute_match i hi]
 
 theorem StateMatchesKingConfig.toDepthPlusKingsCfg {g : Globals} {u : State}
-    {p : SolverPosType} {k : Fin 16} (h : StateMatchesKingConfig g u p k) :
+    {p : PosType} {k : Fin 16} (h : StateMatchesKingConfig g u p k) :
     DepthPlusKingsCfg g u p k where
   toDepthPlusKings := h.toMatches.toDepthPlusKings
   realizes := h.realizes
@@ -310,14 +311,14 @@ theorem StateMatchesKingConfig.toDepthPlusKingsCfg {g : Globals} {u : State}
 `matches_of_depth_match` read as "parking is the only difference": once no cell card
 can be dropped, `flute_le` is an equality and the king stacks are exactly as tall as
 `kings` says. -/
-theorem DepthPlusKings.upgrade {g : Globals} {u : State} {p : SolverPosType}
+theorem DepthPlusKings.upgrade {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hpm : ∀ i : Fin 10, PileMerged g p i (hb.pileDepth_bound i))
     (h : DepthPlusKings g u p) (hcp : ∀ t, ¬ CPStep u t) :
     StateMatchesSolverPos g u p :=
   matches_of_depth_match hwf hb hpm h.depth_lt6 h.depth_match h.cards_count hcp h.aces_match
 
-theorem DepthPlusKingsCfg.upgrade {g : Globals} {u : State} {p : SolverPosType} {k : Fin 16}
+theorem DepthPlusKingsCfg.upgrade {g : Globals} {u : State} {p : PosType} {k : Fin 16}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hpm : ∀ i : Fin 10, PileMerged g p i (hb.pileDepth_bound i))
     (h : DepthPlusKingsCfg g u p k) (hcp : ∀ t, ¬ CPStep u t) :
@@ -331,7 +332,7 @@ theorem DepthPlusKingsCfg.upgrade {g : Globals} {u : State} {p : SolverPosType} 
 `DeckCount`'s bound needs only `cards_count`, `aces_match` and `flute_le`, all of
 which the middle layer has — so it applies to the pre-critical state directly. -/
 
-theorem DepthPlusKings.usedSpace_add_flute_le {g : Globals} {u : State} {p : SolverPosType}
+theorem DepthPlusKings.usedSpace_add_flute_le {g : Globals} {u : State} {p : PosType}
     (hb : SolverInvBase g p) (h : DepthPlusKings g u p)
     (a : Fin 10) (hda : 0 < (p.pileDepth.get a).toNat)
     (hcol : (u.tableau a).length = (p.pileDepth.get a).toNat) :
@@ -344,7 +345,7 @@ theorem DepthPlusKings.usedSpace_add_flute_le {g : Globals} {u : State} {p : Sol
 `king_frontier` — so the depth match, the card count and the foundations are all the
 input there is.  CP-normality is what turns the two `≤` into `=`
 (`DepthPlusKings.upgrade`). -/
-theorem DepthPlusKings.of_depthMatch {g : Globals} {u : State} {p : SolverPosType}
+theorem DepthPlusKings.of_depthMatch {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hpm : ∀ i : Fin 10, PileMerged g p i (hb.pileDepth_bound i))
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
@@ -372,24 +373,24 @@ chain has to be supplied separately, which is exactly how the caller has it. -/
 
 /-- One move of the prefix: a legal move whose target still matches `p` at the
 middle layer. -/
-def PrefixStep (g : Globals) (p : SolverPosType) (u v : State) : Prop :=
+def PrefixStep (g : Globals) (p : PosType) (u v : State) : Prop :=
   MoveStep u v ∧ DepthPlusKings g v p
 
 /-- Reachability through states that all still match `p` at the middle layer. -/
-abbrev PrefixReach (g : Globals) (p : SolverPosType) : State → State → Prop :=
+abbrev PrefixReach (g : Globals) (p : PosType) : State → State → Prop :=
   Relation.ReflTransGen (PrefixStep g p)
 
-theorem PrefixStep.toMoveStep {g : Globals} {p : SolverPosType} {u v : State}
+theorem PrefixStep.toMoveStep {g : Globals} {p : PosType} {u v : State}
     (h : PrefixStep g p u v) : MoveStep u v := h.1
 
-theorem PrefixReach.toReach {g : Globals} {p : SolverPosType} {u v : State}
+theorem PrefixReach.toReach {g : Globals} {p : PosType} {u v : State}
     (h : PrefixReach g p u v) : Reach u v := by
   induction h with
   | refl => exact Relation.ReflTransGen.refl
   | tail _ hstep ih => exact ih.tail hstep.toMoveStep
 
 /-- **Every state of the chain matches**, the far end included. -/
-theorem PrefixReach.dpk {g : Globals} {p : SolverPosType} {u v : State}
+theorem PrefixReach.dpk {g : Globals} {p : PosType} {u v : State}
     (hu : DepthPlusKings g u p) (h : PrefixReach g p u v) : DepthPlusKings g v p := by
   induction h with
   | refl => exact hu
@@ -403,10 +404,10 @@ bit means "no pile of its own"), so the mask is the complement of the piled set,
 and `bits2grlex` turns it into the grlex index the solver's blocks are indexed by. -/
 
 /-- Suit `su` owns a pile in `u`: some solver-empty column's deepest card is its. -/
-def PiledSuit (u : State) (p : SolverPosType) (su : Suit) : Prop :=
+def PiledSuit (u : State) (p : PosType) (su : Suit) : Prop :=
   ∃ i : Fin 10, (p.pileDepth.get i).toNat = 0 ∧ ∃ d ∈ (u.tableau i).getLast?, d.suit = su
 
-theorem noKingPile_of_not_piled {u : State} {p : SolverPosType} {su : Suit}
+theorem noKingPile_of_not_piled {u : State} {p : PosType} {su : Suit}
     (h : ¬ PiledSuit u p su) : NoKingPile u p su := by
   intro i hd0 d hd hsu
   exact h ⟨i, hd0, d, hd, hsu⟩
@@ -421,32 +422,32 @@ theorem cfgBitSet_cfgOfMask (m : Fin 16) (su : Suit) :
 
 open Classical in
 /-- The internal mask of the configuration `u` realizes: bit set = *no* pile. -/
-noncomputable def piledMaskNat (u : State) (p : SolverPosType) : Nat :=
+noncomputable def piledMaskNat (u : State) (p : PosType) : Nat :=
   (if PiledSuit u p Suit.clubs then 0 else 1)
     + (if PiledSuit u p Suit.diamonds then 0 else 2)
     + (if PiledSuit u p Suit.hearts then 0 else 4)
     + (if PiledSuit u p Suit.spades then 0 else 8)
 
-theorem piledMaskNat_lt (u : State) (p : SolverPosType) : piledMaskNat u p < 16 := by
+theorem piledMaskNat_lt (u : State) (p : PosType) : piledMaskNat u p < 16 := by
   unfold piledMaskNat
   split_ifs <;> omega
 
-theorem piledMaskNat_bit (u : State) (p : SolverPosType) (su : Suit) :
+theorem piledMaskNat_bit (u : State) (p : PosType) (su : Suit) :
     piledMaskNat u p / 2 ^ (suitToNat su) % 2 = 1 ↔ ¬ PiledSuit u p su := by
   unfold piledMaskNat
   cases su <;> simp only [suitToNat_clubs, suitToNat_diamonds, suitToNat_hearts,
     suitToNat_spades] <;> split_ifs <;> simp_all
 
 /-- **The configuration `u` realizes**, as a function of the state. -/
-noncomputable def cfgOf (u : State) (p : SolverPosType) : Fin 16 :=
+noncomputable def cfgOf (u : State) (p : PosType) : Fin 16 :=
   cfgOfMask ⟨piledMaskNat u p, piledMaskNat_lt u p⟩
 
-theorem cfgBitSet_cfgOf (u : State) (p : SolverPosType) (su : Suit) :
+theorem cfgBitSet_cfgOf (u : State) (p : PosType) (su : Suit) :
     CfgBitSet (cfgOf u p) su ↔ ¬ PiledSuit u p su := by
   rw [cfgOf, cfgBitSet_cfgOfMask]
   exact piledMaskNat_bit u p su
 
-theorem noKingPile_cfgOf {u : State} {p : SolverPosType} {su : Suit}
+theorem noKingPile_cfgOf {u : State} {p : PosType} {su : Suit}
     (h : CfgBitSet (cfgOf u p) su) : NoKingPile u p su :=
   noKingPile_of_not_piled ((cfgBitSet_cfgOf u p su).1 h)
 
@@ -455,7 +456,7 @@ open Classical in
 assignment is "the column that suit's stack sits on", unique by `getLast?`; the
 deepest card of a solver-empty column is a king by `PileMatches.king_run`, which is
 what `OwnsPile` asks for. -/
-theorem DepthPlusKings.toCfg {g : Globals} {u : State} {p : SolverPosType}
+theorem DepthPlusKings.toCfg {g : Globals} {u : State} {p : PosType}
     (h : DepthPlusKings g u p) : DepthPlusKingsCfg g u p (cfgOf u p) where
   toDepthPlusKings := h
   no_pile := fun _ hbit => noKingPile_cfgOf hbit
@@ -518,7 +519,7 @@ foundations — hence `aces_match` — are constant. -/
 /-- **A card strictly below its boundary is neither in a cell nor on top of a
 column.**  It sits at its own dealt slot, with the dealt cards above it still in
 place; needs nothing but the depth match. -/
-theorem buried_inaccessible {g : Globals} {u : State} {p : SolverPosType}
+theorem buried_inaccessible {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)

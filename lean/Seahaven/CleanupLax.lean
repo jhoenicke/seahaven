@@ -1,6 +1,7 @@
 import Seahaven.ConvertMatch
 
 open Rules
+open Solver
 
 /-!
 # One cleanup call, from a pile that already carries part of its flute
@@ -29,7 +30,7 @@ namespace SolverSpec
 the card coded `B - j`; for `j ≥ 1` that card is free, since it is not a resident of its
 own dealt pile. -/
 
-theorem cvRelax_run_card {g : Globals} {v : State} {q0 : SolverPosType}
+theorem cvRelax_run_card {g : Globals} {v : State} {q0 : PosType}
     {fl : Vector UInt8 10} (hwf : WellFormedLayout g)
     (h : StateMatchesSolverPos g v (cvRelax q0 fl)) (i : Fin 10)
     (hd : 0 < (q0.pileDepth.get i).toNat) (hidx : (q0.pileDepth.get i).toNat - 1 < 5)
@@ -120,7 +121,7 @@ theorem cvRelax_run_card {g : Globals} {v : State} {q0 : SolverPosType}
 
 /-- **The run's cards are free** — `PileBase`'s `flute_cards_free`, for the flutes a state
 carries. -/
-theorem cvRelax_flute_cards_free {g : Globals} {v : State} {q0 : SolverPosType}
+theorem cvRelax_flute_cards_free {g : Globals} {v : State} {q0 : PosType}
     {fl : Vector UInt8 10} (hwf : WellFormedLayout g)
     (h : StateMatchesSolverPos g v (cvRelax q0 fl)) (i : Fin 10) (j : UInt8)
     (hd : 0 < (q0.pileDepth.get i).toNat) (hj0 : 0 < j.toNat)
@@ -132,7 +133,7 @@ theorem cvRelax_flute_cards_free {g : Globals} {v : State} {q0 : SolverPosType}
 
 /-- **The run stops above the foundation** — `PileBase`'s `flute_not_aces`.  Its lowest card
 is in a column, so the suit's foundation has not reached it. -/
-theorem cvRelax_flute_not_aces {g : Globals} {v : State} {q0 : SolverPosType}
+theorem cvRelax_flute_not_aces {g : Globals} {v : State} {q0 : PosType}
     {fl : Vector UInt8 10} (hwf : WellFormedLayout g)
     (h : StateMatchesSolverPos g v (cvRelax q0 fl)) (i : Fin 10)
     (hflpos : 1 ≤ (fl.get i).toNat) (hd : 0 < (q0.pileDepth.get i).toNat)
@@ -181,7 +182,7 @@ theorem cvRelax_flute_not_aces {g : Globals} {v : State} {q0 : SolverPosType}
 
 /-- **The relaxed reading satisfies the local invariant**: `q0`'s own clauses wherever the
 flute is not read, `CvFlutes` for the two length clauses, and the state for the rest. -/
-theorem solverInvLocal_cvRelax {g : Globals} {v : State} {q0 : SolverPosType}
+theorem solverInvLocal_cvRelax {g : Globals} {v : State} {q0 : PosType}
     {fl : Vector UInt8 10} (hwf : WellFormedLayout g) (hb : SolverInvBase g q0)
     (hfl : CvFlutes q0 fl) (h : StateMatchesSolverPos g v (cvRelax q0 fl)) :
     SolverInvLocal g (cvRelax q0 fl) where
@@ -201,12 +202,12 @@ theorem solverInvLocal_cvRelax {g : Globals} {v : State} {q0 : SolverPosType}
 
 /-! ## The walk does not stop short of the run
 
-`SolverCleanupPile`'s freed-predecessor loop stops at `B - 1 - f`, either because the
+`cleanupPile`'s freed-predecessor loop stops at `B - 1 - f`, either because the
 suit's foundation is there or because the card is not free (`cleanupPile_eq`'s `hfstop`).
 Both are exactly what `column_reach_lt` rules out for a card the column carries, so the
 run is at most `f + 1` long — the hypothesis `cleanupPileSim` now takes. -/
 
-theorem cvRelax_flute_le_succ {g : Globals} {v : State} {q0 : SolverPosType}
+theorem cvRelax_flute_le_succ {g : Globals} {v : State} {q0 : PosType}
     {fl : Vector UInt8 10} (hwf : WellFormedLayout g)
     (h : StateMatchesSolverPos g v (cvRelax q0 fl)) (i : Fin 10)
     (hd : 0 < (q0.pileDepth.get i).toNat) (hidx : (q0.pileDepth.get i).toNat - 1 < 5)
@@ -258,7 +259,7 @@ own position. -/
 
 /-- **The exit position of a simulated phase may be re-read.**  `SimulatesNorm` mentions
 it only through the matching, which reads the four fields below. -/
-theorem SimulatesNorm.ofExitFields {g : Globals} {s v : State} {p q q' : SolverPosType}
+theorem SimulatesNorm.ofExitFields {g : Globals} {s v : State} {p q q' : PosType}
     {k k' : Fin 16} {FK : Finset Suit} {fk : UInt16}
     (h : SimulatesNorm g s p k v q k' FK fk)
     (hd : q'.pileDepth = q.pileDepth) (hf : q'.pileFlute = q.pileFlute)
@@ -276,7 +277,7 @@ reads.  The `pileFlute` component is the only one that moves: `cleanupRunResult`
 `pileFlute[pile]` and never another pile's. -/
 theorem cleanupRunResult_cvRelax (pile : UInt32) (hpile : pile.toNat < 10) (B : UInt8)
     (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4) (d : UInt8) (m f : Nat)
-    (q0 : SolverPosType) (fl : Vector UInt8 10) :
+    (q0 : PosType) (fl : Vector UInt8 10) :
     (cleanupRunResult pile hpile B ph hs4 d m f (cvRelax q0 fl)).2.pileDepth
         = (cleanupRunResult pile hpile B ph hs4 d m f q0).2.pileDepth ∧
       (cleanupRunResult pile hpile B ph hs4 d m f (cvRelax q0 fl)).2.pileFlute
@@ -312,7 +313,7 @@ theorem cleanupRunResult_cvRelax (pile : UInt32) (hpile : pile.toNat < 10) (B : 
 
 theorem cleanupRunResult_cvRelax_mask (pile : UInt32) (hpile : pile.toNat < 10) (B : UInt8)
     (ph : UInt32) (hs4 : (SUIT B).toUInt32.toNat < 4) (d : UInt8) (m f : Nat)
-    (q0 : SolverPosType) (fl : Vector UInt8 10) :
+    (q0 : PosType) (fl : Vector UInt8 10) :
     (cleanupRunResult pile hpile B ph hs4 d m f (cvRelax q0 fl)).1
       = (cleanupRunResult pile hpile B ph hs4 d m f q0).1 := by
   by_cases hk : ((d - UInt8.ofNat m == 1) && (VALUE (B + UInt8.ofNat m) == 13)) = true
@@ -322,7 +323,7 @@ theorem cleanupRunResult_cvRelax_mask (pile : UInt32) (hpile : pile.toNat < 10) 
 /-! ## `CvCleanupSim` -/
 
 set_option maxHeartbeats 1000000 in
-/-- **One `SolverCleanupPile` call, simulated from the state's own flutes.** -/
+/-- **One `cleanupPile` call, simulated from the state's own flutes.** -/
 theorem cvCleanupSim : CvCleanupSim := by
   intro g v q0 fl kk pile hpile fk p' hwf hb hfl1 hflutes hk hrun
   have hfn : fluteNorm pile hpile q0 = q0 := fluteNorm_self pile hpile q0 hfl1

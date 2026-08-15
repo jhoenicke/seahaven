@@ -1,5 +1,7 @@
 import Seahaven.SolverSpecCommon
 
+open Solver
+
 /-!
 # Spec for `kingMove`
 
@@ -22,7 +24,7 @@ open Lean Lean.Order
     `merge_complete`/`flute_maximal` clauses have a `depth ≤ 1`/`depth = 0`
     escape-hatch disjunct). -/
 theorem kingMove_pileClean_self (pile : UInt32) (g : Globals) (hpile : pile.toNat < 10)
-    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : SolverPosType) :
+    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : PosType) :
     PileClean g (kingMove pile hpile suit hs4 ph p) ⟨pile.toNat, hpile⟩ := by
   have hd0 : (kingMove pile hpile suit hs4 ph p).pileDepth.get ⟨pile.toNat, hpile⟩ = 0 := by
     show (kingMove pile hpile suit hs4 ph p).pileDepth[pile.toNat]'hpile = 0
@@ -51,19 +53,19 @@ theorem kingMove_pileClean_self (pile : UInt32) (g : Globals) (hpile : pile.toNa
 
 /-- `kingMove` never touches `aces`. -/
 theorem kingMove_aces_eq (pile : UInt32) (hpile : pile.toNat < 10)
-    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : SolverPosType) :
+    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : PosType) :
     (kingMove pile hpile suit hs4 ph p).aces = p.aces := by
   simp only [kingMove]
 
 /-- `kingMove` never touches `busyAces`. -/
 theorem kingMove_busyAces_eq (pile : UInt32) (hpile : pile.toNat < 10)
-    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : SolverPosType) :
+    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : PosType) :
     (kingMove pile hpile suit hs4 ph p).busyAces = p.busyAces := by
   simp only [kingMove]
 
 /-- `kingMove` leaves `kings[s]` literally unchanged for every suit `s ≠ suit`. -/
 theorem kingMove_kings_eq_of_ne (pile : UInt32) (hpile : pile.toNat < 10)
-    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : SolverPosType)
+    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : PosType)
     (s : Fin 4) (hs : s.val ≠ suit.toUInt32.toNat) :
     (kingMove pile hpile suit hs4 ph p).kings.get s = p.kings.get s := by
   show (kingMove pile hpile suit hs4 ph p).kings[s.val]'s.isLt = p.kings[s.val]'s.isLt
@@ -73,7 +75,7 @@ theorem kingMove_kings_eq_of_ne (pile : UInt32) (hpile : pile.toNat < 10)
 /-- `kingMove`'s exact effect on `kings[suit]`: it drops by the drained
     pile's flute length. -/
 theorem kingMove_kings_self (pile : UInt32) (hpile : pile.toNat < 10)
-    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : SolverPosType) :
+    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : PosType) :
     (kingMove pile hpile suit hs4 ph p).kings.get (⟨suit.toUInt32.toNat, hs4⟩ : Fin 4) =
       p.kings.get (⟨suit.toUInt32.toNat, hs4⟩ : Fin 4) -
         (p.pileFlute[pile.toNat]'hpile) := by
@@ -84,7 +86,7 @@ theorem kingMove_kings_self (pile : UInt32) (hpile : pile.toNat < 10)
 
 /-- `kingMove` literally leaves `pileDepth[j]` unchanged at every `j ≠ pile`. -/
 theorem kingMove_pileDepth_eq_of_ne (pile : UInt32) (hpile : pile.toNat < 10)
-    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : SolverPosType)
+    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : PosType)
     (j : Fin 10) (hj : j.val ≠ pile.toNat) :
     (kingMove pile hpile suit hs4 ph p).pileDepth.get j = p.pileDepth.get j := by
   show (kingMove pile hpile suit hs4 ph p).pileDepth[j.val]'j.isLt = p.pileDepth[j.val]'j.isLt
@@ -93,7 +95,7 @@ theorem kingMove_pileDepth_eq_of_ne (pile : UInt32) (hpile : pile.toNat < 10)
 
 /-- `kingMove` literally leaves `pileFlute[j]` unchanged at every `j ≠ pile`. -/
 theorem kingMove_pileFlute_eq_of_ne (pile : UInt32) (hpile : pile.toNat < 10)
-    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : SolverPosType)
+    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : PosType)
     (j : Fin 10) (hj : j.val ≠ pile.toNat) :
     (kingMove pile hpile suit hs4 ph p).pileFlute.get j = p.pileFlute.get j := by
   show (kingMove pile hpile suit hs4 ph p).pileFlute[j.val]'j.isLt = p.pileFlute[j.val]'j.isLt
@@ -102,7 +104,7 @@ theorem kingMove_pileFlute_eq_of_ne (pile : UInt32) (hpile : pile.toNat < 10)
 
 /-- `kingMove` unconditionally sets `pileDepth[pile] := 0`. -/
 theorem kingMove_pileDepth_self (pile : UInt32) (hpile : pile.toNat < 10)
-    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : SolverPosType) :
+    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : PosType) :
     (kingMove pile hpile suit hs4 ph p).pileDepth.get (⟨pile.toNat, hpile⟩ : Fin 10) = 0 := by
   show (kingMove pile hpile suit hs4 ph p).pileDepth[pile.toNat]'hpile = 0
   simp only [kingMove]
@@ -110,7 +112,7 @@ theorem kingMove_pileDepth_self (pile : UInt32) (hpile : pile.toNat < 10)
 
 /-- `kingMove` unconditionally sets `pileFlute[pile] := 1`. -/
 theorem kingMove_pileFlute_self (pile : UInt32) (hpile : pile.toNat < 10)
-    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : SolverPosType) :
+    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : PosType) :
     (kingMove pile hpile suit hs4 ph p).pileFlute.get (⟨pile.toNat, hpile⟩ : Fin 10) = 1 := by
   show (kingMove pile hpile suit hs4 ph p).pileFlute[pile.toNat]'hpile = 1
   simp only [kingMove]
@@ -121,7 +123,7 @@ theorem kingMove_pileFlute_self (pile : UInt32) (hpile : pile.toNat < 10)
     The direct `kingMove` counterpart of `preCleanupPile_pileDepth_le`, needed
     for the same `isFreeCard_mono` transfer argument. -/
 theorem kingMove_pileDepth_le (pile : UInt32) (hpile : pile.toNat < 10)
-    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : SolverPosType)
+    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : PosType)
     (i : Fin 10) :
     ((kingMove pile hpile suit hs4 ph p).pileDepth.get i).toNat ≤
       (p.pileDepth.get i).toNat := by
@@ -143,7 +145,7 @@ theorem kingMove_pileDepth_le (pile : UInt32) (hpile : pile.toNat < 10)
     the usual `cardDepth`-vs-`pileDepth` bridge. -/
 private theorem kingMove_not_free_of_ne (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g) (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32)
-    (p : SolverPosType) (hd1 : (p.pileDepth[pile.toNat]'hpile) = 1)
+    (p : PosType) (hd1 : (p.pileDepth[pile.toNat]'hpile) = 1)
     (K : UInt8) (hKdef : K = (g.pos2card[pile.toNat]'hpile)[0]'(by omega))
     (C : UInt8) (hCreal : IsRealCard C) (hne : C ≠ K) (hnfree : ¬ isFreeCard g p C) :
     ¬ isFreeCard g (kingMove pile hpile suit hs4 ph p) C := by
@@ -193,7 +195,7 @@ private theorem kingMove_not_free_of_ne (g : Globals) (pile : UInt32) (hpile : p
     free before stays free); `flute_not_aces` doesn't even mention freeness
     (`aces` is untouched by `kingMove_aces_eq`), so it transfers verbatim. -/
 theorem kingMove_pileBase_ne (pile : UInt32) (g : Globals) (hpile : pile.toNat < 10)
-    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : SolverPosType)
+    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : PosType)
     (j : Fin 10) (hj : j.val ≠ pile.toNat) (hb : PileBase g p j) :
     PileBase g (kingMove pile hpile suit hs4 ph p) j := by
   have hdeq := kingMove_pileDepth_eq_of_ne pile hpile suit hs4 ph p j hj
@@ -269,7 +271,7 @@ theorem kingMove_pileBase_ne (pile : UInt32) (g : Globals) (hpile : pile.toNat <
     to rule out a whole absorbed *range* rather than a single card). -/
 theorem kingMove_pileMerged_ne (pile : UInt32) (g : Globals) (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)
-    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : SolverPosType)
+    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : PosType)
     (hd1 : (p.pileDepth[pile.toNat]'hpile) = 1)
     (K : UInt8) (hKdef : K = (g.pos2card[pile.toNat]'hpile)[0]'(by omega))
     (hVK13 : (VALUE K).toNat = 13)
@@ -456,7 +458,7 @@ set_option maxHeartbeats 1000000 in
     rather than a strict inequality). -/
 theorem kingMove_suitClean (pile : UInt32) (g : Globals) (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g)
-    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : SolverPosType)
+    (suit : UInt8) (hs4 : suit.toUInt32.toNat < 4) (ph : UInt32) (p : PosType)
     (hpdb : ∀ i : Fin 10, (p.pileDepth.get i).toNat ≤ 5)
     (hd1 : (p.pileDepth[pile.toNat]'hpile) = 1)
     (K : UInt8) (hKdef : K = (g.pos2card[pile.toNat]'hpile)[0]'(by omega))

@@ -5,6 +5,7 @@ import Seahaven.UInt8Lemmas
 import Seahaven.CountProofs
 
 open Rules
+open Solver
 -- CountProofs exports @[simp] lemmas for `update` that interfere with proofs here.
 attribute [-simp] update_same update_diff update2
 
@@ -162,15 +163,15 @@ contradictions.  Concretely:
 -/
 
 /-- Convenience accessor: the card at position (pile, depth) in the layout. -/
-def Globals.pos2cardAt (g : Globals) (p : Fin 10) (d : Fin 5) : UInt8 :=
+def Solver.Globals.pos2cardAt (g : Globals) (p : Fin 10) (d : Fin 5) : UInt8 :=
   (g.pos2card.get p).get d
 
 /-- Convenience accessor: the original pile of a card code (within the 64-entry array). -/
-def Globals.pileOf (g : Globals) (code : UInt8) (h : code.toNat < 64) : UInt8 :=
+def Solver.Globals.pileOf (g : Globals) (code : UInt8) (h : code.toNat < 64) : UInt8 :=
   g.card2pile.get ⟨code.toNat, h⟩
 
 /-- Convenience accessor: the original depth of a card code. -/
-def Globals.depthOf (g : Globals) (code : UInt8) (h : code.toNat < 64) : UInt8 :=
+def Solver.Globals.depthOf (g : Globals) (code : UInt8) (h : code.toNat < 64) : UInt8 :=
   g.card2depth.get ⟨code.toNat, h⟩
 
 -- ============================================================

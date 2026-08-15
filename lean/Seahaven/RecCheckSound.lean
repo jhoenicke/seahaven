@@ -1,9 +1,10 @@
 import Seahaven.RecLoopSound
 
 open Rules
+open Solver
 
 /-!
-# Soundness of `solverRecCheckSolvable` itself
+# Soundness of `recCheckSolvable` itself
 
 `RecLoopSound` handles the pile loop; this file handles the function around it —
 the `hash == 0` leaf, the memo read and write, and the recursion.
@@ -20,7 +21,7 @@ statements with `SoundBits` in place of `SolvableBits`: `HashmapSound`,
 
 ## The recursion
 
-`solverRecCheckSolvable` is defined by `partial_fixpoint`, so `recCheck_eq` unfolds
+`recCheckSolvable` is defined by `partial_fixpoint`, so `recCheck_eq` unfolds
 it one level.  The recursion is then discharged the way the `busyAces` drain loop is
 (`SolverSpec.drainBody_run`): the *theorem* carries a `Nat` bounding `DepthSum game`
 and inducts on it, instantiated at `DepthSum game + 1`.  The measure decrease is
@@ -48,7 +49,7 @@ is not merely solvable — it is already solved. -/
 
 /-- With every pile at depth `0`, every card is free: `isFreeCard` compares the
 card's original depth against its pile's current depth, and the latter is `0`. -/
-theorem isFreeCard_of_depths_zero {g : Globals} {p : SolverPosType}
+theorem isFreeCard_of_depths_zero {g : Globals} {p : PosType}
     (hd : ∀ i : Fin 10, p.pileDepth.get i = 0) (c : UInt8) : isFreeCard g p c := by
   unfold isFreeCard
   simp only []
@@ -62,7 +63,7 @@ theorem isFreeCard_of_depths_zero {g : Globals} {p : SolverPosType}
 `Σ 6^i · pileDepth[i]` with digits `≤ 5` and no `UInt32` wraparound
 (`6^10 - 1 < 2^32`), so it vanishes only at the all-zero digit vector.  Same
 arithmetic core as `IsCanonicalPos_hash_inj`, instantiated against zero. -/
-theorem pileDepth_eq_zero_of_hash_zero {g : Globals} {p : SolverPosType}
+theorem pileDepth_eq_zero_of_hash_zero {g : Globals} {p : PosType}
     (h : SolverInvBase g p) (hz : p.hash = 0) (i : Fin 10) : p.pileDepth.get i = 0 := by
   have hfoldl :
       (List.finRange 10).foldl
@@ -93,7 +94,7 @@ theorem pileDepth_eq_zero_of_hash_zero {g : Globals} {p : SolverPosType}
 `foundation_maximal_weak`'s drain-pending disjunct and every card is free
 (`isFreeCard_of_depths_zero`), so its "next card not free" disjunct is impossible
 too. -/
-theorem aces_king_of_hash_zero {g : Globals} {p : SolverPosType}
+theorem aces_king_of_hash_zero {g : Globals} {p : PosType}
     (h : IsCanonicalPos g p) (hz : p.hash = 0) (s : Fin 4) :
     (VALUE (p.aces.get s)).toNat = 13 := by
   have hd := pileDepth_eq_zero_of_hash_zero h.toSolverInvBase hz
@@ -105,7 +106,7 @@ theorem aces_king_of_hash_zero {g : Globals} {p : SolverPosType}
 
 /-- **The leaf is solved, not merely solvable.**  Every matching state has all four
 foundations at the king, which is `isGoal`. -/
-theorem solvable_of_hash_zero {g : Globals} {s : State} {p : SolverPosType}
+theorem solvable_of_hash_zero {g : Globals} {s : State} {p : PosType}
     (hcan : IsCanonicalPos g p) (hm : StateMatchesSolverPos g s p) (hz : p.hash = 0) :
     Solvable s := by
   refine Solvable.done ?_
@@ -120,7 +121,7 @@ theorem solvable_of_hash_zero {g : Globals} {s : State} {p : SolverPosType}
 /-- The soundness half of the leaf's return value, `1`: every state the position
 stands for is solvable, whatever the configuration and whatever the expansion
 says. -/
-theorem soundBits_of_hash_zero {g : Globals} {p : SolverPosType}
+theorem soundBits_of_hash_zero {g : Globals} {p : PosType}
     (hcan : IsCanonicalPos g p) (hz : p.hash = 0) (v : UInt16) : SoundBits g p v :=
   fun _ _ hs _ => solvable_of_hash_zero hcan hs.toMatches hz
 
@@ -135,24 +136,24 @@ what is not automatic is the transport of the structures themselves, since
 applications of an indexed family to different terms.  Hence one two-line
 transport per layer of the tower. -/
 
-theorem PileBase.set_hashmap {g : Globals} {p : SolverPosType} {i : Fin 10}
+theorem PileBase.set_hashmap {g : Globals} {p : PosType} {i : Fin 10}
     (hm : Vector UInt16 BIG_HASH_SIZE) (h : PileBase g p i) :
     PileBase { g with hashmap := hm } p i := by
   cases h; constructor <;> assumption
 
-theorem PileMerged.set_hashmap {g : Globals} {p : SolverPosType} {i : Fin 10}
+theorem PileMerged.set_hashmap {g : Globals} {p : PosType} {i : Fin 10}
     {hb : (p.pileDepth.get i).toNat ≤ 5}
     (hm : Vector UInt16 BIG_HASH_SIZE) (h : PileMerged g p i hb) :
     PileMerged { g with hashmap := hm } p i hb := by
   cases h; constructor <;> assumption
 
-theorem SuitClean.set_hashmap {g : Globals} {p : SolverPosType} {s : Fin 4}
+theorem SuitClean.set_hashmap {g : Globals} {p : PosType} {s : Fin 4}
     {hb : ∀ i : Fin 10, (p.pileDepth.get i).toNat ≤ 5}
     (hm : Vector UInt16 BIG_HASH_SIZE) (h : SuitClean g p s hb) :
     SuitClean { g with hashmap := hm } p s hb := by
   cases h; constructor <;> assumption
 
-theorem SolverInvBase.set_hashmap {g : Globals} {p : SolverPosType}
+theorem SolverInvBase.set_hashmap {g : Globals} {p : PosType}
     (hm : Vector UInt16 BIG_HASH_SIZE) (h : SolverInvBase g p) :
     SolverInvBase { g with hashmap := hm } p where
   pileBase i := (h.pileBase i).set_hashmap hm
@@ -161,14 +162,14 @@ theorem SolverInvBase.set_hashmap {g : Globals} {p : SolverPosType}
   usedSpace_def := h.usedSpace_def
   busyAces_lt16 := h.busyAces_lt16
 
-theorem SolverInvMerged.set_hashmap {g : Globals} {p : SolverPosType}
+theorem SolverInvMerged.set_hashmap {g : Globals} {p : PosType}
     (hm : Vector UInt16 BIG_HASH_SIZE) (h : SolverInvMerged g p) :
     SolverInvMerged { g with hashmap := hm } p where
   toSolverInvBase := h.toSolverInvBase.set_hashmap hm
   pileMerged i := (h.pileMerged i).set_hashmap hm
   freePiles_def := h.freePiles_def
 
-theorem IsCanonicalPos.set_hashmap {g : Globals} {p : SolverPosType}
+theorem IsCanonicalPos.set_hashmap {g : Globals} {p : PosType}
     (hm : Vector UInt16 BIG_HASH_SIZE) (h : IsCanonicalPos g p) :
     IsCanonicalPos { g with hashmap := hm } p where
   toSolverInvMerged := h.toSolverInvMerged.set_hashmap hm
@@ -180,7 +181,7 @@ theorem WellFormedLayout.set_hashmap {g : Globals}
   cases h; constructor <;> assumption
 
 /-- `SoundBits` reads only the deal arrays, exactly as `SolvableBits` does. -/
-theorem SoundBits.set_hashmap {g : Globals} {p : SolverPosType} {v : UInt16}
+theorem SoundBits.set_hashmap {g : Globals} {p : PosType} {v : UInt16}
     (hm : Vector UInt16 BIG_HASH_SIZE) (h : SoundBits g p v) :
     SoundBits { g with hashmap := hm } p v :=
   fun s k hs => h s k ((StateMatchesKingConfig.hashmap_iff hm).1 hs)
@@ -188,7 +189,7 @@ theorem SoundBits.set_hashmap {g : Globals} {p : SolverPosType} {v : UInt16}
 /-- The reverse transport, for free: `{ { g with hashmap := hm } with hashmap := g.hashmap }`
 *is* `g` by structure eta. -/
 theorem IsCanonicalPos.of_set_hashmap {g : Globals} {hm : Vector UInt16 BIG_HASH_SIZE}
-    {p : SolverPosType} (h : IsCanonicalPos { g with hashmap := hm } p) : IsCanonicalPos g p :=
+    {p : PosType} (h : IsCanonicalPos { g with hashmap := hm } p) : IsCanonicalPos g p :=
   h.set_hashmap g.hashmap
 
 theorem WellFormedLayout.of_set_hashmap {g : Globals} {hm : Vector UInt16 BIG_HASH_SIZE}
@@ -196,7 +197,7 @@ theorem WellFormedLayout.of_set_hashmap {g : Globals} {hm : Vector UInt16 BIG_HA
   h.set_hashmap g.hashmap
 
 theorem SoundBits.of_set_hashmap {g : Globals} {hm : Vector UInt16 BIG_HASH_SIZE}
-    {p : SolverPosType} {v : UInt16} (h : SoundBits { g with hashmap := hm } p v) :
+    {p : PosType} {v : UInt16} (h : SoundBits { g with hashmap := hm } p v) :
     SoundBits g p v :=
   h.set_hashmap g.hashmap
 
@@ -218,7 +219,7 @@ for the unique canonical position with that hash.  `LocalMask` rides along becau
 consumers feed the stored value to `subsetTable`, which is only meaningful
 in-block, and `getSlot` by itself can return up to 7 bits. -/
 def HashmapSound (g : Globals) : Prop :=
-  ∀ (p : SolverPosType), IsCanonicalPos g p →
+  ∀ (p : PosType), IsCanonicalPos g p →
     ∀ v : UInt8, EStateM.run (getSlot p.hash) g = .ok v g →
       v = UInt8.ofNat FREESLOT ∨ (SoundBits g p v.toUInt16 ∧ LocalMask p v.toUInt16)
 
@@ -227,14 +228,14 @@ structure WFGlobals (g : Globals) : Prop where
   layout : WellFormedLayout g
   memo : HashmapSound g
 
-/-- **What `solverRecCheckSolvable` must satisfy, soundness half.**  The returned
+/-- **What `recCheckSolvable` must satisfy, soundness half.**  The returned
 mask is sound and in-block, the memo invariant is carried forward, and the only
 thing the call touched is the memo table — the frame every caller needs, and the
 strongest one available since `setSlot` is the function's only write. -/
 def RecCheckSolvableSound : Prop :=
-  ∀ (g g' : Globals) (p : SolverPosType) (v : UInt16),
+  ∀ (g g' : Globals) (p : PosType) (v : UInt16),
     WFGlobals g → IsCanonicalPos g p →
-    EStateM.run (solverRecCheckSolvable p) g = .ok v g' →
+    EStateM.run (recCheckSolvable p) g = .ok v g' →
     (SoundBits g p v ∧ LocalMask p v) ∧ HashmapSound g' ∧
       ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm }
 
@@ -259,7 +260,7 @@ private theorem dot_toUInt32_lt (d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 : Nat)
   rw [Nat.mod_eq_of_lt hlt]
   omega
 
-theorem hash_lt {g : Globals} {p : SolverPosType} (h : SolverInvBase g p) :
+theorem hash_lt {g : Globals} {p : PosType} (h : SolverInvBase g p) :
     p.hash.toNat < 60466176 := by
   have hfoldl := h.hash_def
   simp only [List.finRange, List.ofFn_succ, List.ofFn_zero, List.foldl_cons, List.foldl_nil,
@@ -515,7 +516,7 @@ theorem slotRead_write (g : Globals) (k₁ k₂ : UInt32) (v : UInt16)
 
 /-- Every block is at most 6 bits wide, so an in-block mask fits the memo table's
 7-bit payload. -/
-theorem localMask_lt_128 {p : SolverPosType} {v : UInt16} (h : LocalMask p v) : v.toNat < 128 := by
+theorem localMask_lt_128 {p : PosType} {v : UInt16} (h : LocalMask p v) : v.toNat < 128 := by
   have hnb : (closureInfoOf p).numBits.toNat ≤ 6 := by
     unfold closureInfoOf
     have : ∀ i : Fin 11, (closureInfos.get i).numBits.toNat ≤ 6 := by decide
@@ -530,7 +531,7 @@ theorem localMask_lt_128 {p : SolverPosType} {v : UInt16} (h : LocalMask p v) : 
 /-- **`setSlot` preserves `HashmapSound`.**  The written key's own slot now holds a
 sound mask; every other key either sees an untouched slot or has been evicted and
 reads `FREESLOT`. -/
-theorem hashmapSound_slotWrite {g : Globals} {p : SolverPosType} {v : UInt16}
+theorem hashmapSound_slotWrite {g : Globals} {p : PosType} {v : UInt16}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p) (hms : HashmapSound g)
     (hsound : SoundBits g p v) (hloc : LocalMask p v) :
     HashmapSound (slotWrite g p.hash v) := by
@@ -559,11 +560,11 @@ alone, so the three branches of `recCheck_eq` can be read off one at a time.
 The `_apply` spellings are the same facts with `EStateM.run` unfolded (it is
 definitionally application), which is the form the reduced goals present. -/
 
-theorem freePiles_index (p : SolverPosType) :
+theorem freePiles_index (p : PosType) :
     (p.freePiles.toInt32.toUInt32).toNat = p.freePiles.toNat := rfl
 
 set_option linter.unusedSimpArgs false in
-theorem closureInfos_getE_apply (g : Globals) (p : SolverPosType) (h : p.freePiles.toNat ≤ 10) :
+theorem closureInfos_getE_apply (g : Globals) (p : PosType) (h : p.freePiles.toNat ≤ 10) :
     (closureInfos.getE p.freePiles.toInt32.toUInt32 :
         EStateM Error Globals ClosureInfo) g = .ok (closureInfoOf p) g := by
   have hidx : (p.freePiles.toInt32.toUInt32).toNat < 11 := by rw [freePiles_index]; omega
@@ -583,16 +584,16 @@ theorem setSlot_apply (g : Globals) (key : UInt32) (v : UInt16) :
 
 set_option linter.unusedSimpArgs false in
 /-- **The `hash == 0` leaf returns `1` and touches nothing.** -/
-theorem recCheck_run_hash_zero (g : Globals) (p : SolverPosType) (hz : p.hash = 0) :
-    EStateM.run (solverRecCheckSolvable p) g = .ok 1 g := by
+theorem recCheck_run_hash_zero (g : Globals) (p : PosType) (hz : p.hash = 0) :
+    EStateM.run (recCheckSolvable p) g = .ok 1 g := by
   rw [recCheck_eq]
   simp only [EStateM.run, bind, EStateM.bind, pure, EStateM.pure, hz, BEq.rfl, if_pos]
 
 set_option linter.unusedSimpArgs false in
 /-- **A memo hit returns the cached value and touches nothing.** -/
-theorem recCheck_run_cached (g : Globals) (p : SolverPosType) (hfp : p.freePiles.toNat ≤ 10)
+theorem recCheck_run_cached (g : Globals) (p : PosType) (hfp : p.freePiles.toNat ≤ 10)
     (hz : p.hash ≠ 0) (hne : slotRead g p.hash ≠ UInt8.ofNat FREESLOT) :
-    EStateM.run (solverRecCheckSolvable p) g = .ok (slotRead g p.hash).toUInt16 g := by
+    EStateM.run (recCheckSolvable p) g = .ok (slotRead g p.hash).toUInt16 g := by
   -- `FREESLOT` is an abbrev, so `UInt8.ofNat FREESLOT` and the literal `255` are
   -- different terms; bridge by `rfl`.
   have hne' : ((slotRead g p.hash) != 255) = true := by
@@ -618,7 +619,7 @@ pile loop returns, this is the whole run — memo write included.  Stated forwar
 rather than by inverting the run, so it needs no separate "the prologue succeeds"
 argument: `EStateM` is deterministic, so the caller reads its own `v`/`g'` off
 this equation. -/
-theorem recCheck_run_loop (g gl : Globals) (p : SolverPosType) (ki : KingInfo)
+theorem recCheck_run_loop (g gl : Globals) (p : PosType) (ki : KingInfo)
     (comp : UInt8) (v : UInt16)
     (hfp : p.freePiles.toNat ≤ 10) (hz : p.hash ≠ 0)
     (hfree : slotRead g p.hash = UInt8.ofNat FREESLOT)
@@ -626,9 +627,9 @@ theorem recCheck_run_loop (g gl : Globals) (p : SolverPosType) (ki : KingInfo)
       (closureInfoOf p).numBits p) g = .ok ki g)
     (hcomp : EStateM.run (computeComponentKingBits p) g = .ok comp g)
     (hloop : forIn (List.range 10) (0 : UInt16)
-      (recBody solverRecCheckSolvable p (closureInfoOf p) ki comp.toUInt16
+      (recBody recCheckSolvable p (closureInfoOf p) ki comp.toUInt16
         (ki.possibleKings.get 0).toUInt16) g = .ok v gl) :
-    EStateM.run (solverRecCheckSolvable p) g = .ok v (slotWrite gl p.hash v) := by
+    EStateM.run (recCheckSolvable p) g = .ok v (slotWrite gl p.hash v) := by
   have hfree' : ((slotRead g p.hash) != 255) = false := by
     simp only [bne_eq_false_iff_eq]
     exact hfree.trans rfl
@@ -648,21 +649,21 @@ set_option linter.unusedSimpArgs false in
 run and the memo write.  (`EStateM` being deterministic, this is `recCheck_run_loop`
 run backwards; it is stated separately because the caller has the outer run, not the
 loop's.) -/
-theorem recCheck_run_loop_inv (g g' : Globals) (p : SolverPosType) (ki : KingInfo)
+theorem recCheck_run_loop_inv (g g' : Globals) (p : PosType) (ki : KingInfo)
     (comp : UInt8) (v : UInt16)
     (hfp : p.freePiles.toNat ≤ 10) (hz : p.hash ≠ 0)
     (hfree : slotRead g p.hash = UInt8.ofNat FREESLOT)
     (hki : EStateM.run (computeKingSpaces (closureInfoOf p).shiftValue
       (closureInfoOf p).numBits p) g = .ok ki g)
     (hcomp : EStateM.run (computeComponentKingBits p) g = .ok comp g)
-    (hrun : EStateM.run (solverRecCheckSolvable p) g = .ok v g') :
+    (hrun : EStateM.run (recCheckSolvable p) g = .ok v g') :
     ∃ gl : Globals,
       forIn (List.range 10) (0 : UInt16)
-        (recBody solverRecCheckSolvable p (closureInfoOf p) ki comp.toUInt16
+        (recBody recCheckSolvable p (closureInfoOf p) ki comp.toUInt16
           (ki.possibleKings.get 0).toUInt16) g = .ok v gl ∧
       g' = slotWrite gl p.hash v := by
   cases hl : forIn (List.range 10) (0 : UInt16)
-      (recBody solverRecCheckSolvable p (closureInfoOf p) ki comp.toUInt16
+      (recBody recCheckSolvable p (closureInfoOf p) ki comp.toUInt16
         (ki.possibleKings.get 0).toUInt16) g with
   | error e t =>
     -- an erroring loop makes the whole run error
@@ -693,7 +694,7 @@ Both are proved further down — `PrologueRuns` as `prologueRuns`, `RecBodyStep`
 `recBodyStep` — so nothing in this file is left open. -/
 
 /-- `computeKingSpaces` returns masks that fit the position's own block. -/
-def PossibleKingsLocal (p : SolverPosType) (ki : KingInfo) : Prop :=
+def PossibleKingsLocal (p : PosType) (ki : KingInfo) : Prop :=
   ∀ c : Fin 6, (ki.possibleKings.get c).toNat < 2 ^ (closureInfoOf p).numBits.toNat
 
 /-- **The prologue's two computations succeed without touching `Globals`.**  Both are
@@ -702,7 +703,7 @@ unchanged); the one real side condition is `-1 ≤ blockSpace`, i.e.
 `usedSpace ≥ kingRefund`.  **Discharged below** as `prologueRuns`, on the back of
 `kingRefund_le_usedSpace`. -/
 def PrologueRuns : Prop :=
-  ∀ (g : Globals) (p : SolverPosType), WellFormedLayout g → IsCanonicalPos g p →
+  ∀ (g : Globals) (p : PosType), WellFormedLayout g → IsCanonicalPos g p →
     (∃ ki : KingInfo, EStateM.run (computeKingSpaces (closureInfoOf p).shiftValue
         (closureInfoOf p).numBits p) g = .ok ki g ∧ PossibleKingsLocal p ki ∧
         KingInfoCorrect p ki) ∧
@@ -721,10 +722,10 @@ direction-specific. -/
 /-- What the recursive call is known to satisfy — the induction hypothesis, guarded
 by the measure `move_merged` makes drop.  `H` is the memo invariant the recursion
 carries; see the note above. -/
-def ChildSpec (H : Globals → Prop) (p : SolverPosType) : Prop :=
-  ∀ (child : SolverPosType) (g₁ g₂ : Globals) (w : UInt16),
+def ChildSpec (H : Globals → Prop) (p : PosType) : Prop :=
+  ∀ (child : PosType) (g₁ g₂ : Globals) (w : UInt16),
     SolverSpec.DepthSum child < SolverSpec.DepthSum p → WellFormedLayout g₁ → IsCanonicalPos g₁ child →
-    H g₁ → EStateM.run (solverRecCheckSolvable child) g₁ = .ok w g₂ →
+    H g₁ → EStateM.run (recCheckSolvable child) g₁ = .ok w g₂ →
     (SoundBits g₁ child w ∧ LocalMask child w) ∧ H g₂ ∧
       ∃ hm : Vector UInt16 BIG_HASH_SIZE, g₂ = { g₁ with hashmap := hm }
 
@@ -735,11 +736,11 @@ table, which is what lets the entry globals be recovered at the end.  Proved as
 `RecLoopSound` plus the `getDest_spec` → `MoveValid`/`DestValid` bridge that lets
 `move_merged` apply. -/
 def RecBodyStep (H : Globals → Prop) : Prop :=
-  ∀ (p : SolverPosType) (ki : KingInfo) (comp : UInt8) (allkings : UInt16)
+  ∀ (p : PosType) (ki : KingInfo) (comp : UInt8) (allkings : UInt16)
     (g₁ g₂ : Globals) (pile : Nat) (w : UInt16) (r : ForInStep UInt16),
     pile < 10 → WellFormedLayout g₁ → IsCanonicalPos g₁ p → H g₁ →
     PossibleKingsLocal p ki → ChildSpec H p →
-    recBody solverRecCheckSolvable p (closureInfoOf p) ki comp.toUInt16 allkings pile w g₁
+    recBody recCheckSolvable p (closureInfoOf p) ki comp.toUInt16 allkings pile w g₁
       = .ok r g₂ →
     Contributes p ki comp w g₁ r.value g₂ ∧ H g₂ ∧
       ∃ hm : Vector UInt16 BIG_HASH_SIZE, g₂ = { g₁ with hashmap := hm }
@@ -752,13 +753,13 @@ the three travel together in one `forIn_inv`. -/
 
 theorem recLoop_all {H : Globals → Prop} (hSS : SubsetSound) (hMS : MoveSimulated)
     (hRB : RecBodyStep H)
-    {g : Globals} {p : SolverPosType} {ki : KingInfo} {comp : UInt8} {allkings : UInt16}
+    {g : Globals} {p : PosType} {ki : KingInfo} {comp : UInt8} {allkings : UInt16}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p) (hms : H g)
     (hkiloc : PossibleKingsLocal p ki) (hkic : KingInfoCorrect p ki) (hchild : ChildSpec H p)
     (hcomprun : EStateM.run (computeComponentKingBits p) g = .ok comp g)
     {v : UInt16} {gl : Globals}
     (hloop : forIn (List.range 10) (0 : UInt16)
-      (recBody solverRecCheckSolvable p (closureInfoOf p) ki comp.toUInt16 allkings) g
+      (recBody recCheckSolvable p (closureInfoOf p) ki comp.toUInt16 allkings) g
       = .ok v gl) :
     SoundBits gl p v ∧ LocalMask p v ∧ H gl ∧
       ∃ hm : Vector UInt16 BIG_HASH_SIZE, gl = { g with hashmap := hm } := by
@@ -766,7 +767,7 @@ theorem recLoop_all {H : Globals → Prop} (hSS : SubsetSound) (hMS : MoveSimula
   have key := forIn_inv
     (fun (w : UInt16) (g₁ : Globals) => LoopInv p comp w g₁ ∧ H g₁ ∧
       ∃ hm : Vector UInt16 BIG_HASH_SIZE, g₁ = { g with hashmap := hm })
-    (recBody solverRecCheckSolvable p (closureInfoOf p) ki comp.toUInt16 allkings)
+    (recBody recCheckSolvable p (closureInfoOf p) ki comp.toUInt16 allkings)
     (List.range 10)
     (fun a ha b g₁ r g₂ hP hbody => by
       obtain ⟨hinv, hms₁, hm₁, rfl⟩ := hP
@@ -777,10 +778,10 @@ theorem recLoop_all {H : Globals → Prop} (hSS : SubsetSound) (hMS : MoveSimula
     0 g v gl ⟨LoopInv.zero hwf hcan hcomprun, hms, g.hashmap, rfl⟩ hloop
   exact ⟨key.1.sound, key.1.isLocal, key.2.1, key.2.2⟩
 
-/-! ## Soundness of `solverRecCheckSolvable` -/
+/-! ## Soundness of `recCheckSolvable` -/
 
 /-- Every block is at least one bit wide, so the leaf's `1` is in-block. -/
-theorem localMask_one (p : SolverPosType) : LocalMask p 1 := by
+theorem localMask_one (p : PosType) : LocalMask p 1 := by
   have hnb : 1 ≤ (closureInfoOf p).numBits.toNat := by
     unfold closureInfoOf
     have h : ∀ f : Fin 11, 1 ≤ (closureInfos.get f).numBits.toNat := by decide
@@ -790,7 +791,7 @@ theorem localMask_one (p : SolverPosType) : LocalMask p 1 := by
   calc 1 < 2 ^ 1 := by norm_num
     _ ≤ 2 ^ (closureInfoOf p).numBits.toNat := Nat.pow_le_pow_right (by omega) hnb
 
-/-- **`solverRecCheckSolvable` is sound**, modulo the two obligations above (both
+/-- **`recCheckSolvable` is sound**, modulo the two obligations above (both
 discharged below) and the two semantic ones (`SubsetSound`, `MoveSimulated`).
 
 The recursion is the `busyAces`-drain recipe: a `Nat` bounding `DepthSum p` in the
@@ -799,9 +800,9 @@ branches are the `hash == 0` leaf, the memo hit, and the pile loop followed by t
 memo write. -/
 theorem recCheck_sound (hSS : SubsetSound) (hMS : MoveSimulated)
     (hPro : PrologueRuns) (hRB : RecBodyStep HashmapSound) : RecCheckSolvableSound := by
-  suffices H : ∀ n : Nat, ∀ (g g' : Globals) (p : SolverPosType) (v : UInt16),
+  suffices H : ∀ n : Nat, ∀ (g g' : Globals) (p : PosType) (v : UInt16),
       SolverSpec.DepthSum p < n → WFGlobals g → IsCanonicalPos g p →
-      EStateM.run (solverRecCheckSolvable p) g = .ok v g' →
+      EStateM.run (recCheckSolvable p) g = .ok v g' →
       (SoundBits g p v ∧ LocalMask p v) ∧ HashmapSound g' ∧
         ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm } by
     intro g g' p v hwfg hcan hrun
@@ -851,7 +852,7 @@ on king piles, which is exactly what `usedSpace` counts. -/
 
 /-- The counting bound in `Finset` form: `Finset.equivFin` supplies the injective
 `Fin _`-family `usedSpace_ge_of_free_above` wants, and duplicate-freeness is free. -/
-theorem usedSpace_ge_of_finset {g : Globals} {p : SolverPosType}
+theorem usedSpace_ge_of_finset {g : Globals} {p : PosType}
     (hwf : WellFormedLayout g) (h : SolverInvBase g p) (S : Finset UInt8)
     (hreal : ∀ c ∈ S, IsRealCard c)
     (hfree : ∀ c ∈ S, isFreeCard g p c)
@@ -877,16 +878,16 @@ private theorem add_ofNat_toNat (x : UInt8) (n : Nat) (h : x.toNat + n < 256) :
   omega
 
 /-- The freed king run of suit `su`: every card above `kings[su]`. -/
-def kingRunSet (p : SolverPosType) (su : Suit) : Finset UInt8 :=
+def kingRunSet (p : PosType) (su : Suit) : Finset UInt8 :=
   (Finset.range (13 - (VALUE (p.kings.get (finOfSuit su))).toNat)).image
     (fun i => p.kings.get (finOfSuit su) + UInt8.ofNat (i + 1))
 
 /-- The runs of all the suits a configuration puts on piles — the cards it refunds. -/
-def kingRunsSet (p : SolverPosType) (k : Fin 16) : Finset UInt8 :=
+def kingRunsSet (p : PosType) (k : Fin 16) : Finset UInt8 :=
   (piledSet k).biUnion (kingRunSet p)
 
 /-- Members of `kingRunSet` in closed form. -/
-theorem mem_kingRunSet {p : SolverPosType} {su : Suit} {c : UInt8} :
+theorem mem_kingRunSet {p : PosType} {su : Suit} {c : UInt8} :
     c ∈ kingRunSet p su ↔ ∃ i : Nat, i < 13 - (VALUE (p.kings.get (finOfSuit su))).toNat ∧
       c = p.kings.get (finOfSuit su) + UInt8.ofNat (i + 1) := by
   simp only [kingRunSet, Finset.mem_image, Finset.mem_range]
@@ -896,7 +897,7 @@ theorem mem_kingRunSet {p : SolverPosType} {su : Suit} {c : UInt8} :
 
 /-- The suit's own card codes: `kings[su] + j` for `j ≤ 13 - VALUE kings[su]` never
 carries out of the value nibble. -/
-theorem kings_toNat_bound {g : Globals} {p : SolverPosType} (h : SolverInvBase g p) (su : Fin 4) :
+theorem kings_toNat_bound {g : Globals} {p : PosType} (h : SolverInvBase g p) (su : Fin 4) :
     (p.kings.get su).toNat = su.val * 16 + (VALUE (p.kings.get su)).toNat
       ∧ (VALUE (p.kings.get su)).toNat ≤ 13 := by
   obtain ⟨-, -, hs, hv, -⟩ := h.aces_kings_valid su
@@ -910,7 +911,7 @@ theorem kings_toNat_bound {g : Globals} {p : SolverPosType} (h : SolverInvBase g
   omega
 
 /-- Each run has exactly the length the refund charges. -/
-theorem card_kingRunSet {g : Globals} {p : SolverPosType} (h : SolverInvBase g p) (su : Suit) :
+theorem card_kingRunSet {g : Globals} {p : PosType} (h : SolverInvBase g p) (su : Suit) :
     (kingRunSet p su).card = 13 - (VALUE (p.kings.get (finOfSuit su))).toNat := by
   obtain ⟨hk, hv⟩ := kings_toNat_bound h (finOfSuit su)
   have hsu4 := (finOfSuit su).isLt
@@ -926,7 +927,7 @@ theorem card_kingRunSet {g : Globals} {p : SolverPosType} (h : SolverInvBase g p
   omega
 
 /-- Everything the counting argument needs about a run member, in `Nat` form. -/
-theorem kingRunSet_spec {g : Globals} {p : SolverPosType} (h : SolverInvBase g p)
+theorem kingRunSet_spec {g : Globals} {p : PosType} (h : SolverInvBase g p)
     {su : Suit} {c : UInt8} (hc : c ∈ kingRunSet p su) :
     (SUIT c).toNat = (finOfSuit su).val
     ∧ (VALUE (p.kings.get (finOfSuit su))).toNat < (VALUE c).toNat
@@ -941,7 +942,7 @@ theorem kingRunSet_spec {g : Globals} {p : SolverPosType} (h : SolverInvBase g p
   refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> omega
 
 /-- Runs of different suits are disjoint — they differ in `SUIT`. -/
-theorem kingRunSet_disjoint {g : Globals} {p : SolverPosType} (h : SolverInvBase g p)
+theorem kingRunSet_disjoint {g : Globals} {p : PosType} (h : SolverInvBase g p)
     {su su' : Suit} (hne : su ≠ su') : Disjoint (kingRunSet p su) (kingRunSet p su') := by
   rw [Finset.disjoint_left]
   intro c hc hc'
@@ -950,7 +951,7 @@ theorem kingRunSet_disjoint {g : Globals} {p : SolverPosType} (h : SolverInvBase
   have : (finOfSuit su).val = (finOfSuit su').val := by omega
   exact hne (by revert this; cases su <;> cases su' <;> simp [finOfSuit])
 
-theorem card_kingRunsSet {g : Globals} {p : SolverPosType} (h : SolverInvBase g p) (k : Fin 16) :
+theorem card_kingRunsSet {g : Globals} {p : PosType} (h : SolverInvBase g p) (k : Fin 16) :
     (kingRunsSet p k).card
       = ∑ su ∈ piledSet k, (13 - (VALUE (p.kings.get (finOfSuit su))).toNat) := by
   rw [kingRunsSet, Finset.card_biUnion (fun su _ su' _ hne => kingRunSet_disjoint h hne)]
@@ -961,7 +962,7 @@ freed king runs of the piled suits: free (`king_frontier`), pairwise distinct,
 strictly above their foundations, and never inside a flute — a flute card of the same
 suit would force that pile's boundary to lie in the run too, hence to be free, which
 `boundary_not_free` forbids. -/
-theorem kingRefund_le_usedSpace {g : Globals} {p : SolverPosType}
+theorem kingRefund_le_usedSpace {g : Globals} {p : PosType}
     (hwf : WellFormedLayout g) (h : SolverInvBase g p) (k : Fin 16) :
     kingRefund p k ≤ p.usedSpace.toInt := by
   have hcard := usedSpace_ge_of_finset hwf h (kingRunsSet p k) ?_ ?_ ?_ ?_
@@ -1034,7 +1035,7 @@ With `usedSpace ≥ kingRefund` in hand, `outerLoop_ok`'s last side condition
 succeed; neither writes the state. -/
 
 set_option linter.unusedSimpArgs false in
-theorem kingSpaces_run_exists_local {g : Globals} {p : SolverPosType}
+theorem kingSpaces_run_exists_local {g : Globals} {p : PosType}
     (hwf : WellFormedLayout g) (h : SolverInvBase g p) :
     ∃ ki : KingInfo, EStateM.run (computeKingSpaces (closureInfoOf p).shiftValue
       (closureInfoOf p).numBits p) g = .ok ki g ∧ PossibleKingsLocal p ki := by
@@ -1078,7 +1079,7 @@ theorem kingSpaces_run_exists_local {g : Globals} {p : SolverPosType}
           _ = 2 ^ 8 := by norm_num
           _ ≤ 2 ^ i := Nat.pow_le_pow_right (by omega) (by omega))
 
-theorem localMask_of_possibleKings {p : SolverPosType} {ki : KingInfo}
+theorem localMask_of_possibleKings {p : PosType} {ki : KingInfo}
     (hloc : PossibleKingsLocal p ki) (c : Fin 6) :
     LocalMask p (ki.possibleKings.get c).toUInt16 := by
   show ((ki.possibleKings.get c).toUInt16).toNat < _
@@ -1086,7 +1087,7 @@ theorem localMask_of_possibleKings {p : SolverPosType} {ki : KingInfo}
   exact hloc c
 
 set_option linter.unusedSimpArgs false in
-theorem component_run_exists {g : Globals} {p : SolverPosType} (h : SolverInvMerged g p) :
+theorem component_run_exists {g : Globals} {p : PosType} (h : SolverInvMerged g p) :
     ∃ comp : UInt8, EStateM.run (computeComponentKingBits p) g = .ok comp g := by
   have hfpb := freePiles_bound h
   have hfpn : p.freePiles.toInt = (p.freePiles.toNat : Int) := rfl
@@ -1176,14 +1177,14 @@ theorem prologueRuns : PrologueRuns := fun g p hwf hcan => by
   exact ⟨⟨ki, hki, hkiloc, (kingSpaces_spec g p ki hcan.toSolverInvBase hki).1⟩,
     component_run_exists hcan.toSolverInvMerged⟩
 
-/-- **Soundness of `solverRecCheckSolvable`, with the prologue discharged.**  The
+/-- **Soundness of `recCheckSolvable`, with the prologue discharged.**  The
 body step is discharged too, at the end of this file; `recCheck_sound_of_semantics`
 is the version with both in place. -/
 theorem recCheck_sound_of_body (hSS : SubsetSound) (hMS : MoveSimulated)
     (hRB : RecBodyStep HashmapSound) : RecCheckSolvableSound :=
   recCheck_sound hSS hMS prologueRuns hRB
 
-/-! ## From `solverGetDestination` to `move_merged`'s preconditions
+/-! ## From `getDestination` to `move_merged`'s preconditions
 
 `getDest_spec` says what the destination walk returns; `move_merged` wants that
 repackaged as `MoveValid`/`DestValid`.  The only non-bookkeeping step is the
@@ -1193,7 +1194,7 @@ boundary then `pftVal` would have been `1` and the walk would have named that
 pile. -/
 
 /-- A card is some pile's current boundary exactly when its `pftVal` is `1`. -/
-theorem boundary_pftVal_one {g : Globals} {p : SolverPosType} (hwf : WellFormedLayout g)
+theorem boundary_pftVal_one {g : Globals} {p : PosType} (hwf : WellFormedLayout g)
     (h : SolverInvBase g p) (c : UInt8)
     (j : Fin 10) (hdj : 0 < (p.pileDepth.get j).toNat)
     (hb5 : (p.pileDepth.get j).toNat - 1 < 5)
@@ -1220,7 +1221,7 @@ theorem boundary_pftVal_one {g : Globals} {p : SolverPosType} (hwf : WellFormedL
 
 /-- Converse of `boundary_pftVal_one`: `pftVal = 1` puts the card at its pile's
 current boundary. -/
-theorem pftVal_one_depth {g : Globals} {p : SolverPosType} (c : UInt8)
+theorem pftVal_one_depth {g : Globals} {p : PosType} (c : UInt8)
     (hp10 : (cardPile g c).toNat < 10) (hcd : (cardDepth g c).toNat ≤ 5)
     (h1 : pftVal g p c = 1) :
     (cardDepth g c).toNat + 1 = (p.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toNat := by
@@ -1238,7 +1239,7 @@ theorem pftVal_one_depth {g : Globals} {p : SolverPosType} (c : UInt8)
 /-- `getDest_spec` restated in the `.toNat` spelling `move_merged` uses (the two are
 definitionally equal, but `omega` treats `x.toNat` and `x.toNat` as unrelated
 atoms — see the note in `lean-proof-gotchas`). -/
-theorem getDest_spec' {g : Globals} {p : SolverPosType} {pile : UInt32}
+theorem getDest_spec' {g : Globals} {p : PosType} {pile : UInt32}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p) (hp : pile.toNat < 10)
     (hd : 0 < (p.pileDepth.get ⟨pile.toNat, hp⟩).toNat)
     (hb5 : (p.pileDepth.get ⟨pile.toNat, hp⟩).toNat - 1 < 5) :
@@ -1246,24 +1247,24 @@ theorem getDest_spec' {g : Globals} {p : SolverPosType} {pile : UInt32}
       ⟨(p.pileDepth.get ⟨pile.toNat, hp⟩).toNat - 1, hb5⟩
     (B = (p.kings.get ⟨(SUIT B).toNat,
             (hwf.pos2card_real ⟨pile.toNat, hp⟩ ⟨_, hb5⟩).1⟩) ∧
-        solverGetDestination p pile g = .ok (10 + SUIT B) g)
+        getDestination p pile g = .ok (10 + SUIT B) g)
     ∨ (∃ n : Nat, 1 ≤ n ∧ (VALUE B).toNat + n ≤ 13 ∧
         (∀ j, 1 ≤ j → j < n → isFreeCard g p (B + UInt8.ofNat j)) ∧
         ¬ isFreeCard g p (B + UInt8.ofNat n) ∧
-        solverGetDestination p pile g
+        getDestination p pile g
           = .ok (if (pftVal g p (B + UInt8.ofNat n) == 1) = true
                  then cardPile g (B + UInt8.ofNat n) else 14) g) :=
   getDest_spec g p pile hwf hcan hp hd
 
 set_option maxHeartbeats 1000000 in
-/-- **`solverGetDestination` establishes `move_merged`'s destination
+/-- **`getDestination` establishes `move_merged`'s destination
 preconditions.** -/
-theorem destValid_of_getDest {g : Globals} {p : SolverPosType} (hwf : WellFormedLayout g)
+theorem destValid_of_getDest {g : Globals} {p : PosType} (hwf : WellFormedLayout g)
     (hcan : IsCanonicalPos g p) {pile : UInt32} (hp : pile.toNat < 10)
     (hd : 0 < (p.pileDepth.get ⟨pile.toNat, hp⟩).toNat)
     (hb5 : (p.pileDepth.get ⟨pile.toNat, hp⟩).toNat - 1 < 5)
     {toPile : UInt8}
-    (hrun : EStateM.run (solverGetDestination p pile) g = .ok toPile g) :
+    (hrun : EStateM.run (getDestination p pile) g = .ok toPile g) :
     SolverSpec.MoveValid g p pile toPile ∧
       SolverSpec.DestValid g p ((g.pos2card.get ⟨pile.toNat, hp⟩).get
         ⟨(p.pileDepth.get ⟨pile.toNat, hp⟩).toNat - 1, hb5⟩) toPile := by
@@ -1330,19 +1331,19 @@ theorem destValid_of_getDest {g : Globals} {p : SolverPosType} (hwf : WellFormed
         rw [beq_iff_eq]
         exact boundary_pftVal_one hwf hbase _ j hdj hidx heq)
 
-/-! ## `solverGetMovable`: the run and its locality
+/-! ## `getMovable`: the run and its locality
 
-`Contributes` wants the mask `solverGetMovable` returned *and* `LocalMask p` for it.
+`Contributes` wants the mask `getMovable` returned *and* `LocalMask p` for it.
 Locality is not part of `KingSpacesSpec` (whose bit characterization is stated only
 below `numBits`), but `outerLoop_ok` gives it: the loop only ever sets bits in
 `List.range numBits`. -/
 
 set_option linter.unusedSimpArgs false in
-/-- **`solverGetMovable`'s run, with locality.**  `fluteLen ≥ 1` (from `flute_pos`) is
+/-- **`getMovable`'s run, with locality.**  `fluteLen ≥ 1` (from `flute_pos`) is
 what keeps the `fluteLen - 1` index inside `possibleKings`. -/
-theorem getMovable_run {g : Globals} {p : SolverPosType} (ki : KingInfo)
+theorem getMovable_run {g : Globals} {p : PosType} (ki : KingInfo)
     (fluteLen toPile : UInt8) (h1 : 1 ≤ fluteLen.toNat) (hloc : PossibleKingsLocal p ki) :
-    ∃ mv : UInt16, EStateM.run (solverGetMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
+    ∃ mv : UInt16, EStateM.run (getMovable ki (closureInfoOf p).shiftValue fluteLen toPile) g
       = .ok mv g ∧ LocalMask p mv := by
   have hzero : LocalMask p 0 := by
     show (0 : UInt16).toNat < _
@@ -1350,7 +1351,7 @@ theorem getMovable_run {g : Globals} {p : SolverPosType} (ki : KingInfo)
     exact Nat.two_pow_pos _
   by_cases hfl : (5 : UInt8) < fluteLen
   · refine ⟨0, ?_, hzero⟩
-    simp only [EStateM.run, solverGetMovable, bind, EStateM.bind, pure, EStateM.pure,
+    simp only [EStateM.run, getMovable, bind, EStateM.bind, pure, EStateM.pure,
       show ((5 : UInt8) < fluteLen) = true from by simpa using hfl, reduceIte]
   · -- `fluteLen ≤ 5`, so both `possibleKings` indices are in range
     have hfl5 : fluteLen.toNat ≤ 5 := by
@@ -1368,7 +1369,7 @@ theorem getMovable_run {g : Globals} {p : SolverPosType} (ki : KingInfo)
     by_cases htp10 : toPile < 10
     · refine ⟨(ki.possibleKings.get ⟨_, hi1⟩).toUInt16, ?_,
         localMask_of_possibleKings hloc ⟨_, hi1⟩⟩
-      simp only [EStateM.run, solverGetMovable, bind, EStateM.bind, pure, EStateM.pure,
+      simp only [EStateM.run, getMovable, bind, EStateM.bind, pure, EStateM.pure,
         hg1, Bool.false_eq_true, reduceIte, Vector.getE, getElem?_pos, hi1,
         show (toPile < 10) = true from by simpa using htp10]
       rfl
@@ -1391,7 +1392,7 @@ theorem getMovable_run {g : Globals} {p : SolverPosType} (ki : KingInfo)
         refine ⟨(ki.possibleKings.get ⟨_, hi0⟩).toUInt16 |||
             ((ki.possibleKings.get ⟨_, hi1⟩).toUInt16 &&&
               ((kingOnPileMap.get ⟨_, hk4⟩) >>> (closureInfoOf p).shiftValue.toUInt16)), ?_, ?_⟩
-        · simp only [EStateM.run, solverGetMovable, bind, EStateM.bind, pure, EStateM.pure,
+        · simp only [EStateM.run, getMovable, bind, EStateM.bind, pure, EStateM.pure,
             hg1, Bool.false_eq_true, reduceIte, Vector.getE, getElem?_pos, hi0, hi1, hk4,
             show (toPile < 10) = false from by simpa using htp10,
             show (toPile < 14) = true from by simpa using htp14]
@@ -1400,7 +1401,7 @@ theorem getMovable_run {g : Globals} {p : SolverPosType} (ki : KingInfo)
             (LocalMask.and_left _ (localMask_of_possibleKings hloc ⟨_, hi1⟩))
       · refine ⟨(ki.possibleKings.get ⟨_, hi0⟩).toUInt16, ?_,
           localMask_of_possibleKings hloc ⟨_, hi0⟩⟩
-        simp only [EStateM.run, solverGetMovable, bind, EStateM.bind, pure, EStateM.pure,
+        simp only [EStateM.run, getMovable, bind, EStateM.bind, pure, EStateM.pure,
           hg1, Bool.false_eq_true, reduceIte, Vector.getE, getElem?_pos, hi0,
           show (toPile < 10) = false from by simpa using htp10,
           show (toPile < 14) = false from by simpa using htp14]
@@ -1479,7 +1480,7 @@ theorem ofNat_pile_toNat {pile : Nat} (h : pile < 10) : (UInt32.ofNat pile).toNa
 
 /-- The per-configuration loop threads the state untouched and its result does not
 depend on it (`compBody_run` is an *explicit* run, uniform in the state). -/
-theorem compLoop_indep (info : ClosureInfo) (game : SolverPosType) :
+theorem compLoop_indep (info : ClosureInfo) (game : PosType) :
     ∀ (l : List Nat) (r res : UInt16) (s t : Globals),
       (∀ i ∈ l, cfgIdx info.shiftValue i < 16) →
       forIn l r (compBody info game) s = .ok res s →
@@ -1501,7 +1502,7 @@ theorem compLoop_indep (info : ClosureInfo) (game : SolverPosType) :
 /-- **`computeComponentKingBits` is state-independent**: it reads only `game` and the
 static tables, so its run transports to any other `Globals`.  This is the clause of
 `LoopFrame` the recursive call's memo write has to survive. -/
-theorem component_indep {p : SolverPosType} {comp : UInt8} {s t : Globals}
+theorem component_indep {p : PosType} {comp : UInt8} {s t : Globals}
     (h : EStateM.run (computeComponentKingBits p) s = .ok comp s) :
     EStateM.run (computeComponentKingBits p) t = .ok comp t := by
   rw [EStateM.run, component_eq_explicit, componentExplicit] at h ⊢
@@ -1560,7 +1561,7 @@ theorem recBodyStep (H : Globals → Prop) : RecBodyStep H := by
       have := hcan.toSolverInvBase.pileDepth_bound ⟨(UInt32.ofNat pile).toNat, hidx⟩
       omega
     obtain ⟨toPile, hgd⟩ : ∃ tp : UInt8,
-        solverGetDestination p (UInt32.ofNat pile) g₁ = .ok tp g₁ := by
+        getDestination p (UInt32.ofNat pile) g₁ = .ok tp g₁ := by
       rcases getDest_spec' hwf hcan hidx hd hb5 with ⟨-, h⟩ | ⟨n, -, -, -, -, h⟩
       · exact ⟨_, h⟩
       · exact ⟨_, h⟩
@@ -1568,7 +1569,7 @@ theorem recBodyStep (H : Globals → Prop) : RecBodyStep H := by
     obtain ⟨mv, hmvrun, hmvloc⟩ := getMovable_run (g := g₁) ki
       (p.pileFlute.get ⟨(UInt32.ofNat pile).toNat, hidx⟩) toPile
       (hcan.toSolverInvBase.flute_pos ⟨(UInt32.ofNat pile).toNat, hidx⟩) hkiloc
-    have hmvapp : solverGetMovable ki (closureInfoOf p).shiftValue
+    have hmvapp : getMovable ki (closureInfoOf p).shiftValue
         (p.pileFlute.get ⟨(UInt32.ofNat pile).toNat, hidx⟩) toPile g₁ = .ok mv g₁ := hmvrun
     rw [bind_ok hmvapp] at hrun
     by_cases hnew : (mv &&& ~~~w != 0) = true
@@ -1587,7 +1588,7 @@ theorem recBodyStep (H : Globals → Prop) : RecBodyStep H := by
         omega
       rw [bind_ok (closureInfos_getE_apply g₁ p' hfp')] at hrun
       -- the recursive call
-      cases hcs : solverRecCheckSolvable p' g₁ with
+      cases hcs : recCheckSolvable p' g₁ with
       | error e s => rw [bind_error hcs] at hrun; exact absurd hrun (by simp)
       | ok cs g₃ =>
         rw [bind_ok hcs] at hrun
@@ -1644,7 +1645,7 @@ theorem recBodyStep (H : Globals → Prop) : RecBodyStep H := by
       obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj hrun
       exact ⟨Or.inl ⟨rfl, rfl⟩, hms, g₁.hashmap, rfl⟩
 
-/-- **Soundness of `solverRecCheckSolvable`, with both syntactic obligations
+/-- **Soundness of `recCheckSolvable`, with both syntactic obligations
 discharged.**  What remains are only the two *semantic* hypotheses: `SubsetSound`
 (the `subsetTable` expansion really is reachable) and `MoveSimulated` (the solver's
 move simulates a real move). -/

@@ -8,8 +8,8 @@ open Rules
 
 The solver reasons about a *normalized* position: one in which no card can be
 advanced to its foundation and no card sitting in a cell can be dropped back
-onto a pile.  `SolverConvertFromPilesKings` performs exactly this normalization
-internally, so before any statement relating a `State` to a `SolverPosType` can
+onto a pile.  `convertFromPilesKings` performs exactly this normalization
+internally, so before any statement relating a `State` to a `PosType` can
 be proved, the `State` side needs the same notion.
 
 This file defines the normalizing steps (`NormStep` = foundation move or

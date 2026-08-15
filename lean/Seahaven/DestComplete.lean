@@ -1,11 +1,12 @@
 import Seahaven.CriticalMove
 
 open Rules
+open Solver
 
 /-!
 # The critical move's destination is forced
 
-The solver explores one destination per pile — `solverGetDestination`'s walk — while
+The solver explores one destination per pile — `getDestination`'s walk — while
 a winning play may send the boundary card anywhere the rules allow.  Completeness
 has to know the two agree.  They do, and the reason splits into three small facts,
 none of which needs the solver side:
@@ -140,7 +141,7 @@ theorem self_move_id {u v : State} {a : Fin 10}
 /-- **The critical move leaves its own pile.**  Its destination is neither the
 foundation (no foundation move is available, `no_fmStep_of_depthMatch`) nor the
 source column (that move changes nothing, `self_move_id`). -/
-theorem dest_ne_source {g : Globals} {t₀ t₁ : State} {p : SolverPosType} {m : Move}
+theorem dest_ne_source {g : Globals} {t₀ t₁ : State} {p : PosType} {m : Move}
     {a : Fin 10} (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : DepthMatchesV g t₀ (depthVec p hd6))
     (hbreak : ¬ DepthMatchesV g t₁ (depthVec p hd6))
@@ -215,7 +216,7 @@ If the play parks the boundary card, the cell it used was free *before* the move
 the critical state has at least one free cell.  Combined with
 `DepthPlusKingsCfg.flute_add_freeCells_le_freeCellsOf` this upgrades the
 affordability bound from `fluteLen - 1` to `fluteLen` — exactly the index
-`solverGetMovable` reads for an `EXTRA` (or cell-bound king) destination. -/
+`getMovable` reads for an `EXTRA` (or cell-bound king) destination. -/
 
 /-- A move into cell `j` needs `j` free in the source state (the take does not touch
 the cells). -/

@@ -2,9 +2,10 @@ import Seahaven.ConvertSound
 import Seahaven.SolverMoveSim
 
 open Rules
+open Solver
 
 /-!
-# `SolverConvertFromPilesKings` is simulated by legal `Rules` moves
+# `convertFromPilesKings` is simulated by legal `Rules` moves
 
 `ConvertSound` shows the call produces a canonical position.  This file adds the
 `Rules`-side half: if a concrete state `s` stands for the prologue's position
@@ -15,7 +16,7 @@ reach.
 
 The two ingredients are already available:
 
-* `SimulatesNorm.ofCleanupPile` — one `SolverCleanupPile` call, simulated;
+* `SimulatesNorm.ofCleanupPile` — one `cleanupPile` call, simulated;
 * `SimulatesNorm.drain` — the whole `busyAces` drain, simulated.
 
 `MoveAcesSim g s P k fk q` (`∃ w k' FK, Simulates g s P k w q k' FK fk`) is the
@@ -30,7 +31,7 @@ open Lean Lean.Order
 /-- A position whose pile `pile` already carries the default flute is its own
     flute normalization — so the cleanup's precondition can be read off
     `MergedUpTo`'s suffix clause directly. -/
-theorem fluteNorm_self (pile : UInt32) (hpile : pile.toNat < 10) (q : SolverPosType)
+theorem fluteNorm_self (pile : UInt32) (hpile : pile.toNat < 10) (q : PosType)
     (h : q.pileFlute.get ⟨pile.toNat, hpile⟩ = 1) : fluteNorm pile hpile q = q := by
   have hsf : q.pileFlute.set pile.toNat 1 hpile = q.pileFlute := by
     conv_lhs => rw [← h]
@@ -42,10 +43,10 @@ theorem fluteNorm_self (pile : UInt32) (hpile : pile.toNat < 10) (q : SolverPosT
     accumulated by `Simulates.trans` exactly as the loop accumulates
     `forcedKings := forcedKings &&& …`. -/
 theorem cvCleanupLoop_sim (g : Globals) (hwf : WellFormedLayout g)
-    (s : State) (P : SolverPosType) (k : Fin 16) :
-    ∀ (n j : Nat), j + n = 10 → ∀ (fk : UInt16) (q : SolverPosType),
+    (s : State) (P : PosType) (k : Fin 16) :
+    ∀ (n j : Nat), j + n = 10 → ∀ (fk : UInt16) (q : PosType),
       MergedUpTo g q j → MoveAcesSim g s P k fk q →
-      ∃ (fk' : UInt16) (q' : SolverPosType),
+      ∃ (fk' : UInt16) (q' : PosType),
         forIn (List.range' j n) fk cvCleanupBody (g, q) = .ok fk' (g, q') ∧
         MergedUpTo g q' 10 ∧ MoveAcesSim g s P k fk' q' := by
   intro n
@@ -82,16 +83,16 @@ theorem cvCleanupLoop_sim (g : Globals) (hwf : WellFormedLayout g)
     simp only [bind, EStateM.bind, cvCleanupBody_run j fk fk0 g q q1 hrun1]
     exact hrun'
 
-/-- **A whole `SolverConvertFromPilesKings` call is simulated.**  From a state
+/-- **A whole `convertFromPilesKings` call is simulated.**  From a state
     standing for the prologue's position, the cleanup loop and the foundation
     drain are realized by legal moves; the position they end at is canonical and
     is matched by the state they reach, at a configuration bounded by the vacated
     suits (which is what the returned `forcedKings` mask records). -/
 theorem convert_simulates (g : Globals) (hwf : WellFormedLayout g) (pk : Vector UInt8 11)
-    (hpk : ValidDepths pk) (p0 : SolverPosType) (s : State) (k : Fin 16)
+    (hpk : ValidDepths pk) (p0 : PosType) (s : State) (k : Fin 16)
     (hk : StateMatchesKingConfig g s (convertPre g pk) k) :
-    ∃ (fk : UInt16) (p' : SolverPosType) (s' : State) (k' : Fin 16) (FK : Finset Suit),
-      EStateM.run (_root_.SolverConvertFromPilesKings pk) (g, p0) = .ok fk (g, p') ∧
+    ∃ (fk : UInt16) (p' : PosType) (s' : State) (k' : Fin 16) (FK : Finset Suit),
+      EStateM.run (Solver.convertFromPilesKings pk) (g, p0) = .ok fk (g, p') ∧
       IsCanonicalPos g p' ∧
       SimulatesNorm g s (convertPre g pk) k s' p' k' FK fk := by
   have hcount : CvCountBound g pk := cvCountBound g hwf pk hpk
@@ -105,7 +106,7 @@ theorem convert_simulates (g : Globals) (hwf : WellFormedLayout g) (pk : Vector 
   obtain ⟨fk2, q2, hrun2, hcan, hP2⟩ := SimulatesNorm.drain hwf hmerged hP1
   obtain ⟨s', k', FK, hsim⟩ := hP2
   refine ⟨fk2, q2, s', k', FK, ?_, hcan, hsim⟩
-  show _root_.SolverConvertFromPilesKings pk (g, p0) = _
+  show Solver.convertFromPilesKings pk (g, p0) = _
   rw [convert_run_eq g hwf pk p0 hpk hcount]
   show (forIn (List.range 10) (0xffff : UInt16) cvCleanupBody >>= fun fk =>
       Loop.forIn Loop.mk fk drainBody >>= fun r => pure r) (g, convertPre g pk) = _

@@ -1,12 +1,13 @@
 import Seahaven.CPNormal
 
 open Rules
+open Solver
 
 /-!
 # Normalizing every pile but one
 
 The completeness step needs a state matching `SolverSpec.movePre` — the position the
-core flute move lands at, *before* `SolverCleanupPile` runs.  The play's own
+core flute move lands at, *before* `cleanupPile` runs.  The play's own
 post-critical-move state `t₁` is short of that only in having flute cards parked in
 cells, so the match is reached by dropping them back.  But the drops must **skip the
 source pile**:
@@ -16,7 +17,7 @@ source pile**:
   past `pileDepth + pileFlute - 1`;
 * the source pile is *exact* already (`|column| = pileDepth`, `pileFlute = 1`), and a cp
   drop onto it is precisely the cleanup's freed-predecessor extension — which belongs to
-  `SolverCleanupPile`, not to `movePre`.
+  `cleanupPile`, not to `movePre`.
 
 So the right normal form exhausts cp moves onto every pile except one.  The measure
 argument is unchanged: restricting the step relation only shrinks it, so

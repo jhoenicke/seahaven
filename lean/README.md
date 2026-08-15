@@ -27,9 +27,9 @@ lake build
 * **[`Seahaven/Solver.lean`](Seahaven/Solver.lean)** — a Lean implementation
   of the solving algorithm, written to mirror the C implementation as closely
   as possible: the same global arrays (`pos2card`, `card2pile`, `card2depth`,
-  the hash table), the same position representation (`SolverPosType`), and the
-  same functions (`initcard`, `solve`, `solverRecCheckSolvable`,
-  `SolverMove`, `SolverCleanupPile`, …), written in a state monad
+  the hash table), the same position representation (`Solver.PosType`), and the
+  same functions (`initcard`, `solve`, `RecCheckSolvable`,
+  `move`, `cleanupPile`, …), written in a state monad
   (`EStateM Error Globals`) so that array accesses and assertions can fail
   the way C array accesses would be out of bounds.  The recursive search is
   defined by `partial_fixpoint`, which gives a one-step unfolding equation to
@@ -140,7 +140,7 @@ Here an arbitrary winning play must be turned into one the solver considers.
 
 `SolveCorrect` combines both directions into `solve_correct` (the returned
 code is `SUCCESS` iff the position is solvable), and the `Convert*` files
-handle the entry point: `SolverConvertFromPilesKings` normalizes the queried
+handle the entry point: `convertFromPilesKings` normalizes the queried
 encoding (maximal foundations, completed king piles) before the search, and
 `ConvertMatch`/`FoundationMax`/`KingPileMax` show these normalizations are
 themselves realized by solvability-preserving moves from the queried state.

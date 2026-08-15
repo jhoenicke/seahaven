@@ -4,6 +4,8 @@ import Seahaven.SolverSpecRemoveFlute
 import Seahaven.SolverSpecMoveAces
 import Seahaven.SolverSpecDrain
 
+open Solver
+
 /-!
 # Spec for the composed `move` step
 
@@ -19,19 +21,19 @@ open Lean Lean.Order
 
 /-! ### The destination-bookkeeping step
 
-`SolverMove` first does a pure "destination bookkeeping" write (a three-way
+`move` first does a pure "destination bookkeeping" write (a three-way
 branch on `toPile`: pile-to-pile flute merge / king-pile / extra), then calls
-`SolverRemoveFlute pile`.  `moveDestPre` below is that pure write, mirroring
+`removeFlute pile`.  `moveDestPre` below is that pure write, mirroring
 `moveExplicit`'s pre-`finish` branch exactly, and `moveDest_cleanupReady`
 establishes `removeFlute_merged`'s precondition `CleanupReady` at the composed
 point `fluteNorm ∘ removeFlutePre ∘ moveDestPre`.
 -/
 
-/-- Pure state transform for the "destination bookkeeping" `SolverMove` does
-    before calling `SolverRemoveFlute` — mirrors `moveExplicit`'s pre-`finish`
+/-- Pure state transform for the "destination bookkeeping" `move` does
+    before calling `removeFlute` — mirrors `moveExplicit`'s pre-`finish`
     three-way branch exactly (pile-to-pile / king-pile / extra). -/
 def moveDestPre (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (p : SolverPosType) : SolverPosType :=
+    (p : PosType) : PosType :=
   if h10 : toPile.toNat < 10 then
     { p with
         pileFlute := p.pileFlute.set toPile.toNat
@@ -48,7 +50,7 @@ def moveDestPre (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
 /-- The destination write touches `pileFlute`/`kings`/`usedSpace` only — never a depth.
     (The card is not off its source pile yet; that is `removeFlutePre`'s decrement.) -/
 theorem moveDestPre_pileDepth (pile : UInt32) (toPile : UInt8) (hpile : pile.toNat < 10)
-    (p : SolverPosType) : (moveDestPre pile toPile hpile p).pileDepth = p.pileDepth := by
+    (p : PosType) : (moveDestPre pile toPile hpile p).pileDepth = p.pileDepth := by
   unfold moveDestPre
   split <;> [skip; split] <;> rfl
 
@@ -67,7 +69,7 @@ private theorem dest_idx_eq {d : UInt8} (hd1 : 1 ≤ d.toNat) (_hd5 : d.toNat �
     dropped by exactly one — so a real card that is free afterwards but not
     before must sit at original slot `(pile, depth-1)`, i.e. be `B` itself
     (`WellFormedLayout.round_trip`). -/
-private theorem dest_free_char (g : Globals) (p q : SolverPosType) (pile : UInt32)
+private theorem dest_free_char (g : Globals) (p q : PosType) (pile : UInt32)
     (hpile : pile.toNat < 10) (hwf : WellFormedLayout g)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hd5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat ≤ 5)
@@ -116,7 +118,7 @@ private theorem dest_free_char (g : Globals) (p q : SolverPosType) (pile : UInt3
 
 /-- `pile`'s own boundary card *is* free at the composed point: its original
     depth `depth − 1` now matches the pile's (decremented) live depth. -/
-private theorem dest_B_free (g : Globals) (p q : SolverPosType) (pile : UInt32)
+private theorem dest_B_free (g : Globals) (p q : PosType) (pile : UInt32)
     (hpile : pile.toNat < 10) (hwf : WellFormedLayout g)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hd5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat ≤ 5)
@@ -191,7 +193,7 @@ private theorem dest_prev_arith (Bj B fl : UInt8)
     `pileFlute[j] = n` and boundary exactly `B + n`: a shorter flute would make
     `j`'s own boundary one of the (free) walked cards, and a longer one would
     make `B + n` one of `j`'s (free) flute interiors. -/
-private theorem dest_prevCard_forces (g : Globals) (p : SolverPosType)
+private theorem dest_prevCard_forces (g : Globals) (p : PosType)
     (hwf : WellFormedLayout g) (hbase : SolverInvBase g p)
     (B : UInt8) (hBreal : IsRealCard B) (n : Nat) (hn1 : 1 ≤ n)
     (hnval : (VALUE B).toNat + n ≤ 13)
@@ -248,7 +250,7 @@ private theorem dest_prevCard_forces (g : Globals) (p : SolverPosType)
     king frontier, NO pile's flute can sit directly on top of it: such a pile's
     boundary would be a same-suit card strictly above `kings[s]`, hence free by
     `king_frontier`, contradicting that a pile's boundary is never free. -/
-private theorem dest_prevCard_ne_king (g : Globals) (p : SolverPosType)
+private theorem dest_prevCard_ne_king (g : Globals) (p : PosType)
     (hwf : WellFormedLayout g) (hbase : SolverInvBase g p)
     (B : UInt8) (s : Fin 4) (hs : s.val = (SUIT B).toNat)
     (hkB : p.kings.get s = B)
@@ -278,7 +280,7 @@ private theorem dest_prevCard_ne_king (g : Globals) (p : SolverPosType)
     hash), and `fluteNorm` normalizes `pileFlute[pile]` to `1`.  So *every*
     branch leaves `aces`/`busyAces` alone, drops `pileDepth[pile]` by exactly
     one, keeps all other depths, and sets `pileFlute[pile] := 1`. -/
-private structure DestFrame (g : Globals) (p q : SolverPosType) (pile : UInt32)
+private structure DestFrame (g : Globals) (p q : PosType) (pile : UInt32)
     (hpile : pile.toNat < 10) : Prop where
   depthSelf : q.pileDepth.get ⟨pile.toNat, hpile⟩ = (p.pileDepth.get ⟨pile.toNat, hpile⟩) - 1
   depthNe : ∀ j : Fin 10, j.val ≠ pile.toNat → q.pileDepth.get j = p.pileDepth.get j
@@ -287,7 +289,7 @@ private structure DestFrame (g : Globals) (p q : SolverPosType) (pile : UInt32)
   fluteSelf : q.pileFlute.get ⟨pile.toNat, hpile⟩ = 1
 
 /-- Depths only ever go down, so freeness only ever goes up. -/
-private theorem destFrame_depth_le {g : Globals} {p q : SolverPosType} {pile : UInt32}
+private theorem destFrame_depth_le {g : Globals} {p q : PosType} {pile : UInt32}
     {hpile : pile.toNat < 10}
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hfr : DestFrame g p q pile hpile) :
@@ -308,7 +310,7 @@ private theorem destFrame_depth_le {g : Globals} {p q : SolverPosType} {pile : U
   · rw [hfr.depthNe i hi]
 
 /-- Every card free before the destination step is still free after. -/
-private theorem destFrame_free_mono {g : Globals} {p q : SolverPosType} {pile : UInt32}
+private theorem destFrame_free_mono {g : Globals} {p q : PosType} {pile : UInt32}
     {hpile : pile.toNat < 10}
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hfr : DestFrame g p q pile hpile) {c : UInt8} (h : isFreeCard g p c) :
@@ -319,7 +321,7 @@ private theorem destFrame_free_mono {g : Globals} {p q : SolverPosType} {pile : 
     the trivial `1` (`fluteNorm`), so only `flute_not_aces` needs an argument:
     the pile's NEW boundary is still physically resident (depth `d−1` > its own
     slot `d−2`), hence not free, hence not covered by the foundation. -/
-private theorem destFrame_pileBase_self (g : Globals) (p q : SolverPosType) (pile : UInt32)
+private theorem destFrame_pileBase_self (g : Globals) (p q : PosType) (pile : UInt32)
     (hpile : pile.toNat < 10) (hwf : WellFormedLayout g) (hbase : SolverInvBase g p)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hfr : DestFrame g p q pile hpile) :
@@ -378,7 +380,7 @@ private theorem destFrame_pileBase_self (g : Globals) (p q : SolverPosType) (pil
 /-- **`PileBase` transfers to every pile whose depth AND flute are untouched.**
     Everything but `flute_cards_free` is a literal rewrite; freeness only grows
     (`destFrame_free_mono`). -/
-private theorem destFrame_pileBase_ne (g : Globals) (p q : SolverPosType) (pile : UInt32)
+private theorem destFrame_pileBase_ne (g : Globals) (p q : PosType) (pile : UInt32)
     (hpile : pile.toNat < 10)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hfr : DestFrame g p q pile hpile)
@@ -405,7 +407,7 @@ private theorem destFrame_pileBase_ne (g : Globals) (p q : SolverPosType) (pile 
     `merge_complete`/`busyAces_complete` are literal rewrites; `flute_maximal`'s
     `¬isFreeCard` disjunct is where `hprevNe` is needed — via `dest_free_char`,
     the ONLY card that changes freeness is `pile`'s own boundary `B`. -/
-private theorem destFrame_pileMerged_ne (g : Globals) (p q : SolverPosType) (pile : UInt32)
+private theorem destFrame_pileMerged_ne (g : Globals) (p q : PosType) (pile : UInt32)
     (hpile : pile.toNat < 10) (hwf : WellFormedLayout g) (hbase : SolverInvBase g p)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hd5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat ≤ 5)
@@ -501,7 +503,7 @@ private theorem destFrame_pileMerged_ne (g : Globals) (p q : SolverPosType) (pil
 /-- **`hash_def` at the composed point.**  The hash is the `pileHashes` dot
     product of the depths, and `removeFlutePre` subtracts exactly `pile`'s own
     coefficient while dropping `pile`'s depth by one (`hash_foldl_set`). -/
-private theorem destFrame_hash_def (g : Globals) (p q : SolverPosType) (pile : UInt32)
+private theorem destFrame_hash_def (g : Globals) (p q : PosType) (pile : UInt32)
     (hpile : pile.toNat < 10) (hbase : SolverInvBase g p)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hqhash : q.hash = p.hash - (pileHashes[pile.toNat]'hpile))
@@ -553,7 +555,7 @@ private theorem destFrame_hash_def (g : Globals) (p q : SolverPosType) (pile : U
   rw [hF, UInt32.add_sub_cancel]
 
 /-- The depth ledger drops by exactly one. -/
-private theorem destFrame_depth_sum (p q : SolverPosType) (pile : UInt32)
+private theorem destFrame_depth_sum (p q : PosType) (pile : UInt32)
     (hpile : pile.toNat < 10)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hqdepth : q.pileDepth = p.pileDepth.set pile.toNat
@@ -580,7 +582,7 @@ private theorem destFrame_depth_sum (p q : SolverPosType) (pile : UInt32)
     `destFrame_pileBase_self`, `hash_def` from `destFrame_hash_def`,
     `busyAces_lt16` from the untouched bitmask) and discharges `CleanupReady`'s
     `freePiles` count (unchanged, and `pile` itself is not yet empty). -/
-private theorem destFrame_cleanupReady (g : Globals) (p q : SolverPosType) (pile : UInt32)
+private theorem destFrame_cleanupReady (g : Globals) (p q : PosType) (pile : UInt32)
     (hpile : pile.toNat < 10) (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hfr : DestFrame g p q pile hpile)
@@ -635,7 +637,7 @@ private theorem destFrame_cleanupReady (g : Globals) (p q : SolverPosType) (pile
     `pileFlute[pile] = 1`, i.e. `aces[s] = B − pileFlute[pile]`, and pile
     `pile`'s own `busyAces_complete` has already recorded the pending
     foundation advance in `busyAces` (which the step leaves untouched). -/
-private theorem dest_next_ace (g : Globals) (p q : SolverPosType) (pile : UInt32)
+private theorem dest_next_ace (g : Globals) (p q : PosType) (pile : UInt32)
     (hpile : pile.toNat < 10) (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hd5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat ≤ 5)
@@ -734,7 +736,7 @@ private theorem card_add_suit_value {B : UInt8} (hB : IsRealCard B) {k : Nat}
     `B`.**  `kings[s] = B` forces `s = SUIT B` (both have suit `s`), and then
     `king_frontier`'s second clause makes *every* higher card of the suit free —
     including the walk's stopping card `B + n`, which by assumption is not. -/
-private theorem dest_kings_ne (g : Globals) (p : SolverPosType) (hbase : SolverInvBase g p)
+private theorem dest_kings_ne (g : Globals) (p : PosType) (hbase : SolverInvBase g p)
     (B : UInt8) (hBreal : IsRealCard B) (n : Nat) (hn1 : 1 ≤ n)
     (hnval : (VALUE B).toNat + n ≤ 13)
     (hstop : ¬ isFreeCard g p (B + UInt8.ofNat n)) (s : Fin 4) :
@@ -756,7 +758,7 @@ private theorem dest_kings_ne (g : Globals) (p : SolverPosType) (hbase : SolverI
     rewrites; `foundation_maximal_weak` is `dest_next_ace`; and
     `king_frontier`'s "frontier itself not free" disjunct is exactly where
     `hkne` is needed (via `dest_free_char`). -/
-private theorem destFrame_suitClean (g : Globals) (p q : SolverPosType) (pile : UInt32)
+private theorem destFrame_suitClean (g : Globals) (p q : PosType) (pile : UInt32)
     (hpile : pile.toNat < 10) (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hd5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat ≤ 5)
@@ -810,7 +812,7 @@ private theorem destFrame_suitClean (g : Globals) (p q : SolverPosType) (pile : 
     caught up with the new frontier (`busyAces_complete` / `flute_maximal`); and
     its second clause gains exactly the flute cards `B, B−1, …, B−fl+1`, which
     are `dest_B_free` and `flute_cards_free` respectively. -/
-private theorem destKing_suitClean (g : Globals) (p q : SolverPosType) (pile : UInt32)
+private theorem destKing_suitClean (g : Globals) (p q : PosType) (pile : UInt32)
     (hpile : pile.toNat < 10) (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hd5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat ≤ 5)
@@ -950,7 +952,7 @@ private theorem destKing_suitClean (g : Globals) (p q : SolverPosType) (pile : U
     The degenerate `VALUE (B − fl) = 0` case (where `B − fl` isn't a real card,
     so `dest_free_char` doesn't apply) is pinned to the `aces` disjunct by
     `flute_not_aces` plus the suit-block lower bound on `aces[s]`. -/
-private theorem dest_prevCard_maximal (g : Globals) (p q : SolverPosType) (pile : UInt32)
+private theorem dest_prevCard_maximal (g : Globals) (p q : PosType) (pile : UInt32)
     (hpile : pile.toNat < 10) (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hd5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat ≤ 5)
@@ -1029,7 +1031,7 @@ private theorem dest_prevCard_maximal (g : Globals) (p q : SolverPosType) (pile 
 
     Exported (it used to be `private`): the phase-1 simulation needs it to turn
     `DestValid`'s walk into `movePre_sim_of_dest`'s gap hypothesis. -/
-theorem dest_flute_eq_walk (g : Globals) (p : SolverPosType)
+theorem dest_flute_eq_walk (g : Globals) (p : PosType)
     (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p)
     (B : UInt8) (hBreal : IsRealCard B) (hBnf : ¬ isFreeCard g p B)
     (n : Nat) (hn1 : 1 ≤ n) (hnval : (VALUE B).toNat + n ≤ 13)
@@ -1107,7 +1109,7 @@ theorem dest_flute_eq_walk (g : Globals) (p : SolverPosType)
     flute's `prevCard` is literally `pile`'s own `B − fl`, so `flute_maximal` and
     `busyAces_complete` are `pile`'s clauses read at the destination, and
     `flute_not_aces` is `pile`'s bound plus `Bt = B + pileFlute[toPile]`. -/
-private theorem destFlute_toPile (g : Globals) (p q : SolverPosType) (pile : UInt32)
+private theorem destFlute_toPile (g : Globals) (p q : PosType) (pile : UInt32)
     (hpile : pile.toNat < 10) (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hd5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat ≤ 5)
@@ -1231,7 +1233,7 @@ private theorem destFlute_toPile (g : Globals) (p q : SolverPosType) (pile : UIn
     (`dest_prevCard_forces`), and `pos2card` is injective across the whole
     layout — so it *is* the destination pile.  This is what feeds
     `destFrame_pileMerged_ne`'s `hprevNe` for all the untouched piles. -/
-private theorem dest_prevNe_of_toPile (g : Globals) (p : SolverPosType)
+private theorem dest_prevNe_of_toPile (g : Globals) (p : PosType)
     (hwf : WellFormedLayout g) (hbase : SolverInvBase g p)
     (B : UInt8) (hBreal : IsRealCard B) (n : Nat) (hn1 : 1 ≤ n)
     (hnval : (VALUE B).toNat + n ≤ 13)
@@ -1268,7 +1270,7 @@ private theorem usedSpace_term_setFlute (dv flv : Vector UInt8 10)
 branch, so the branch proofs below can read every field off by `rfl`. -/
 
 /-- Pile-to-pile branch (`toPile < 10`). -/
-private theorem moveDest_shape_pile (p : SolverPosType) (pile : UInt32) (toPile : UInt8)
+private theorem moveDest_shape_pile (p : PosType) (pile : UInt32) (toPile : UInt8)
     (hpile : pile.toNat < 10) (h10 : toPile.toNat < 10) :
     fluteNorm pile hpile (removeFlutePre pile hpile (moveDestPre pile toPile hpile p)) =
       { p with
@@ -1280,7 +1282,7 @@ private theorem moveDest_shape_pile (p : SolverPosType) (pile : UInt32) (toPile 
   simp only [fluteNorm, removeFlutePre, moveDestPre, dif_pos h10]
 
 /-- King-pile branch (`10 ≤ toPile < 14`). -/
-private theorem moveDest_shape_king (p : SolverPosType) (pile : UInt32) (toPile : UInt8)
+private theorem moveDest_shape_king (p : PosType) (pile : UInt32) (toPile : UInt8)
     (hpile : pile.toNat < 10) (h10 : ¬ toPile.toNat < 10) (h14 : toPile.toNat < 14)
     (hk4 : toPile.toNat - 10 < 4) :
     fluteNorm pile hpile (removeFlutePre pile hpile (moveDestPre pile toPile hpile p)) =
@@ -1294,7 +1296,7 @@ private theorem moveDest_shape_king (p : SolverPosType) (pile : UInt32) (toPile 
   simp only [fluteNorm, removeFlutePre, moveDestPre, dif_neg h10, dif_pos h14]
 
 /-- Extra-slot branch (`toPile = 14`). -/
-private theorem moveDest_shape_extra (p : SolverPosType) (pile : UInt32) (toPile : UInt8)
+private theorem moveDest_shape_extra (p : PosType) (pile : UInt32) (toPile : UInt8)
     (hpile : pile.toNat < 10) (h10 : ¬ toPile.toNat < 10) (h14 : ¬ toPile.toNat < 14) :
     fluteNorm pile hpile (removeFlutePre pile hpile (moveDestPre pile toPile hpile p)) =
       { p with
@@ -1310,7 +1312,7 @@ private theorem moveDest_shape_extra (p : SolverPosType) (pile : UInt32) (toPile
     bump by `fl` is exactly the flute term `pile` loses when its flute
     normalizes to `1`.  The two branches differ only in `hsc` (which suit's
     `kings` entry moved) — supplied by the caller. -/
-private theorem moveDest_ready_noFlute (g : Globals) (p q : SolverPosType) (pile : UInt32)
+private theorem moveDest_ready_noFlute (g : Globals) (p q : PosType) (pile : UInt32)
     (hpile : pile.toNat < 10) (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hqhash : q.hash = p.hash - (pileHashes[pile.toNat]'hpile))
@@ -1410,7 +1412,7 @@ private theorem vector_set_get_ne {α : Type} {m : Nat} (v : Vector α m) (k : N
     changes.  `hnoB` (no pile's boundary is the walk's stopping card `B + n`) is
     exactly what the solver's `pftVal ≠ 1` test guarantees, and it rules out a
     foreign flute sitting directly on `B`. -/
-private theorem moveDest_cleanupReady_extra (g : Globals) (p : SolverPosType) (pile : UInt32)
+private theorem moveDest_cleanupReady_extra (g : Globals) (p : PosType) (pile : UInt32)
     (toPile : UInt8) (hpile : pile.toNat < 10)
     (h10 : ¬ toPile.toNat < 10) (h14 : ¬ toPile.toNat < 14)
     (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p)
@@ -1446,7 +1448,7 @@ private theorem moveDest_cleanupReady_extra (g : Globals) (p : SolverPosType) (p
     `dest_prevCard_ne_king` rules out *any* pile's flute sitting on `B`, and the
     affected suit's `SuitClean` is `destKing_suitClean`; all other suits keep
     their `kings` entry (and can't have `B` as their frontier, wrong suit). -/
-private theorem moveDest_cleanupReady_king (g : Globals) (p : SolverPosType) (pile : UInt32)
+private theorem moveDest_cleanupReady_king (g : Globals) (p : PosType) (pile : UInt32)
     (toPile : UInt8) (hpile : pile.toNat < 10)
     (h10 : ¬ toPile.toNat < 10) (h14 : toPile.toNat < 14)
     (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p)
@@ -1493,7 +1495,7 @@ private theorem moveDest_cleanupReady_king (g : Globals) (p : SolverPosType) (pi
     untouched, and `dest_prevNe_of_toPile` rules out a foreign flute on `B`), and
     the `usedSpace` ledger balances: `pile`'s flute term loses `fl − 1` while
     `toPile`'s gains `fl`, a net `+1` cancelling the depth sum's `−1`. -/
-private theorem moveDest_ready_flute (g : Globals) (p q : SolverPosType) (pile : UInt32)
+private theorem moveDest_ready_flute (g : Globals) (p q : PosType) (pile : UInt32)
     (toPile : UInt8) (hpile : pile.toNat < 10) (h10 : toPile.toNat < 10)
     (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
@@ -1648,7 +1650,7 @@ private theorem moveDest_ready_flute (g : Globals) (p q : SolverPosType) (pile :
         ⟨toPile.toNat, h10⟩ hidxt hBt j (fun h => hjt (congrArg Fin.val h)) hdj hidx
 
 /-- **`CleanupReady` after the destination step — pile-to-pile branch. -/
-private theorem moveDest_cleanupReady_pile (g : Globals) (p : SolverPosType) (pile : UInt32)
+private theorem moveDest_cleanupReady_pile (g : Globals) (p : PosType) (pile : UInt32)
     (toPile : UInt8) (hpile : pile.toNat < 10) (h10 : toPile.toNat < 10)
     (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
@@ -1669,14 +1671,14 @@ private theorem moveDest_cleanupReady_pile (g : Globals) (p : SolverPosType) (pi
   exact moveDest_ready_flute g p _ pile toPile hpile h10 hwf hmerged hd1 rfl rfl rfl rfl rfl
     rfl rfl rfl B hidx5 hBdef n hn1 hnval hwalk hstop hdt hidxt hBt
 
-/-- **The destination data `solverGetDestination` delivers**, packaged as a
+/-- **The destination data `getDestination` delivers**, packaged as a
     precondition for `moveDest_cleanupReady`.  Mirrors `GetDestination`'s
     `getDest_spec` exactly: either `pile`'s boundary `B` *is* its suit's king
     frontier (`toPile = 10 + SUIT B`), or the freed-predecessor walk `B+1 … B+n`
     stops at an un-freed `B + n`, and then the destination is that card's own
     pile when `B + n` is a pile *boundary* (`pftVal = 1`) and the extra slot
     (`toPile = 14`) otherwise. -/
-def DestValid (g : Globals) (p : SolverPosType) (B : UInt8) (toPile : UInt8) : Prop :=
+def DestValid (g : Globals) (p : PosType) (B : UInt8) (toPile : UInt8) : Prop :=
   (∃ s : Fin 4, s.val = (SUIT B).toNat ∧ p.kings.get s = B ∧ toPile.toNat = 10 + s.val)
   ∨ (∃ n : Nat, 1 ≤ n ∧ (VALUE B).toNat + n ≤ 13 ∧
       (∀ k, 1 ≤ k → k < n → isFreeCard g p (B + UInt8.ofNat k)) ∧
@@ -1691,7 +1693,7 @@ def DestValid (g : Globals) (p : SolverPosType) (B : UInt8) (toPile : UInt8) : P
               (g.pos2card.get j).get ⟨(p.pileDepth.get j).toNat - 1, hidx⟩
                 ≠ B + UInt8.ofNat n)))
 
-/-- **`SolverMove`'s destination bookkeeping establishes `removeFlute_merged`'s
+/-- **`move`'s destination bookkeeping establishes `removeFlute_merged`'s
     precondition.**  A three-way branch on `toPile`, assembled from the per-branch
     lemmas above (`moveDest_cleanupReady_king` / `_pile` / `_extra`), all three of
     which end in `destFrame_cleanupReady`.  This is the pure flute-transfer fact
@@ -1699,7 +1701,7 @@ def DestValid (g : Globals) (p : SolverPosType) (B : UInt8) (toPile : UInt8) : P
     `fluteNorm ∘ removeFlutePre ∘ moveDestPre` the moved cards are free, the
     destination's `flute_maximal` is `pile`'s own clause read one flute higher,
     and the `usedSpace` ledger balances. -/
-theorem moveDest_cleanupReady (g : Globals) (p : SolverPosType) (pile : UInt32) (toPile : UInt8)
+theorem moveDest_cleanupReady (g : Globals) (p : PosType) (pile : UInt32) (toPile : UInt8)
     (hpile : pile.toNat < 10) (hwf : WellFormedLayout g) (hmerged : SolverInvMerged g p)
     (hd1 : 1 ≤ (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (B : UInt8) (hidx5 : (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1 < 5)
@@ -1719,21 +1721,21 @@ theorem moveDest_cleanupReady (g : Globals) (p : SolverPosType) (pile : UInt32) 
     · exact moveDest_cleanupReady_extra g p pile toPile hpile (by omega) (by omega) hwf hmerged
         hd1 B hidx5 hBdef n hn1 hnval hwalk hstop hnoB
 
-/-- **Exact run of `SolverMove`'s destination-bookkeeping prefix.**  The real
+/-- **Exact run of `move`'s destination-bookkeeping prefix.**  The real
     monadic three-way branch — read `pile`'s flute length, then depending on
     `toPile` read/write `pileFlute[toPile]` or `kings`/`usedSpace` — reduces,
     given the index bounds, to the pure `moveDestPre`, then falls through to
-    `SolverRemoveFlute pile` and the drain loop exactly as `moveExplicit`
+    `removeFlute pile` and the drain loop exactly as `moveExplicit`
     defines `finish`. -/
-theorem moveDest_run_eq (pile : UInt32) (toPile : UInt8) (g : Globals) (p : SolverPosType)
+theorem moveDest_run_eq (pile : UInt32) (toPile : UInt8) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10) (htoPile14 : toPile.toNat ≤ 14) :
-    EStateM.run (_root_.SolverMove pile toPile) (g, p) =
+    EStateM.run (Solver.move pile toPile) (g, p) =
     EStateM.run
-      (_root_.SolverRemoveFlute pile >>= fun forcedKings =>
+      (Solver.removeFlute pile >>= fun forcedKings =>
         Loop.forIn Loop.mk forcedKings drainBody >>= fun r => pure r)
       (g, moveDestPre pile toPile hpile p) := by
   show moveExplicit pile toPile (g, p) =
-    (_root_.SolverRemoveFlute pile >>= fun forcedKings =>
+    (Solver.removeFlute pile >>= fun forcedKings =>
         Loop.forIn Loop.mk forcedKings drainBody >>= fun r => pure r)
       (g, moveDestPre pile toPile hpile p)
   unfold moveExplicit moveDestPre
@@ -1770,14 +1772,14 @@ theorem moveDest_run_eq (pile : UInt32) (toPile : UInt8) (g : Globals) (p : Solv
         rw [UInt8.lt_iff_toNat_lt, show (14 : UInt8).toNat = 14 from rfl]; exact h14
       simp only [if_neg hge14, dif_neg h14, EStateM.pure, EStateM.bind, EStateM.set]
 
-/-- **`SolverMove` preserves canonical form.**  From a canonical state, a
+/-- **`move` preserves canonical form.**  From a canonical state, a
     valid solver move yields another canonical state — the per-node invariant
     maintenance behind the soundness proof.
 
     Assembled from `moveDest_run_eq` (the destination write reduces to
     `moveDestPre`), `moveDest_cleanupReady` (the composed point is
     `CleanupReady`), `removeFlute_merged` (consumes it, running
-    `SolverRemoveFlute`), and `drain_canonical` (runs the trailing
+    `removeFlute`), and `drain_canonical` (runs the trailing
     `while busyAces ≠ 0` drain to completion, which is exactly what recovers
     full canonicity — `SolverInvMerged` alone is re-established already after
     `removeFlute_merged`).
@@ -1786,7 +1788,7 @@ theorem moveDest_run_eq (pile : UInt32) (toPile : UInt8) (g : Globals) (p : Solv
     depth-monotone (`removeFlute_depth_le`, `drain_canonical`), and the source pile
     loses its whole flute, so the total pile depth strictly drops — the well-founded
     measure the search's termination (and its freedom from cycles) rests on. -/
-theorem move_merged (g : Globals) (p : SolverPosType) (pile : UInt32) (toPile : UInt8)
+theorem move_merged (g : Globals) (p : PosType) (pile : UInt32) (toPile : UInt8)
     (hwf : WellFormedLayout g) (hcanon : IsCanonicalPos g p)
     (hvalid : MoveValid g p pile toPile)
     (hpile : pile.toNat < 10)
@@ -1795,7 +1797,7 @@ theorem move_merged (g : Globals) (p : SolverPosType) (pile : UInt32) (toPile : 
     (hBdef : (g.pos2card.get ⟨pile.toNat, hpile⟩).get
       ⟨(p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - 1, hidx5⟩ = B)
     (hdv : DestValid g p B toPile) :
-    ∃ fk p', EStateM.run (_root_.SolverMove pile toPile) (g, p) = .ok fk (g, p') ∧
+    ∃ fk p', EStateM.run (Solver.move pile toPile) (g, p) = .ok fk (g, p') ∧
       IsCanonicalPos g p' ∧ DepthSum p' < DepthSum p := by
   obtain ⟨_, htoPile14, hd0⟩ := hvalid
   have hd1 : 0 < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat := by
@@ -1807,7 +1809,7 @@ theorem move_merged (g : Globals) (p : SolverPosType) (pile : UInt32) (toPile : 
   obtain ⟨fk1, p1, hrun1, hmerged1, haces1, hbusyMono1⟩ :=
     removeFlute_merged pile g (moveDestPre pile toPile hpile p) hpile hwf hready
   obtain ⟨fk2, p', hrun2, hcanon', hdrainLe⟩ := drain_canonical g p1 fk1 hwf hmerged1
-  -- progress: `moveDestPre` leaves the depths alone, `SolverRemoveFlute` takes exactly
+  -- progress: `moveDestPre` leaves the depths alone, `removeFlute` takes exactly
   -- one card off `pile` (and deepens nothing), the drain deepens nothing.
   have hqd := moveDestPre_pileDepth pile toPile hpile p
   obtain ⟨hnfq, -, -⟩ := hready
@@ -1815,8 +1817,8 @@ theorem move_merged (g : Globals) (p : SolverPosType) (pile : UInt32) (toPile : 
     removeFlute_depth_le pile g (moveDestPre pile toPile hpile p) hpile hwf
       (by rw [show (moveDestPre pile toPile hpile p).pileDepth.get ⟨pile.toNat, hpile⟩
             = p.pileDepth.get ⟨pile.toNat, hpile⟩ from by rw [hqd]]; omega) hnfq
-  -- both runs of `SolverRemoveFlute` are the same run, so `p3 = p1`
-  have hrun3' : EStateM.run (_root_.SolverRemoveFlute pile)
+  -- both runs of `removeFlute` are the same run, so `p3 = p1`
+  have hrun3' : EStateM.run (Solver.removeFlute pile)
       (g, moveDestPre pile toPile hpile p) = .ok fk1 (g, p1) := hrun1
   injection hrun3.symm.trans hrun3' with _hfk h2
   injection h2 with _hg hp3
@@ -1832,10 +1834,10 @@ theorem move_merged (g : Globals) (p : SolverPosType) (pile : UInt32) (toPile : 
       omega
   refine ⟨fk2, p', ?_, hcanon', hdepthLt⟩
   rw [moveDest_run_eq pile toPile g p hpile htoPile14]
-  show (_root_.SolverRemoveFlute pile >>= fun fk =>
+  show (Solver.removeFlute pile >>= fun fk =>
       Loop.forIn Loop.mk fk drainBody >>= fun r => pure r)
     (g, moveDestPre pile toPile hpile p) = .ok fk2 (g, p')
-  have hrun1' : _root_.SolverRemoveFlute pile (g, moveDestPre pile toPile hpile p) =
+  have hrun1' : Solver.removeFlute pile (g, moveDestPre pile toPile hpile p) =
       .ok fk1 (g, p1) := hrun1
   have hrun2' : Loop.forIn Loop.mk fk1 drainBody (g, p1) = .ok fk2 (g, p') := hrun2
   simp only [bind, EStateM.bind, hrun1', hrun2', pure, EStateM.pure]

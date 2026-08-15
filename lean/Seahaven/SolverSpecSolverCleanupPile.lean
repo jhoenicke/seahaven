@@ -2,10 +2,12 @@ import Seahaven.SolverSpecKingMove
 import Seahaven.SolverSpecPreCleanupPile
 import Seahaven.SolverSpecCleanupPile
 
-/-!
-# Spec for `SolverCleanupPile` (the monadic per-pile cleanup step)
+open Solver
 
-`solverCleanupPile_step` connects one step of the real `SolverCleanupPile`
+/-!
+# Spec for `cleanupPile` (the monadic per-pile cleanup step)
+
+`solverCleanupPile_step` connects one step of the real `cleanupPile`
 monadic loop to the pure `cleanupPile`/`kingMove`/`preCleanupPile` model,
 carrying the `MergedUpTo` invariant across it.
 -/
@@ -15,13 +17,13 @@ namespace SolverSpec
 open SolverModel
 open Lean Lean.Order
 
-/-- **`SolverCleanupPile` — one step of the convert cleanup loop.**  Given the
+/-- **`cleanupPile` — one step of the convert cleanup loop.**  Given the
     loop invariant `MergedUpTo g p k` (base holds everywhere; piles below `k`
     already merged; pile `k` still raw), cleaning pile `k` succeeds, leaves
     `globals` and the other piles' depths untouched, and re-establishes the
     invariant with one more pile merged.
 
-    Stated against the **real** `_root_.SolverCleanupPile` (its `while` loops are no
+    Stated against the **real** `Solver.cleanupPile` (its `while` loops are no
     longer opaque on Lean 4.31 — see `Seahaven.EStateMOrder`); the `SolverModel` fuel
     twin is no longer needed.
 
@@ -34,9 +36,9 @@ open Lean Lean.Order
     run) is proved directly below; the **loop-bearing case** (`pileDepth[k] > 0`)
     goes through `cleanupPile_nonempty_eq` (the exact symbolic run) following
     `cleanupPile_baseNF`'s clause discharge. -/
-theorem solverCleanupPile_step (g : Globals) (p : SolverPosType) (k : Nat) (hk : k < 10)
+theorem solverCleanupPile_step (g : Globals) (p : PosType) (k : Nat) (hk : k < 10)
     (hwf : WellFormedLayout g) (hpre : MergedUpTo g p k) :
-    ∃ fk p', EStateM.run (_root_.SolverCleanupPile (UInt32.ofNat k)) (g, p) = .ok fk (g, p') ∧
+    ∃ fk p', EStateM.run (Solver.cleanupPile (UInt32.ofNat k)) (g, p) = .ok fk (g, p') ∧
       MergedUpTo g p' (k + 1) ∧
       (∀ j : Fin 10, j.val ≠ k → p'.pileDepth.get j = p.pileDepth.get j) := by
   obtain ⟨hnf, hfp, hpm, hfluteRest⟩ := hpre
@@ -139,7 +141,7 @@ theorem solverCleanupPile_step (g : Globals) (p : SolverPosType) (k : Nat) (hk :
     -- for any position `q` agreeing with `p` outside index `k` (the frame
     -- condition each branch proves anyway), according to whether `q`'s own
     -- pile `k` is empty or not.
-    have hfreePilesStep0 : ∀ (q : SolverPosType),
+    have hfreePilesStep0 : ∀ (q : PosType),
         (∀ j : Fin 10, j.val ≠ k → q.pileDepth.get j = p.pileDepth.get j) →
         q.pileDepth.get (⟨k, hk⟩ : Fin 10) ≠ 0 →
         freePilesUpTo q (k + 1) = freePilesUpTo p k := by
@@ -162,7 +164,7 @@ theorem solverCleanupPile_step (g : Globals) (p : SolverPosType) (k : Nat) (hk :
       rw [List.take_succ_eq_append_getElem hlenq, List.countP_append, htake, List.countP_singleton, Vector.getElem_toList]
       rw [show (q.pileDepth[k]'hk == (0 : UInt8)) = false from beq_eq_false_iff_ne.mpr hne']
       simp
-    have hfreePilesStep1 : ∀ (q : SolverPosType),
+    have hfreePilesStep1 : ∀ (q : PosType),
         (∀ j : Fin 10, j.val ≠ k → q.pileDepth.get j = p.pileDepth.get j) →
         q.pileDepth.get (⟨k, hk⟩ : Fin 10) = 0 →
         freePilesUpTo q (k + 1) = freePilesUpTo p k + 1 := by

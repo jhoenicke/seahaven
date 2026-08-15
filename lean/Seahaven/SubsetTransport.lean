@@ -2,6 +2,7 @@ import Seahaven.MovableBit
 import Seahaven.RecLoopSound
 
 open Rules
+open Solver
 
 /-!
 # Carrying the child's answer back into `movable'`
@@ -34,7 +35,7 @@ on the soundness side.
 `kingStep_transport`: a bit the child's answer has at a configuration that survives
 `fk` is still there after the intersection, at any configuration that configuration
 covers. -/
-theorem kingStep_transport_complete (p' : SolverPosType) {T fk : UInt16} {FK : Finset Suit}
+theorem kingStep_transport_complete (p' : PosType) {T fk : UInt16} {FK : Finset Suit}
     {gi k' : Fin 16} (hT : LocalMask p' T) (hv : KingVacates FK fk)
     (hfk : BitSet fk k') (hsub : MaskSub k' gi)
     (hbit : BitSet (subsetAt ((closureInfoOf p').offset.toNat + T.toNat)) k') :
@@ -61,7 +62,7 @@ theorem kingStep_transport_complete (p' : SolverPosType) {T fk : UInt16} {FK : F
 `movable` bit says the solver considers the move at configuration `i`, the child's
 answer says the position it leads to is solvable at `k''`, and `k''` both survives
 `forcedKings` and covers `i`. -/
-theorem bitSet_movablePrime {p p' : SolverPosType} {mv cs fk : UInt16} {FK : Finset Suit}
+theorem bitSet_movablePrime {p p' : PosType} {mv cs fk : UInt16} {FK : Finset Suit}
     {i : Nat} (hi : i < (closureInfoOf p).numBits.toNat)
     (hcs : LocalMask p' cs) (hvac : KingVacates FK fk)
     (hmvbit : BitSet mv ⟨min i 15, by omega⟩)

@@ -2,12 +2,14 @@ import Seahaven.SolverInvariant
 import Seahaven.SolverModel
 import Seahaven.SolverRealSpec
 
+open Solver
+
 /-!
 # Specs: the model canonicalization functions establish the invariant tower
 
 Each theorem says: run the corresponding `SolverModel` function on a state
 satisfying a precondition, and it succeeds (`.ok`, no `Error` thrown), leaving
-`globals` unchanged and producing a `SolverPosType` satisfying the postcondition.
+`globals` unchanged and producing a `PosType` satisfying the postcondition.
 
 This file collects the auxiliary preconditions/definitions and helper lemmas
 shared across the per-function spec files (`SolverSpecKingMove`,
@@ -29,12 +31,12 @@ open Lean Lean.Order
 def ValidDepths (pk : Vector UInt8 11) : Prop :=
   ∀ i : Fin 10, (pk.get ⟨i.val, by omega⟩).toNat ≤ 5
 
-/-- **TODO refine.** Validity precondition for `SolverMove pile toPile`: the pile
+/-- **TODO refine.** Validity precondition for `move pile toPile`: the pile
     is non-empty, the destination is a legal target, and the move the solver is
     about to make is one it actually considers (flute length fits, etc.).  The
-    exact conditions (mirroring `solverGetMovable`) will be pinned down during the
+    exact conditions (mirroring `getMovable`) will be pinned down during the
     soundness proof. -/
-def MoveValid (_g : Globals) (p : SolverPosType) (pile : UInt32) (toPile : UInt8) : Prop :=
+def MoveValid (_g : Globals) (p : PosType) (pile : UInt32) (toPile : UInt8) : Prop :=
   pile.toNat < 10 ∧ toPile.toNat ≤ 14 ∧ (p.pileDepth.get ⟨pile.toNat % 10, by omega⟩).toNat > 0
 
 -- ---------------------------------------------------------------------------
@@ -47,18 +49,18 @@ def MoveValid (_g : Globals) (p : SolverPosType) (pile : UInt32) (toPile : UInt8
     record is an opaque argument to the `PileBase` type former), but each
     individual field PROPOSITION unfolds transparently through `p`'s
     projections, so reconstructing field-by-field works. -/
-private theorem pileBase_setFreePiles {g : Globals} {p : SolverPosType} {i : Fin 10}
+private theorem pileBase_setFreePiles {g : Globals} {p : PosType} {i : Fin 10}
     (h : PileBase g p i) (x : UInt8) : PileBase g { p with freePiles := x } i :=
   ⟨h.pileDepth_bound, h.flute_pos, h.flute_empty,
    h.flute_cards_free, h.flute_not_aces⟩
 
-private theorem pileBase_setBusyAces {g : Globals} {p : SolverPosType} {i : Fin 10}
+private theorem pileBase_setBusyAces {g : Globals} {p : PosType} {i : Fin 10}
     (h : PileBase g p i) (y : UInt8) : PileBase g { p with busyAces := p.busyAces ||| y } i :=
   ⟨h.pileDepth_bound, h.flute_pos, h.flute_empty,
    h.flute_cards_free, h.flute_not_aces⟩
 
 /-- The base layer ignores `freePiles`, so it transfers across a `freePiles` write. -/
-theorem nf_setFreePiles {g : Globals} {p : SolverPosType}
+theorem nf_setFreePiles {g : Globals} {p : PosType}
     (h : SolverInvBase g p) (x : UInt8) : SolverInvBase g { p with freePiles := x } :=
   ⟨fun i => pileBase_setFreePiles (h.pileBase i) x,
    fun s => ⟨h.aces_kings_valid s, h.foundation_cards_free s, h.foundation_maximal_weak s, h.king_frontier s⟩,
@@ -111,7 +113,7 @@ theorem uint8_or_lt16_of_lt16 {a b : UInt8} (ha : a < 16) (hb : b < 16) :
     `cleanupRunResult`, whose only busyAces write is exactly this OR-in shape.)
     Needs `y < 16` too (`busyAces_lt16` transfer): every real caller ORs in
     `1 <<< SUIT B` for a real card `B`, so `y < 16` always holds there. -/
-theorem nf_setBusyAces {g : Globals} {p : SolverPosType}
+theorem nf_setBusyAces {g : Globals} {p : PosType}
     (h : SolverInvBase g p) (y : UInt8) (hy : y < 16) :
     SolverInvBase g { p with busyAces := p.busyAces ||| y } :=
   ⟨fun i => pileBase_setBusyAces (h.pileBase i) y,
@@ -123,15 +125,15 @@ theorem nf_setBusyAces {g : Globals} {p : SolverPosType}
    h.hash_def, h.usedSpace_def, uint8_or_lt16_of_lt16 h.busyAces_lt16 hy⟩
 
 /-- `PileMerged` ignores `freePiles`, so it transfers across a `freePiles` write. -/
-theorem pm_setFreePiles {g : Globals} {p : SolverPosType} {i : Fin 10}
+theorem pm_setFreePiles {g : Globals} {p : PosType} {i : Fin 10}
     {bound : (p.pileDepth.get i).toNat ≤ 5}
     (h : PileMerged g p i bound) (x : UInt8) :
     PileMerged g { p with freePiles := x } i bound :=
   ⟨h.merge_complete, h.flute_maximal, h.busyAces_complete⟩
 
-/-- Freeness is monotone under pointwise pile-depth decrease: `SolverCleanupPile`
+/-- Freeness is monotone under pointwise pile-depth decrease: `cleanupPile`
     only ever lowers depths, so no card loses its freeness. -/
-theorem isFreeCard_mono {g : Globals} {p p' : SolverPosType} {c : UInt8}
+theorem isFreeCard_mono {g : Globals} {p p' : PosType} {c : UInt8}
     (hdepth : ∀ i : Fin 10, (p'.pileDepth.get i).toNat ≤
       (p.pileDepth.get i).toNat)
     (h : isFreeCard g p c) : isFreeCard g p' c := by
@@ -144,19 +146,19 @@ theorem isFreeCard_mono {g : Globals} {p p' : SolverPosType} {c : UInt8}
     exact h
 
 /-- The flute normalization of the pile about to be cleaned: `pileFlute[pile] := 1`.
-    Callers of `SolverCleanupPile`/`SolverRemoveFlute` leave a stale
+    Callers of `cleanupPile`/`removeFlute` leave a stale
     `pileFlute[pile]` behind (the function never reads it and overwrites it at
     the end); their preconditions are stated about this normalized position. -/
-def fluteNorm (pile : UInt32) (hpile : pile.toNat < 10) (p : SolverPosType) : SolverPosType :=
+def fluteNorm (pile : UInt32) (hpile : pile.toNat < 10) (p : PosType) : PosType :=
   { p with pileFlute := p.pileFlute.set pile.toNat 1 hpile }
 
-/-- **Midpoint predicate for `SolverCleanupPile`/`SolverRemoveFlute` (Merged
+/-- **Midpoint predicate for `cleanupPile`/`removeFlute` (Merged
     layer).**  All invariants hold except: `freePiles` does not yet count `pile`
     (whose depth may just have reached 0), and the `PileMerged` clauses
     (`merge_complete`/`flute_maximal`/`busyAces_complete`) are missing for `pile`
     itself — cleanup re-establishes them and increments `freePiles` when it
     empties the pile. -/
-def CleanupReady (g : Globals) (p : SolverPosType) (pile : UInt32) : Prop :=
+def CleanupReady (g : Globals) (p : PosType) (pile : UInt32) : Prop :=
   ∃ hnf : SolverInvBase g p,
   (∀ j : Fin 10, j.val ≠ pile.toNat → PileMerged g p j (hnf.pileDepth_bound j)) ∧
   p.freePiles.toInt = ((List.finRange 10).countP
@@ -251,7 +253,7 @@ theorem usedSpace_term_foldl_set (d : Vector UInt8 10) (fl : Vector UInt8 10)
 /-- Updating one entry of `aces` changes `usedSpace_def`'s `ΣAces` sum by
     exactly that entry's `VALUE`-of-`toUInt8` change (additive form) — the
     `aces`-analogue of `depth_sum_foldl_set`, needed when the foundation walk
-    (`SolverMoveAces`, `cardDepth == 0` case) writes a new value into
+    (`moveAces`, `cardDepth == 0` case) writes a new value into
     `aces[suit]`. -/
 theorem aces_sum_foldl_set (v : Vector UInt8 4) (k : Nat) (hk : k < 4) (x : UInt8) :
     (v.set k x hk).toList.foldl (fun acc a => acc + (VALUE a).toNat) 0 +
@@ -401,7 +403,7 @@ theorem flute_offset_split (B : UInt8) (m f : Nat) (hBrange : B.toNat ≤ 61)
     freshly-established `VALUE < 15`) carries the arithmetic relation forward. -/
 theorem merge_real_chain (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g) (ph : UInt32) (B : UInt8) (d0 : UInt8) (m : Nat)
-    (p0 : SolverPosType) (hreal : IsRealCard B) (hd0 : d0.toNat ≤ 5)
+    (p0 : PosType) (hreal : IsRealCard B) (hd0 : d0.toNat ≤ 5)
     (hmlt : m < d0.toNat)
     (hmg : ∀ i, i < m → mergeGuard g pile (mergeIter ph i ⟨B, d0, (1 : UInt8), p0⟩)) :
     ∀ j, j ≤ m → IsRealCard (B + UInt8.ofNat j) ∧
@@ -471,7 +473,7 @@ theorem merge_real_chain' (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10
     exactly `B + j`.  This is the guard's own equality at step `j - 1`,
     reindexed from "card produced at step `j-1`" to "card `B + j`". -/
 theorem merge_pos_chain (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10)
-    (ph : UInt32) (B : UInt8) (d0 : UInt8) (m : Nat) (p0 : SolverPosType)
+    (ph : UInt32) (B : UInt8) (d0 : UInt8) (m : Nat) (p0 : PosType)
     (hd0 : d0.toNat ≤ 5) (hmlt : m < d0.toNat)
     (hmg : ∀ i, i < m → mergeGuard g pile (mergeIter ph i ⟨B, d0, (1 : UInt8), p0⟩)) :
     ∀ j, 1 ≤ j → j ≤ m → ∃ hidx : (d0 - UInt8.ofNat j - 1).toUInt32.toNat < 5,
@@ -502,7 +504,7 @@ theorem merge_pos_chain (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10)
     depth (read via `card2pile`), the card is free.  General shape of the
     `isFreeCard`-unfolding used to read freeness off a `freedGuard`/`mergeGuard`
     fact. -/
-theorem isFree_of_card2depth_ge (g : Globals) (game : SolverPosType)
+theorem isFree_of_card2depth_ge (g : Globals) (game : PosType)
     (hwf : WellFormedLayout g) (c : UInt8) (hc64 : c.toNat < 64)
     (h : (g.card2depth[c.toNat]'hc64).toNat ≥
       (game.pileDepth[(g.card2pile[c.toNat]'hc64).toNat]'
@@ -532,7 +534,7 @@ theorem isFree_of_card2depth_ge (g : Globals) (game : SolverPosType)
 
 /-- Convenience form of `isFree_of_card2depth_ge` stated via `cardPile`/`cardDepth`
     directly — what `WellFormedLayout.round_trip_inv` produces. -/
-theorem isFree_of_cardDepth_ge (g : Globals) (game : SolverPosType)
+theorem isFree_of_cardDepth_ge (g : Globals) (game : PosType)
     (hwf : WellFormedLayout g) (c : UInt8) (hc64 : c.toNat < 64)
     (hp64 : (cardPile g c).toNat < 10)
     (h : (cardDepth g c).toNat ≥ (game.pileDepth[(cardPile g c).toNat]'hp64).toNat) :
@@ -552,7 +554,7 @@ theorem isFree_of_cardDepth_ge (g : Globals) (game : SolverPosType)
 /-- Converse of `isFree_of_card2depth_ge`: unfolds a KNOWN `isFreeCard` fact
     back into the raw `card2depth`/`card2pile` inequality (the "unfold +
     `dif_pos`" steps run the same either as a goal or as a hypothesis). -/
-theorem isFree_to_card2depth_ge (g : Globals) (game : SolverPosType)
+theorem isFree_to_card2depth_ge (g : Globals) (game : PosType)
     (hwf : WellFormedLayout g) (c : UInt8) (hc64 : c.toNat < 64)
     (hfree : isFreeCard g game c) :
     (g.card2depth[c.toNat]'hc64).toNat ≥
@@ -584,7 +586,7 @@ theorem isFree_to_card2depth_ge (g : Globals) (game : SolverPosType)
 
 /-- Convenience form of `isFree_to_card2depth_ge` stated via `cardPile`/
     `cardDepth` directly. -/
-theorem isFree_to_cardDepth_ge (g : Globals) (game : SolverPosType)
+theorem isFree_to_cardDepth_ge (g : Globals) (game : PosType)
     (hwf : WellFormedLayout g) (c : UInt8) (hc64 : c.toNat < 64)
     (hp64 : (cardPile g c).toNat < 10) (hfree : isFreeCard g game c) :
     (cardDepth g c).toNat ≥ (game.pileDepth[(cardPile g c).toNat]'hp64).toNat := by

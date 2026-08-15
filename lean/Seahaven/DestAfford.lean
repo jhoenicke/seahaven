@@ -2,12 +2,13 @@ import Seahaven.ExtraDest
 import Seahaven.SolverSpecMove
 
 open Rules
+open Solver
 
 /-!
-# The critical move is affordable, in the form `solverGetMovable` reads it
+# The critical move is affordable, in the form `getMovable` reads it
 
-This assembles the destination trichotomy.  `solverGetDestination` returns one of
-three shapes (`DestValid`), and `solverGetMovable` indexes `possibleKings`
+This assembles the destination trichotomy.  `getDestination` returns one of
+three shapes (`DestValid`), and `getMovable` indexes `possibleKings`
 differently in each:
 
 | destination | mask | cells needed |
@@ -44,7 +45,7 @@ positive depth, so the only way a suit becomes piled is that the move dropped on
 *physically empty* column — and then the moved card is that column's new deepest one. -/
 theorem piledSuit_of_move_back {t₀ t₁ : State} {mv : Move} (hap : applyMove t₀ mv = some t₁)
     {a : Fin 10} (hsrc : mv.src = Position.pile a)
-    {p : SolverPosType} (hda : 0 < (p.pileDepth.get a).toNat)
+    {p : PosType} (hda : 0 < (p.pileDepth.get a).toNat)
     {su : Suit} (hp : PiledSuit t₁ p su) :
     PiledSuit t₀ p su ∨
       ∃ (q : Fin 10) (c : Card), mv.dest = Position.pile q ∧ t₀.tableau q = [] ∧
@@ -89,7 +90,7 @@ theorem piledSuit_of_move_back {t₀ t₁ : State} {mv : Move} (hap : applyMove 
 
 /-- **The critical move's destination is affordable at a configuration the state
 realizes.**  See the module docstring for the shape of the conclusion. -/
-theorem critical_dest_affordable {g : Globals} {t₀ t₁ : State} {p : SolverPosType}
+theorem critical_dest_affordable {g : Globals} {t₀ t₁ : State} {p : PosType}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
     (h : DepthPlusKings g t₀ p)
     {a : Fin 10} {c : Card} {rest : Column}
@@ -251,7 +252,7 @@ column `a`.  At the critical state the flute is parked, so the two coincide. -/
 
 /-- With the flute parked (`|tableau a| = depth a`), the column's head is the dealt
 boundary card. -/
-theorem head_eq_boundary {g : Globals} {u : State} {p : SolverPosType}
+theorem head_eq_boundary {g : Globals} {u : State} {p : PosType}
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     {a : Fin 10} {c : Card} {rest : Column} (hcol : u.tableau a = c :: rest)

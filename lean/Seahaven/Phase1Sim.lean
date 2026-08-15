@@ -1,16 +1,17 @@
 import Seahaven.MoveSimulatedReduce
 
 open Rules
+open Solver
 
 /-!
-# Phase 1 of `SolverMove`, simulated
+# Phase 1 of `move`, simulated
 
 `MoveSim` realizes phase 1 by legal `Rules` moves and shows the resulting state
 *matches* `movePre`; what is missing for `Simulates` is the **king configuration**.
 This file adds it, and closes `Phase1Simulated`.
 
 The configuration is preserved by every destination — no phase-1 move vacates a
-king, since vacates happen inside `SolverCleanupPile`, which `ofRemoveFlute`
+king, since vacates happen inside `cleanupPile`, which `ofRemoveFlute`
 already covers — so each branch is a frame argument:
 
 * park-only destinations (`EXTRA`, a king pile whose stack is in the cells) change
@@ -33,7 +34,7 @@ set_option maxHeartbeats 1000000 in
 means the suit's run is in the cells and the whole flute joins it there
 (`parkMoves`, one column); a clear bit means it owns a column and the flute moves
 onto it (`fluteMoves`, two columns). -/
-theorem StateMatchesKingConfig.movePre_king_sim {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesKingConfig.movePre_king_sim {g : Globals} {s : State} {p : PosType}
     {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
     (h10 : ¬ toPile.toNat < 10) (h14 : toPile.toNat < 14)
     {top rest : Column} {c : Card}
@@ -108,9 +109,9 @@ theorem StateMatchesKingConfig.movePre_king_sim {g : Globals} {s : State} {p : S
 /-! ## All four destinations -/
 
 set_option maxHeartbeats 1000000 in
-/-- **Phase 1, simulated, whatever `solverGetDestination` returned.**  Same dispatch
+/-- **Phase 1, simulated, whatever `getDestination` returned.**  Same dispatch
 as `movePre_run`, carrying the configuration through. -/
-theorem StateMatchesKingConfig.movePre_sim {g : Globals} {s : State} {p : SolverPosType}
+theorem StateMatchesKingConfig.movePre_sim {g : Globals} {s : State} {p : PosType}
     {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
     {top rest : Column} {c : Card}
     (hk : StateMatchesKingConfig g s p k)
@@ -180,7 +181,7 @@ the frontier test `encodeCard c = kings[c.suit]`, a pile destination only
 set_option maxHeartbeats 1000000 in
 /-- **Phase 1, simulated, from the destination facts `DestValid` carries.** -/
 theorem StateMatchesKingConfig.movePre_sim_of_dest {g : Globals} {s : State}
-    {p : SolverPosType} {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
+    {p : PosType} {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
     {top rest : Column} {c : Card}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hk : StateMatchesKingConfig g s p k)
@@ -239,7 +240,7 @@ and pile hypotheses, once `boundary_code` identifies the Rules-side boundary car
 the destination's flute. -/
 
 set_option maxHeartbeats 2000000 in
-/-- **Phase 1 of `SolverMove` is simulated.**  With `moveSimulated_of_phase1` this
+/-- **Phase 1 of `move` is simulated.**  With `moveSimulated_of_phase1` this
 closes `MoveSimulated` up to the two remaining semantic obligations elsewhere. -/
 theorem phase1Simulated : Phase1Simulated := by
   intro g s p ki pile toPile mv i hi hwf hcan hs hkic hpile hdepth hdest hmv hbit
@@ -267,7 +268,7 @@ theorem phase1Simulated : Phase1Simulated := by
     omega
   -- what the destination walk guarantees
   obtain ⟨-, hdv⟩ := destValid_of_getDest hwf hcan hpile hd hb5 hdest
-  -- the free-cell counts, from `solverGetMovable`
+  -- the free-cell counts, from `getMovable`
   have hsu : ¬ toPile.toNat < 10 → toPile.toNat < 14 → toPile.toNat - 10 = suitToNat c.suit := by
     intro h10 h14
     rcases hdv with ⟨su, hsuv, -, htp⟩ | ⟨n, -, -, -, -, hcase⟩
@@ -322,7 +323,7 @@ theorem phase1Simulated : Phase1Simulated := by
 `recCheck_sound_of_semantics`; `SubsetSound` is the other. -/
 theorem moveSimulated : MoveSimulated := moveSimulated_of_phase1 phase1Simulated
 
-/-- **`solverRecCheckSolvable` is sound, unconditionally.**  Both semantic
+/-- **`recCheckSolvable` is sound, unconditionally.**  Both semantic
 hypotheses are theorems now: `subsetSound` (`KingMoveSim`, via the king-piling
 step) and `moveSimulated` just above.  What is left between this and end-to-end
 `SolveSound` is the `solve` wrapper — the convert canonicalization, the

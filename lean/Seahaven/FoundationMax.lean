@@ -2,6 +2,7 @@ import Seahaven.CleanupLax
 import Seahaven.ReachableMatch
 
 open Rules
+open Solver
 
 /-!
 # Maximizing the foundations
@@ -41,7 +42,7 @@ theorem not_mem_column_of_covered {u : State} (hcount : ∀ c : Card, countState
 
 /-- **A card that is not free sits in its own dealt slot**, hence in that column: the
 depth match puts the bottom `pileDepth` cards of every column where the layout says. -/
-theorem mem_column_of_not_free {g : Globals} {u : State} {p : SolverPosType}
+theorem mem_column_of_not_free {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     (c : Card) (hnf : ¬ isFreeCard g p (encodeCard c)) : ∃ j : Fin 10, c ∈ u.tableau j := by
@@ -80,7 +81,7 @@ theorem exists_rank_of_le {n : Nat} (h1 : 1 ≤ n) (h13 : n ≤ 13) : ∃ r : Ra
 
 /-- **A free card in a column sits above the boundary.**  The depth-match-only reading of
 `free_above_boundary`: `depth_card_not_free_wf` needs no position invariant. -/
-theorem free_reverse_index_ge {g : Globals} {u : State} {p : SolverPosType}
+theorem free_reverse_index_ge {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     (i : Fin 10) {r : Nat} (hrl : r < (u.tableau i).reverse.length)
@@ -95,7 +96,7 @@ theorem free_reverse_index_ge {g : Globals} {u : State} {p : SolverPosType}
 
 /-- **Above a free card in a column sits its predecessor.**  Both cards are in the run
 above the boundary, where the value climbs by one per card downwards. -/
-theorem column_above_of_free {g : Globals} {u : State} {p : SolverPosType}
+theorem column_above_of_free {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     (i : Fin 10) {r : Nat} (hr1 : r + 1 < (u.tableau i).reverse.length)
@@ -141,7 +142,7 @@ theorem column_above_of_free {g : Globals} {u : State} {p : SolverPosType}
 /-- **A free card whose predecessors are all banked is exposed.**  It is not on a
 foundation (its rank is above the top), and in a column the card above it is its own
 predecessor — which the foundation already holds. -/
-theorem accessible_of_free {g : Globals} {u : State} {p : SolverPosType}
+theorem accessible_of_free {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     (hcount : ∀ c : Card, countState u c = 1) {c : Card}
@@ -183,7 +184,7 @@ theorem accessible_of_free {g : Globals} {u : State} {p : SolverPosType}
 
 /-- **A foundation never runs past the free prefix.**  Its top card is on the foundation,
 hence not at its dealt slot, hence free — and the free prefix is exactly `cvAceVal`. -/
-theorem foundation_le_aceVal {g : Globals} {u : State} {p : SolverPosType}
+theorem foundation_le_aceVal {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     (hcount : ∀ c : Card, countState u c = 1) (su : Suit) :
@@ -241,7 +242,7 @@ private theorem reverse_getElem_head {col : Column} {c : Card} {rest : Column}
 
 /-- **A free card on top of a column leaves the boundary behind**, so taking it keeps the
 depth match (`PileMatches_tail_same`). -/
-theorem depth_le_of_free_head {g : Globals} {u : State} {p : SolverPosType}
+theorem depth_le_of_free_head {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
     (q : Fin 10) {c : Card} {rest : Column} (hcol : u.tableau q = c :: rest)
@@ -252,7 +253,7 @@ theorem depth_le_of_free_head {g : Globals} {u : State} {p : SolverPosType}
 
 /-- **One suit, played up to `cvAceVal`.**  `n` is a budget: any bound on how far the
 foundation still has to climb will do. -/
-theorem exists_plays_suit {g : Globals} {p : SolverPosType} (hwf : WellFormedLayout g)
+theorem exists_plays_suit {g : Globals} {p : PosType} (hwf : WellFormedLayout g)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6) (su : Suit) :
     ∀ (n : Nat) (u : State), (∀ c : Card, countState u c = 1) →
       (∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩) →
@@ -392,7 +393,7 @@ theorem cvAceVal_le_13 (g : Globals) (d : Vector UInt8 10) (su : Nat) :
 
 /-- **The foundations, maximized.**  Only foundation plays, and the depth match survives:
 every card played was free, hence above its column's boundary. -/
-theorem exists_maximal_foundations {g : Globals} {p : SolverPosType} (hwf : WellFormedLayout g)
+theorem exists_maximal_foundations {g : Globals} {p : PosType} (hwf : WellFormedLayout g)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6) (u : State)
     (hcount : ∀ c : Card, countState u c = 1)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩) :

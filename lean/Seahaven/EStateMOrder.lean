@@ -18,7 +18,7 @@ subsingleton), `EStateM ε σ` carries a *real* state, so a per-state bottom wou
 bottom — under which `bind` is monotone.  This needs `[Nonempty ε] [Nonempty σ]`.
 
 The instances are generic, so this file sits *below* `Seahaven.Solver`: the solver's
-`solverRecCheckSolvable` is defined by `partial_fixpoint` and therefore needs them in
+`recCheckSolvable` is defined by `partial_fixpoint` and therefore needs them in
 scope at its own definition site.  The `Nonempty Error` / `Inhabited Globals`
 witnesses live in `Solver.lean`, next to the types they are about.
 -/

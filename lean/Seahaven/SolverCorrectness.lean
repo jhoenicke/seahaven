@@ -6,14 +6,14 @@ open Rules
 /-
   The glue between the Rules and the Solver.  The application creates a
   random card shuffle.  When querying the solvability, it sends the cardshuffle
-  to the solver (initcard).  Afterwards it can query multiple positions.  A
+  to the solver (Solver.initcard).  Afterwards it can query multiple positions.  A
   position is defined by its pile depths (number of cards until the first flute
   starts) and the suits of the piled kings.
 
   A king on a pile is marked with depth 0 (empty pile) and the corresponding
   bit for the suit set in the kingBitmap.
 
-  solve is called with a vector of 11 elements, the first 10 being the pile
+  Solver.solve is called with a vector of 11 elements, the first 10 being the pile
   depths and the last entry is the kingBitmap.
 -/
 
@@ -47,7 +47,7 @@ def pilesKingsFromState (s : State) : (Vector UInt8 11) :=
 def cardToNat (c : Card) : Nat :=
   13 * (allSuits.idxOf c.suit) + rankToNat c.rank
 
-/-- Compute the initcard argument for a given shuffle. -/
+/-- Compute the Solver.initcard argument for a given shuffle. -/
 def Rules.Shuffle.vector (s : Shuffle) :=
   Vector.ofFn (fun i : Fin 52 => UInt8.ofNat (cardToNat (s.perm i)))
 
@@ -56,32 +56,32 @@ The main correctness property of the Solver.
 
 If the solver is initialized with the correct shuffle and it is given the encoding `pilesKingsFromState s`
 of a state reachable from the initial state of that shuffle, then it will give always the right result:
-`NOMOVE` if `s` is not solvable and `SUCCESS` if `s` is solvable.
+`Solver.NOMOVE` if `s` is not solvable and `Solver.SUCCESS` if `s` is solvable.
 
 The solver can be queried for multiple states and will always answer correctly, provided it was initialized
 with the correct shuffle.
 
 We encode two global invariants `inv0` and `inv1`.  Invariant `inv0` must always hold (and is implied by `inv1`).
-The invariant `inv1` depends on the initial shuffle and states that the globals are initialized for this
-shuffle and the hashmap is valid for the current shuffle.  Calling `initcard` on an arbitrary state guarantees
-that `inv0 shuffle` holds.  Calling `solve` on the `pilesKingsFromState s` encoding of a reachable state `s`
-will preserves `inv shuffle` and return the correct result.
+The invariant `inv1` depends on the shuffle and states that the solver was correctly initialized for this
+shuffle.  Calling `Solver.initcard` on an arbitrary state guarantees that `inv1 shuffle` holds.
+Calling `Solver.solve` on the `pilesKingsFromState s` encoding of a reachable state `s` preserves
+`inv1 shuffle` and returns the correct result.
 
 We don't make any guarantees if the interface is not used correctly.  We assume that the application will
 only query valid positions.
 -/
 
 def Correctness : Prop :=
-  ∃ inv0 : Globals → Prop,
-  ∃ inv1 : Shuffle → Globals → Prop,
-  inv0 emptyGlobals
-  ∧ ∀ shuffle : Shuffle, ∀ g : Globals,
+  ∃ inv0 : Solver.Globals → Prop,
+  ∃ inv1 : Shuffle → Solver.Globals → Prop,
+  inv0 Solver.emptyGlobals
+  ∧ ∀ shuffle : Shuffle, ∀ g : Solver.Globals,
     (inv1 shuffle g → inv0 g)
     ∧ (inv0 g →
-       ∃ g' : Globals,
-       EStateM.run (initcard shuffle.vector) g = .ok () g' ∧ inv1 shuffle g')
+       ∃ g' : Solver.Globals,
+       EStateM.run (Solver.initcard shuffle.vector) g = .ok () g' ∧ inv1 shuffle g')
     ∧ (inv1 shuffle g →
        ∀ s : State, isReachable (init shuffle.perm) s →
-       ∃ g' : Globals, ∃ res : UInt8,
-        EStateM.run (solve (pilesKingsFromState s)) g = .ok res g' ∧ inv1 shuffle g'
-        ∧ ((res = UInt8.ofNat NOMOVE ∧ ¬ isSolvable s) ∨ (res = UInt8.ofNat SUCCESS ∧ isSolvable s)))
+       ∃ g' : Solver.Globals, ∃ res : UInt8,
+        EStateM.run (Solver.solve (pilesKingsFromState s)) g = .ok res g' ∧ inv1 shuffle g'
+        ∧ ((res = UInt8.ofNat Solver.NOMOVE ∧ ¬ isSolvable s) ∨ (res = UInt8.ofNat Solver.SUCCESS ∧ isSolvable s)))

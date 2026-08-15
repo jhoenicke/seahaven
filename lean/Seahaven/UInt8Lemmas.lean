@@ -1,5 +1,7 @@
 import Seahaven.Solver
 
+open Solver
+
 /-!
 # `UInt8` arithmetic lemmas
 

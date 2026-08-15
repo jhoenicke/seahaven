@@ -2,6 +2,7 @@ import Seahaven.DepthMatch
 import Seahaven.CPNormal
 
 open Rules
+open Solver
 
 /-!
 # The critical move, with the foundations pinned
@@ -42,7 +43,7 @@ already parked" hypothesis of `DeckCount.usedSpace_add_flute_le`.
 is all that is available, so both are restated over the bare clause. -/
 
 /-- `ready_code`, over the bare `aces_match` clause. -/
-theorem ready_code_of_aces {u : State} {p : SolverPosType}
+theorem ready_code_of_aces {u : State} {p : PosType}
     (haces : ∀ su : Suit, p.aces.get (finOfSuit su) = encodeFoundation su (u.foundations su))
     {c : Card} (hready : some c.rank = nextRank (u.foundations c.suit)) :
     rankToNat c.rank = optRankToNat (u.foundations c.suit) + 1 ∧
@@ -64,7 +65,7 @@ theorem ready_code_of_aces {u : State} {p : SolverPosType}
 /-! ## The next foundation card is buried -/
 
 /-- The foundation top's code splits into suit and value. -/
-theorem aces_toNat {g : Globals} {p : SolverPosType} (hb : SolverInvBase g p) (s : Fin 4) :
+theorem aces_toNat {g : Globals} {p : PosType} (hb : SolverInvBase g p) (s : Fin 4) :
     (p.aces.get s).toNat = s.val * 16 + (VALUE (p.aces.get s)).toNat := by
   obtain ⟨hsA, -, -⟩ := hb.aces_kings_valid s
   have hs4 := s.isLt
@@ -78,7 +79,7 @@ theorem aces_toNat {g : Globals} {p : SolverPosType} (hb : SolverInvBase g p) (s
   omega
 
 /-- The code of the next foundation card, in `Nat` terms. -/
-theorem aces_succ_toNat {g : Globals} {p : SolverPosType} (hb : SolverInvBase g p)
+theorem aces_succ_toNat {g : Globals} {p : PosType} (hb : SolverInvBase g p)
     (s : Fin 4) (h13 : (VALUE (p.aces.get s)).toNat < 13) :
     (p.aces.get s + 1).toNat = s.val * 16 + ((VALUE (p.aces.get s)).toNat + 1) := by
   have hAn := aces_toNat hb s
@@ -87,7 +88,7 @@ theorem aces_succ_toNat {g : Globals} {p : SolverPosType} (hb : SolverInvBase g 
   omega
 
 /-- **The next foundation card is a real card** (its value is `VALUE aces + 1 ≤ 13`). -/
-theorem aces_succ_real {g : Globals} {p : SolverPosType} (hb : SolverInvBase g p)
+theorem aces_succ_real {g : Globals} {p : PosType} (hb : SolverInvBase g p)
     (s : Fin 4) (h13 : (VALUE (p.aces.get s)).toNat < 13) :
     IsRealCard (p.aces.get s + 1) := by
   have hcode := aces_succ_toNat hb s h13
@@ -105,7 +106,7 @@ would demand a set `busyAces` bit.
 
 Stated over an arbitrary code `x` equal to `aces[s] + 1` so that callers can
 instantiate it at `encodeCard c` without rewriting under a dependent `Fin`. -/
-theorem next_foundation_buried {g : Globals} {p : SolverPosType}
+theorem next_foundation_buried {g : Globals} {p : PosType}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p) (s : Fin 4)
     (h13 : (VALUE (p.aces.get s)).toNat < 13) (x : UInt8) (hx : x = p.aces.get s + 1)
     (hp10 : (cardPile g x).toNat < 10) :
@@ -180,7 +181,7 @@ strictly below its boundary and `buried_inaccessible` therefore puts out of reac
 
 Unlike `StateMatchesSolverPos.no_fmStep` this needs no `flute_match` and no
 `king_pile`: parking flute cards into cells cannot expose a foundation card. -/
-theorem no_fmStep_of_depthMatch {g : Globals} {u : State} {p : SolverPosType}
+theorem no_fmStep_of_depthMatch {g : Globals} {u : State} {p : PosType}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     (hdm : ∀ i : Fin 10, PileMatches g (u.tableau i) i ⟨(p.pileDepth.get i).toNat, hd6 i⟩)
@@ -242,7 +243,7 @@ a `DepthPlusKings` match.
 The prefix is returned as a `PrefixReach` chain rather than a bare `Reach`: every
 one of its states still matches at the middle layer, which is what the
 king-configuration argument (`EmptyPileCfg`) inspects. -/
-theorem exists_critical_move_aces {g : Globals} {p : SolverPosType}
+theorem exists_critical_move_aces {g : Globals} {p : PosType}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
     (hd6 : ∀ i : Fin 10, (p.pileDepth.get i).toNat < 6)
     {i₀ : Fin 10} (hpos : 0 < (p.pileDepth.get i₀).toNat) :
@@ -316,7 +317,7 @@ that
 and whose next move takes that boundary card.  The last two facts are exactly the
 `hcol`/`hda` hypotheses of `DeckCount.usedSpace_add_flute_le`, so affordability of
 `t₀`'s configuration follows immediately (`critical_usedSpace_bound`). -/
-theorem exists_critical_state {g : Globals} {s : State} {p : SolverPosType}
+theorem exists_critical_state {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
     (hmt : StateMatchesSolverPos g s p) (hsolv : Solvable s)
     {i₀ : Fin 10} (hpos : 0 < (p.pileDepth.get i₀).toNat) :
@@ -356,7 +357,7 @@ in two columns. -/
 
 /-- **The deepest card of a solver-empty column is a king.**  `king_run` read at
 index `0`; the middle layer's `king_le` is not needed. -/
-theorem DepthPlusKings.empty_pile_king {g : Globals} {u : State} {p : SolverPosType}
+theorem DepthPlusKings.empty_pile_king {g : Globals} {u : State} {p : PosType}
     (h : DepthPlusKings g u p) (i : Fin 10) (hd0 : (p.pileDepth.get i).toNat = 0)
     {d : Card} (hlast : (u.tableau i).getLast? = some d) : d.rank = Rank.king := by
   have hr0l : 0 < (u.tableau i).reverse.length := by
@@ -375,7 +376,7 @@ theorem DepthPlusKings.empty_pile_king {g : Globals} {u : State} {p : SolverPosT
 
 /-- **Distinct solver-empty columns carry distinct suits.**  Both deepest cards
 are kings, so equal suits make them the same card — which lives in one column. -/
-theorem DepthPlusKings.empty_pile_unique {g : Globals} {u : State} {p : SolverPosType}
+theorem DepthPlusKings.empty_pile_unique {g : Globals} {u : State} {p : PosType}
     (h : DepthPlusKings g u p) {i j : Fin 10}
     (hi : (p.pileDepth.get i).toNat = 0) (hj : (p.pileDepth.get j).toNat = 0)
     {d e : Card} (hdi : (u.tableau i).getLast? = some d)
@@ -387,7 +388,7 @@ theorem DepthPlusKings.empty_pile_unique {g : Globals} {u : State} {p : SolverPo
 /-- **The space bound over the middle layer.**  This is what makes `k_t`
 affordable *by construction*: the play really did park `fluteLen - 1` cards. -/
 theorem DepthPlusKingsCfg.flute_sub_one_le_freeCellsOf {g : Globals} {u : State}
-    {p : SolverPosType} {k : Fin 16} (hb : SolverInvBase g p)
+    {p : PosType} {k : Fin 16} (hb : SolverInvBase g p)
     (h : DepthPlusKingsCfg g u p k) (a : Fin 10) (hda : 0 < (p.pileDepth.get a).toNat)
     (hcol : (u.tableau a).length = (p.pileDepth.get a).toNat) :
     ((p.pileFlute.get a).toNat : Int) - 1 ≤ freeCellsOf p k :=
@@ -400,10 +401,10 @@ theorem DepthPlusKingsCfg.flute_sub_one_le_freeCellsOf {g : Globals} {u : State}
 `t₀` that matches `p` at the middle layer in the configuration `cfgOf t₀ p` it is
 *in*, is still solvable, is about to move pile `a`'s boundary card, and — because
 pile `a`'s flute is fully parked — leaves `pileFlute a - 1` cells free at that
-configuration.  That last inequality is exactly the bit `solverGetMovable` reads
+configuration.  That last inequality is exactly the bit `getMovable` reads
 out of `possibleKings[fluteLen - 1]` (`KingInfoCorrect`), so the solver really does
 consider this move. -/
-theorem exists_critical_state_affordable {g : Globals} {s : State} {p : SolverPosType}
+theorem exists_critical_state_affordable {g : Globals} {s : State} {p : PosType}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
     (hmt : StateMatchesSolverPos g s p) (hsolv : Solvable s)
     {i₀ : Fin 10} (hpos : 0 < (p.pileDepth.get i₀).toNat) :
@@ -422,10 +423,10 @@ theorem exists_critical_state_affordable {g : Globals} {s : State} {p : SolverPo
 
 /-- **The sharp space bound over the middle layer.**  Free cells at the critical
 moment are extra slack, which is what the `EXTRA` and king-pile branches of
-`solverGetMovable` need: they index `possibleKings` at `fluteLen`, one higher than a
+`getMovable` need: they index `possibleKings` at `fluteLen`, one higher than a
 column destination does. -/
 theorem DepthPlusKingsCfg.flute_add_freeCells_le_freeCellsOf {g : Globals} {u : State}
-    {p : SolverPosType} {k : Fin 16} (hb : SolverInvBase g p)
+    {p : PosType} {k : Fin 16} (hb : SolverInvBase g p)
     (h : DepthPlusKingsCfg g u p k) (a : Fin 10) (hda : 0 < (p.pileDepth.get a).toNat)
     (hcol : (u.tableau a).length = (p.pileDepth.get a).toNat) :
     ((p.pileFlute.get a).toNat : Int) - 1 + ((freeCells u).length : Int) ≤ freeCellsOf p k :=
@@ -449,23 +450,23 @@ disjunct licenses the claim — it asks exactly for an empty column and
 
 Note the extension is free: `su₀` refunds `13 - VALUE kings[su₀] = 0`, so
 `freeCellsOf` does not change.  What it buys is the *branch* — with `su₀` piled,
-`solverGetMovable`'s king-pile mask fires through
+`getMovable`'s king-pile mask fires through
 `possibleKings[fluteLen-1] &&& kingOnPile` rather than `possibleKings[fluteLen]`. -/
 
 open Classical in
 /-- The internal mask of "piled suits, plus `su₀`": bit set = no pile. -/
-noncomputable def piledPlusMaskNat (u : State) (p : SolverPosType) (su₀ : Suit) : Nat :=
+noncomputable def piledPlusMaskNat (u : State) (p : PosType) (su₀ : Suit) : Nat :=
   (if PiledSuit u p Suit.clubs ∨ Suit.clubs = su₀ then 0 else 1)
     + (if PiledSuit u p Suit.diamonds ∨ Suit.diamonds = su₀ then 0 else 2)
     + (if PiledSuit u p Suit.hearts ∨ Suit.hearts = su₀ then 0 else 4)
     + (if PiledSuit u p Suit.spades ∨ Suit.spades = su₀ then 0 else 8)
 
-theorem piledPlusMaskNat_lt (u : State) (p : SolverPosType) (su₀ : Suit) :
+theorem piledPlusMaskNat_lt (u : State) (p : PosType) (su₀ : Suit) :
     piledPlusMaskNat u p su₀ < 16 := by
   unfold piledPlusMaskNat
   split_ifs <;> omega
 
-theorem piledPlusMaskNat_bit (u : State) (p : SolverPosType) (su₀ su : Suit) :
+theorem piledPlusMaskNat_bit (u : State) (p : PosType) (su₀ su : Suit) :
     piledPlusMaskNat u p su₀ / 2 ^ (suitToNat su) % 2 = 1
       ↔ ¬ (PiledSuit u p su ∨ su = su₀) := by
   unfold piledPlusMaskNat
@@ -474,16 +475,16 @@ theorem piledPlusMaskNat_bit (u : State) (p : SolverPosType) (su₀ su : Suit) :
 
 /-- **`k_t`.**  The configuration the critical state is in, with `su₀` claiming the
 column its king is about to occupy. -/
-noncomputable def cfgOfPlus (u : State) (p : SolverPosType) (su₀ : Suit) : Fin 16 :=
+noncomputable def cfgOfPlus (u : State) (p : PosType) (su₀ : Suit) : Fin 16 :=
   cfgOfMask ⟨piledPlusMaskNat u p su₀, piledPlusMaskNat_lt u p su₀⟩
 
-theorem cfgBitSet_cfgOfPlus (u : State) (p : SolverPosType) (su₀ su : Suit) :
+theorem cfgBitSet_cfgOfPlus (u : State) (p : PosType) (su₀ su : Suit) :
     CfgBitSet (cfgOfPlus u p su₀) su ↔ ¬ (PiledSuit u p su ∨ su = su₀) := by
   rw [cfgOfPlus, cfgBitSet_cfgOfMask]
   exact piledPlusMaskNat_bit u p su₀ su
 
 /-- The extension piles more, so affordability transports to it (`freeCellsOf_mono`). -/
-theorem maskSub_cfgOfPlus (u : State) (p : SolverPosType) (su₀ : Suit) :
+theorem maskSub_cfgOfPlus (u : State) (p : PosType) (su₀ : Suit) :
     MaskSub (cfgOfPlus u p su₀) (cfgOf u p) := by
   rw [MaskSub_iff]
   intro su hbit
@@ -494,7 +495,7 @@ open Classical in
 /-- **The critical state realizes `k_t`.**  The base assignment is `cfgOf`'s; `su₀` is
 sent to the empty column `i₀`, which no other suit can be using because every other
 assigned column carries a deepest card. -/
-theorem DepthPlusKings.toCfgPlus {g : Globals} {u : State} {p : SolverPosType}
+theorem DepthPlusKings.toCfgPlus {g : Globals} {u : State} {p : PosType}
     (h : DepthPlusKings g u p) {su₀ : Suit} {i₀ : Fin 10}
     (hd0 : (p.pileDepth.get i₀).toNat = 0) (hempty : u.tableau i₀ = [])
     (hking : (VALUE (p.kings.get (finOfSuit su₀))).toNat = 13) :

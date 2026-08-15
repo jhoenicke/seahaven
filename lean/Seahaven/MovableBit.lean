@@ -3,17 +3,18 @@ import Seahaven.MaximalCfg
 import Seahaven.GetMovableSpec
 
 open Rules
+open Solver
 
 /-!
 # The solver really does consider the critical move
 
-Item 1 of the loop body: the `movable` mask `solverGetMovable` returns has the bit of a
+Item 1 of the loop body: the `movable` mask `getMovable` returns has the bit of a
 block configuration the critical state stands for.
 
 Everything is already proved; this only joins the two ends.
 
 * `DestAfford.critical_dest_affordable` reads the play's own move as the affordability
-  disjunction `solverGetMovable`'s mask *is* — `fluteLen` free cells, or `fluteLen - 1`
+  disjunction `getMovable`'s mask *is* — `fluteLen` free cells, or `fluteLen - 1`
   together with a column destination or a king pile whose suit is piled.
 * `GetMovableSpec.getMovable_bitSet` turns that disjunction, stated at a **block**
   configuration, into the bit.
@@ -29,20 +30,20 @@ the affordability gives `fluteLen - 1 ≤ freeCellsOf`, and `freeCellsOf ≤ 4` 
 -/
 
 /-- The cell budget of any configuration is at most the four cells. -/
-theorem freeCellsOf_le_four {g : Globals} {p : SolverPosType} (hwf : WellFormedLayout g)
+theorem freeCellsOf_le_four {g : Globals} {p : PosType} (hwf : WellFormedLayout g)
     (hb : SolverInvBase g p) (k : Fin 16) : freeCellsOf p k ≤ 4 := by
   have := kingRefund_le_usedSpace hwf hb k
   unfold freeCellsOf
   omega
 
-/-- **`solverGetMovable`'s answer has the critical configuration's bit.**
+/-- **`getMovable`'s answer has the critical configuration's bit.**
 
 Returns the block index `i` together with the configuration `k` the critical state is
 in and `MaskSub (globalCfg … i) k`, since the caller needs all three: the bit indexes
 the loop's masks, `k` is what the child is reached at, and the `MaskSub` is what the
 `subsetTable` transport composes with. -/
 theorem exists_movable_bit_of_critical
-    {g : Globals} {t₀ t₁ : State} {p : SolverPosType}
+    {g : Globals} {t₀ t₁ : State} {p : PosType}
     (hwf : WellFormedLayout g) (hcan : IsCanonicalPos g p)
     (h : DepthPlusKings g t₀ p)
     {a : Fin 10} {c : Card} {rest : Column}
@@ -53,7 +54,7 @@ theorem exists_movable_bit_of_critical
     (hdst : mv.dest ≠ Position.pile a)
     {toPile : UInt8} (hdv : SolverSpec.DestValid g p (encodeCard c) toPile)
     {ki : KingInfo} (hchar : KingInfoCorrect p ki) {m : UInt16}
-    (hmvrun : EStateM.run (solverGetMovable ki (closureInfoOf p).shiftValue
+    (hmvrun : EStateM.run (getMovable ki (closureInfoOf p).shiftValue
       (p.pileFlute.get a) toPile) g = .ok m g) :
     ∃ (i : Nat) (k : Fin 16), i < (closureInfoOf p).numBits.toNat ∧
       DepthPlusKingsCfg g t₀ p k ∧ (∀ su : Suit, PiledSuit t₁ p su → ¬ CfgBitSet k su) ∧
@@ -84,7 +85,7 @@ theorem exists_movable_bit_of_critical
 
 /-! ## The loop's early `break`
 
-`solverRecCheckSolvable` stops the pile loop as soon as `solvable == allkings`, where
+`recCheckSolvable` stops the pile loop as soon as `solvable == allkings`, where
 `allkings = possibleKings[0]` — the configurations that leave at least *zero* free
 cells, i.e. the feasible ones.  So a break can only hurt completeness if the bit we
 want is missing from `allkings`, and it never is: the bit belongs to a configuration
@@ -93,7 +94,7 @@ count (`DepthPlusKingsCfg.freeCellsOf_nonneg`).  Piling more only frees cells, s
 survives the passage to the block configuration (`freeCellsOf_mono`). -/
 
 /-- **`allkings` misses no realizable configuration.** -/
-theorem bitSet_allkings_of_cfg {g : Globals} {w : State} {p : SolverPosType} {k : Fin 16}
+theorem bitSet_allkings_of_cfg {g : Globals} {w : State} {p : PosType} {k : Fin 16}
     {ki : KingInfo} (hb : SolverInvBase g p) (hchar : KingInfoCorrect p ki)
     (hw : DepthPlusKingsCfg g w p k) {i : Nat} (hi : i < (closureInfoOf p).numBits.toNat)
     (hsub : MaskSub (globalCfg (closureInfoOf p) i) k) :

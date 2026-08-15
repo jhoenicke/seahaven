@@ -2,6 +2,7 @@ import Seahaven.KingMoveSim
 import Seahaven.MaximalCfg
 
 open Rules
+open Solver
 
 /-!
 # Completing a configuration, reversibly
@@ -33,22 +34,22 @@ piling only frees cells.
 
 /-- `s` can be reshuffled into a state standing for `k` **and back again**, so the
 two are equi-solvable.  The reversible strengthening of `KingConfigReachable`. -/
-def KingConfigEquiv (g : Globals) (p : SolverPosType) (s : State) (k : Fin 16) : Prop :=
+def KingConfigEquiv (g : Globals) (p : PosType) (s : State) (k : Fin 16) : Prop :=
   ∃ t : State, Reach s t ∧ Reach t s ∧ StateMatchesKingConfig g t p k
 
-theorem KingConfigEquiv.toReachable {g : Globals} {p : SolverPosType} {s : State} {k : Fin 16}
+theorem KingConfigEquiv.toReachable {g : Globals} {p : PosType} {s : State} {k : Fin 16}
     (h : KingConfigEquiv g p s k) : KingConfigReachable g p s k := by
   obtain ⟨t, hf, -, ht⟩ := h
   exact ⟨t, hf, ht⟩
 
-theorem KingConfigEquiv.refl {g : Globals} {p : SolverPosType} {s : State} {k : Fin 16}
+theorem KingConfigEquiv.refl {g : Globals} {p : PosType} {s : State} {k : Fin 16}
     (h : StateMatchesKingConfig g s p k) : KingConfigEquiv g p s k :=
   ⟨s, Relation.ReflTransGen.refl, Relation.ReflTransGen.refl, h⟩
 
 /-! ## One pile step -/
 
 /-- Piling one more suit, with the round trip composed on. -/
-theorem pile_kingConfigEquiv {g : Globals} {p : SolverPosType} {s : State} {k : Fin 16}
+theorem pile_kingConfigEquiv {g : Globals} {p : PosType} {s : State} {k : Fin 16}
     {su : Suit} (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hfp : p.freePiles.toNat
       ≤ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card)
@@ -64,7 +65,7 @@ theorem pile_kingConfigEquiv {g : Globals} {p : SolverPosType} {s : State} {k : 
 The induction of `maskSub_kingConfigReachable`, with the round trip carried along:
 one suit per round, and `d`'s own pile count bounds the columns in use throughout. -/
 
-theorem maskSub_kingConfigEquiv {g : Globals} {p : SolverPosType} {s : State} {d : Fin 16}
+theorem maskSub_kingConfigEquiv {g : Globals} {p : PosType} {s : State} {d : Fin 16}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hfp : p.freePiles.toNat
       ≤ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card)
@@ -102,7 +103,7 @@ theorem maskSub_kingConfigEquiv {g : Globals} {p : SolverPosType} {s : State} {d
 `numPiledKings p ≤ freePiles` suits — the column budget, for free. -/
 
 /-- **Reshuffling up to a configuration that piles more, reversibly.** -/
-theorem kingConfigEquiv_of_maskSub {g : Globals} {p : SolverPosType} {s : State} {k d : Fin 16}
+theorem kingConfigEquiv_of_maskSub {g : Globals} {p : PosType} {s : State} {k d : Fin 16}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hfp : p.freePiles.toNat
       ≤ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card)
@@ -121,7 +122,7 @@ when the original was.
 `i` is the bit the loop's `movable` mask and the `subsetTable` transport are both
 indexed by, so this is what lets the child's answer be read at a configuration
 piling everything the parent's block configuration piles. -/
-theorem exists_block_match {g : Globals} {p : SolverPosType} {s : State} {k : Fin 16}
+theorem exists_block_match {g : Globals} {p : PosType} {s : State} {k : Fin 16}
     (hwf : WellFormedLayout g) (hb : SolverInvBase g p)
     (hfp : p.freePiles.toNat
       ≤ (Finset.univ.filter (fun i : Fin 10 => p.pileDepth.get i = 0)).card)
@@ -140,7 +141,7 @@ theorem exists_block_match {g : Globals} {p : SolverPosType} {s : State} {k : Fi
 /-- **And a block configuration always exists.**  Every configuration a position can
 realize is covered by one of its block's (`MaximalCfg`), so the completion is never
 blocked. -/
-theorem exists_block_match_of_realizes {g : Globals} {p : SolverPosType} {s : State}
+theorem exists_block_match_of_realizes {g : Globals} {p : PosType} {s : State}
     {k : Fin 16} (hwf : WellFormedLayout g) (hm : SolverInvMerged g p)
     (hk : StateMatchesKingConfig g s p k) :
     ∃ (i : Nat) (t : State), i < (closureInfoOf p).numBits.toNat ∧

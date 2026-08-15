@@ -2,6 +2,7 @@ import Seahaven.RecCheckSound
 import Seahaven.DestComplete
 
 open Rules
+open Solver
 
 /-!
 # The completeness spec layer
@@ -36,13 +37,13 @@ be entangled with `HashmapSound`.
 /-- `CompleteBits g p v` : the mask `v` **misses no solvable configuration**.  Every
 state `p` stands for at configuration `k` which really is solvable has `k`'s bit set
 in the `subsetTable` expansion of `v`.  The `→` half of `SolvableBits`. -/
-def CompleteBits (g : Globals) (p : SolverPosType) (v : UInt16) : Prop :=
+def CompleteBits (g : Globals) (p : PosType) (v : UInt16) : Prop :=
   ∀ (s : State) (k : Fin 16), StateMatchesKingConfig g s p k → Solvable s →
     BitSet (subsetAt ((closureInfoOf p).offset.toNat + v.toNat)) k
 
 /-- **The stated spec is exactly the two halves.**  Nothing else is needed to
 recombine `RecCheckSound`'s result with a completeness development. -/
-theorem solvableBits_iff (g : Globals) (p : SolverPosType) (v : UInt16) :
+theorem solvableBits_iff (g : Globals) (p : PosType) (v : UInt16) :
     SolvableBits g p v ↔ (SoundBits g p v ∧ CompleteBits g p v) := by
   constructor
   · intro h
@@ -55,14 +56,14 @@ theorem solvableBits_iff (g : Globals) (p : SolverPosType) (v : UInt16) :
 /-- **A bit already in the accumulator survives an `|||`.**  The completeness
 counterpart of `SoundBits.union`: soundness needs *both* operands to be sound,
 completeness needs only *one* of them to carry the bit. -/
-theorem BitSet.or_left {p : SolverPosType} {a b : UInt16}
+theorem BitSet.or_left {p : PosType} {a b : UInt16}
     (hla : LocalMask p a) (hlb : LocalMask p b) {k : Fin 16}
     (h : BitSet (subsetAt ((closureInfoOf p).offset.toNat + a.toNat)) k) :
     BitSet (subsetAt ((closureInfoOf p).offset.toNat + (a ||| b).toNat)) k := by
   rw [subsetAt_or_pos p hla hlb, BitSet_or]
   exact Or.inl h
 
-theorem BitSet.or_right {p : SolverPosType} {a b : UInt16}
+theorem BitSet.or_right {p : PosType} {a b : UInt16}
     (hla : LocalMask p a) (hlb : LocalMask p b) {k : Fin 16}
     (h : BitSet (subsetAt ((closureInfoOf p).offset.toNat + b.toNat)) k) :
     BitSet (subsetAt ((closureInfoOf p).offset.toNat + (a ||| b).toNat)) k := by
@@ -72,26 +73,26 @@ theorem BitSet.or_right {p : SolverPosType} {a b : UInt16}
 /-- `CompleteBits` is monotone in the mask: once an accumulator is complete, so is
 anything it grows into.  This is what makes the loop invariant survive the
 iterations *after* the winning one. -/
-theorem CompleteBits.or_left {g : Globals} {p : SolverPosType} {a b : UInt16}
+theorem CompleteBits.or_left {g : Globals} {p : PosType} {a b : UInt16}
     (hla : LocalMask p a) (hlb : LocalMask p b) (h : CompleteBits g p a) :
     CompleteBits g p (a ||| b) :=
   fun s k hk hsol => BitSet.or_left hla hlb (h s k hk hsol)
 
-theorem CompleteBits.or_right {g : Globals} {p : SolverPosType} {a b : UInt16}
+theorem CompleteBits.or_right {g : Globals} {p : PosType} {a b : UInt16}
     (hla : LocalMask p a) (hlb : LocalMask p b) (h : CompleteBits g p b) :
     CompleteBits g p (a ||| b) :=
   fun s k hk hsol => BitSet.or_right hla hlb (h s k hk hsol)
 
 /-- The vacuous case: a position no state realizes is complete for any mask.  (Used
 for the loop's `break`, where the remaining configurations are unrealizable.) -/
-theorem CompleteBits.of_no_state {g : Globals} {p : SolverPosType} {v : UInt16}
+theorem CompleteBits.of_no_state {g : Globals} {p : PosType} {v : UInt16}
     (h : ∀ (s : State) (k : Fin 16), ¬ StateMatchesKingConfig g s p k) :
     CompleteBits g p v :=
   fun s k hk _ => absurd hk (h s k)
 
 /-- Matching never reads the memo table, so a memo write cannot break completeness
-— the frame every write in `solverRecCheckSolvable` needs. -/
-theorem CompleteBits.set_hashmap {g : Globals} {p : SolverPosType} {v : UInt16}
+— the frame every write in `recCheckSolvable` needs. -/
+theorem CompleteBits.set_hashmap {g : Globals} {p : PosType} {v : UInt16}
     (hm : Vector UInt16 BIG_HASH_SIZE) (h : CompleteBits g p v) :
     CompleteBits { g with hashmap := hm } p v :=
   fun s k hk hsol => h s k ((StateMatchesKingConfig.hashmap_iff hm).1 hk) hsol
@@ -199,7 +200,7 @@ theorem bitSet_accum {v mv'' : UInt16} {k : Fin 16} (h : BitSet mv'' k) :
 
 /-! ## The `hash = 0` leaf
 
-`solverRecCheckSolvable` answers `1` when the hash is zero.  Soundness reads that
+`recCheckSolvable` answers `1` when the hash is zero.  Soundness reads that
 as "the position is already solved"; completeness has the easier job — the value `1`
 selects the block's *maximal* configuration, whose expansion at `freePiles = 10`
 covers every configuration, so no solvable state can be missed. -/
@@ -213,7 +214,7 @@ theorem subsetAt_one_ten (c : Fin 16) :
 
 /-- Hence the leaf value is complete for any position with ten free piles — which is
 exactly the `hash = 0` case (`hash = 0 → every depth is 0 → freePiles = 10`). -/
-theorem completeBits_one_of_freePiles_ten {g : Globals} {p : SolverPosType}
+theorem completeBits_one_of_freePiles_ten {g : Globals} {p : PosType}
     (hfp : p.freePiles.toNat = 10) : CompleteBits g p 1 := by
   intro s k _ _
   have h : closureInfoOf p = closureInfos.get 10 := by
@@ -229,7 +230,7 @@ Self-maintaining, and independent of `HashmapSound`: a slot is either free or it
 value misses no solvable configuration. -/
 
 def HashmapComplete (g : Globals) : Prop :=
-  ∀ (p : SolverPosType), IsCanonicalPos g p →
+  ∀ (p : PosType), IsCanonicalPos g p →
     ∀ v : UInt8, EStateM.run (getSlot p.hash) g = .ok v g →
       v = UInt8.ofNat FREESLOT ∨ (CompleteBits g p v.toUInt16 ∧ LocalMask p v.toUInt16)
 
@@ -245,11 +246,11 @@ recursion — the invariant is self-maintaining, so that version never has to be
 entangled with its dual — and `H := HashmapCorrect` gives the two-sided recursion of
 `RecCheckSpec`, where a *single* induction over the depth serves both halves. -/
 
-def ChildSpecComplete (H : Globals → Prop) (p : SolverPosType) : Prop :=
-  ∀ (child : SolverPosType) (g₁ g₂ : Globals) (w : UInt16),
+def ChildSpecComplete (H : Globals → Prop) (p : PosType) : Prop :=
+  ∀ (child : PosType) (g₁ g₂ : Globals) (w : UInt16),
     SolverSpec.DepthSum child < SolverSpec.DepthSum p → WellFormedLayout g₁ →
     IsCanonicalPos g₁ child → H g₁ →
-    EStateM.run (solverRecCheckSolvable child) g₁ = .ok w g₂ →
+    EStateM.run (recCheckSolvable child) g₁ = .ok w g₂ →
     (CompleteBits g₁ child w ∧ LocalMask child w) ∧ H g₂ ∧
       ∃ hm : Vector UInt16 BIG_HASH_SIZE, g₂ = { g₁ with hashmap := hm }
 
@@ -259,11 +260,11 @@ Mirrors of `RecCheckSolvableSound` and of `SolveSpec`'s forward half.  Stated so
 that `recCheckSolvableSpec_of` below assembles the two halves into the spec
 `SolvableBits.lean` asks for. -/
 
-/-- **What `solverRecCheckSolvable` must satisfy, completeness half.** -/
+/-- **What `recCheckSolvable` must satisfy, completeness half.** -/
 def RecCheckSolvableComplete : Prop :=
-  ∀ (g g' : Globals) (p : SolverPosType) (v : UInt16),
+  ∀ (g g' : Globals) (p : PosType) (v : UInt16),
     WellFormedLayout g → HashmapComplete g → IsCanonicalPos g p →
-    EStateM.run (solverRecCheckSolvable p) g = .ok v g' →
+    EStateM.run (recCheckSolvable p) g = .ok v g' →
     (CompleteBits g p v ∧ LocalMask p v) ∧ HashmapComplete g' ∧
       ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm }
 
@@ -273,7 +274,7 @@ def RecCheckSolvableComplete : Prop :=
 two developments is pure bookkeeping. -/
 
 /-- The recombination at the level of one answer. -/
-theorem recCheck_spec_of {g : Globals} {p : SolverPosType} {v : UInt16}
+theorem recCheck_spec_of {g : Globals} {p : PosType} {v : UInt16}
     (hs : SoundBits g p v) (hc : CompleteBits g p v) : SolvableBits g p v :=
   (solvableBits_iff g p v).2 ⟨hs, hc⟩
 
@@ -293,9 +294,9 @@ proves the call *returns*, something neither half supplies (both are conditional
 `RecCheckSolvableSpec` itself. -/
 theorem recCheckSolvableSpec_of (hsound : RecCheckSolvableSound)
     (hcomplete : RecCheckSolvableComplete) :
-    ∀ (g g' : Globals) (p : SolverPosType) (v : UInt16),
+    ∀ (g g' : Globals) (p : PosType) (v : UInt16),
       WellFormedLayout g → IsCanonicalPos g p → HashmapCorrect g →
-      EStateM.run (solverRecCheckSolvable p) g = .ok v g' →
+      EStateM.run (recCheckSolvable p) g = .ok v g' →
       (SolvableBits g p v ∧ LocalMask p v) ∧ HashmapCorrect g' ∧
         g'.pos2card = g.pos2card := by
   intro g g' p v hwf hcan hcorrect hrun
