@@ -2,6 +2,8 @@ import Seahaven.MoveAcesSim
 import Seahaven.SolverSpecMove
 import Seahaven.SolverSpecDrain
 
+open Rules
+
 /-!
 # A whole `SolverMove` call, simulated
 

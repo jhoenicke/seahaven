@@ -2,6 +2,8 @@ import Mathlib.Data.Nat.Bitwise
 import Seahaven.SolvableBits
 import Seahaven.OrConsistentTable
 
+open Rules
+
 /-!
 # Skeleton of the soundness proof for the body of `solverRecCheckSolvable`
 

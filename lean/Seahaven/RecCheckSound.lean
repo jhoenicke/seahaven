@@ -1,5 +1,7 @@
 import Seahaven.RecLoopSound
 
+open Rules
+
 /-!
 # Soundness of `solverRecCheckSolvable` itself
 
@@ -112,7 +114,7 @@ theorem solvable_of_hash_zero {g : Globals} {s : State} {p : SolverPosType}
     have := (hm.foundation_value su).symm.trans (aces_king_of_hash_zero hcan hz (finOfSuit su))
     rw [← rankToNatToRank (s.foundations su), this]
     rfl
-  simp only [isGoal, List.all_cons, List.all_nil, hf, Bool.and_true]
+  simp only [isGoal, allSuits, List.all_cons, List.all_nil, hf, Bool.and_true]
   decide
 
 /-- The soundness half of the leaf's return value, `1`: every state the position

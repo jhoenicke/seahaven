@@ -2,6 +2,8 @@ import Seahaven.MathlibImports
 import Seahaven.Rules
 import Seahaven.CountProofs
 
+open Rules
+
 /-!
 # Foundation moves are never harmful
 
@@ -28,7 +30,7 @@ for the foundation.  `NoDupState` is invariant under *every* move
 
 /-! ## Extensionality and field simp lemmas -/
 
-theorem State.ext' {s t : State}
+theorem Rules.State.ext' {s t : State}
     (hc : s.cells = t.cells) (hf : s.foundations = t.foundations)
     (ht : s.tableau = t.tableau) : s = t := by
   cases s; cases t; simp_all
@@ -134,7 +136,7 @@ def IsFoundationMove (m : Move) : Prop := m.dest = Position.foundation
 instance (m : Move) : Decidable (IsFoundationMove m) := by
   unfold IsFoundationMove; infer_instance
 
-theorem Move.foundation_eta {m : Move} (h : IsFoundationMove m) :
+theorem Rules.Move.foundation_eta {m : Move} (h : IsFoundationMove m) :
     (⟨m.src, Position.foundation⟩ : Move) = m := by
   cases m with
   | mk src dest => simp only [IsFoundationMove] at h; subst h; rfl
@@ -634,7 +636,7 @@ theorem beq_king_iff (x : Option Rank) :
 
 theorem isGoal_iff {s : State} :
     isGoal s = true ↔ ∀ suit : Suit, s.foundations suit = some Rank.king := by
-  simp only [isGoal, List.all_cons, List.all_nil, Bool.and_true, Bool.and_eq_true,
+  simp only [isGoal, allSuits, List.all_cons, List.all_nil, Bool.and_true, Bool.and_eq_true,
     beq_king_iff]
   constructor
   · rintro ⟨h1, h2, h3, h4⟩ suit; cases suit <;> assumption

@@ -1,6 +1,8 @@
 import Seahaven.NormReachBridge
 import Seahaven.CleanupSim
 
+open Rules
+
 /-!
 # `SimulatesNorm`: a simulated phase whose moves are all normalizing
 

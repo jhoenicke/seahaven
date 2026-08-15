@@ -1,6 +1,8 @@
 import Seahaven.DepthMatch
 import Seahaven.CPNormal
 
+open Rules
+
 /-!
 # The critical move, with the foundations pinned
 

@@ -1,5 +1,7 @@
 import Seahaven.SolveCorrect
 
+open Rules
+
 /-!
 # The convert call, entered from a state nobody has normalized
 

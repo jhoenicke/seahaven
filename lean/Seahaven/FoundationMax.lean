@@ -1,6 +1,8 @@
 import Seahaven.CleanupLax
 import Seahaven.ReachableMatch
 
+open Rules
+
 /-!
 # Maximizing the foundations
 

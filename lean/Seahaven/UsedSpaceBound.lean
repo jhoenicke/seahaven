@@ -1,6 +1,8 @@
 import Seahaven.SoundnessSkeleton
 import Seahaven.SolverSpecCommon
 
+open Rules
+
 /-!
 # `usedSpace` bounds the cards outside the piles
 

@@ -1,6 +1,8 @@
 import Seahaven.MoveAcesSim
 import Seahaven.DepthMatch
 
+open Rules
+
 /-!
 # `SolverCleanupPile` at the depth-vector layer
 

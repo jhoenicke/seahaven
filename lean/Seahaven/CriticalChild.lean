@@ -6,6 +6,8 @@ import Seahaven.CPNormCfg
 import Seahaven.SolverMoveSim
 import Seahaven.RecCheckSound
 
+open Rules
+
 /-!
 # The critical move, simulated forward
 

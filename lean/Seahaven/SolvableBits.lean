@@ -1,6 +1,8 @@
 import Seahaven.MatchesPos
 import Mathlib.Data.Nat.Bitwise
 
+open Rules
+
 /-!
 # What the solver's king-configuration bitmasks mean
 

@@ -1,5 +1,7 @@
 import Seahaven.KingConfigSim
 
+open Rules
+
 /-!
 # Simulating the `busyAces` drain (`SolverMoveAces`)
 

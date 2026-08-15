@@ -1,6 +1,8 @@
 import Seahaven.ConvertSim
 import Seahaven.Phase1Sim
 
+open Rules
+
 /-!
 # Soundness of `solve`
 

@@ -1,6 +1,8 @@
 import Seahaven.FoundationMoves
 import Mathlib.Logic.Relation
 
+open Rules
+
 /-!
 # Normalizing a position by harmless moves
 

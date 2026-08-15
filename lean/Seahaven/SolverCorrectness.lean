@@ -1,6 +1,8 @@
 import Seahaven.Rules
 import Seahaven.Solver
 
+open Rules
+
 /-
   The glue between the Rules and the Solver.  The application creates a
   random card shuffle.  When querying the solvability, it sends the cardshuffle
@@ -46,7 +48,7 @@ def cardToNat (c : Card) : Nat :=
   13 * (allSuits.idxOf c.suit) + rankToNat c.rank
 
 /-- Compute the initcard argument for a given shuffle. -/
-def Shuffle.vector (s : Shuffle) :=
+def Rules.Shuffle.vector (s : Shuffle) :=
   Vector.ofFn (fun i : Fin 52 => UInt8.ofNat (cardToNat (s.perm i)))
 
 /--

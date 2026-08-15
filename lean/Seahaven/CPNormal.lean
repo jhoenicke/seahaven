@@ -1,5 +1,7 @@
 import Seahaven.UsedSpaceBound
 
+open Rules
+
 /-!
 # A canonical position only ever matches a *normalized* state
 

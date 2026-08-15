@@ -1,6 +1,8 @@
 import Seahaven.SolveSound
 import Seahaven.InitCard
 
+open Rules
+
 /-!
 # The dealt state matches the solver's view of a fresh deal
 
@@ -40,7 +42,7 @@ theorem dealCards_injective {sh : Vector UInt8 52} (hdeal : IsDeal sh) :
   exact Fin.ext (hdeal.card_inj a.isLt b.isLt h)
 
 /-- The state a fresh deal starts in. -/
-def dealState (sh : Vector UInt8 52) : State := _root_.init (dealCards sh)
+def dealState (sh : Vector UInt8 52) : State := Rules.init (dealCards sh)
 
 /-- The depth vector a fresh deal is passed to `solve` as: all ten piles full, and
     no suit owning a column (`stacks[10] = 0`, which `^^^ 0xf` turns into "every

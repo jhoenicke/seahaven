@@ -1,5 +1,7 @@
 import Seahaven.CPNormal
 
+open Rules
+
 /-!
 # The drain's moves are normalizing moves
 

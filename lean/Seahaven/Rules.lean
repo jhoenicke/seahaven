@@ -1,3 +1,5 @@
+namespace Rules
+
 inductive Suit
   | clubs | diamonds | hearts | spades
   deriving DecidableEq, Repr, BEq, ReflBEq, LawfulBEq, Hashable
@@ -104,17 +106,10 @@ structure StateView where
   deriving Repr
 
 def State.toView (s : State) : StateView :=
-  { cells := [s.cells 0, s.cells 1, s.cells 2, s.cells 3]
-  , foundations :=
-      [ s.foundations Suit.clubs
-      , s.foundations Suit.diamonds
-      , s.foundations Suit.hearts
-      , s.foundations Suit.spades
-      ]
-  , tableau :=
-      [ s.tableau 0, s.tableau 1, s.tableau 2, s.tableau 3, s.tableau 4
-      , s.tableau 5, s.tableau 6, s.tableau 7, s.tableau 8, s.tableau 9
-      ]
+  {
+    cells := (List.finRange 4).map (State.cells s),
+    foundations := allSuits.map (State.foundations s),
+    tableau := (List.finRange 10).map (State.tableau s)
   }
 
 def update {T1 T2} [DecidableEq T1] (f: T1 → T2) (i: T1) (v: T2) : T1 → T2 :=
@@ -205,8 +200,7 @@ def applyMoveOpt (s : Option State) (m : Move) : Option State :=
   | some s1 => applyMove s1 m
 
 def isGoal (s : State) :=
-  List.all [ Suit.clubs, Suit.diamonds, Suit.spades, Suit.hearts ]
-    (fun suit => s.foundations suit == Rank.king)
+  allSuits.all (fun suit => s.foundations suit == Rank.king)
 
 def isSolution (s : State) (solution : List Move) : Bool :=
   match (List.foldl applyMoveOpt (some s) solution) with
@@ -226,3 +220,5 @@ structure Shuffle where
 def isSolvable (s : State) := ∃ sol : List Move, isSolution s sol
 
 def isReachable (s : State) (s' : State) := ∃ sol : List Move, List.foldl applyMoveOpt (some s) sol = some s'
+
+end Rules

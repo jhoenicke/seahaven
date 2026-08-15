@@ -2,6 +2,8 @@ import Seahaven.CriticalChild
 import Seahaven.MaximalCfg
 import Seahaven.GetMovableSpec
 
+open Rules
+
 /-!
 # The solver really does consider the critical move
 

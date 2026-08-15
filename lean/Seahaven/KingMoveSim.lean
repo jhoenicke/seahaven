@@ -2,6 +2,8 @@ import Seahaven.KingReshuffle
 import Seahaven.UsedSpaceBound
 import Seahaven.MoveSim
 
+open Rules
+
 /-!
 # The two physical king-reshuffle steps
 

@@ -1,6 +1,8 @@
 import Seahaven.EmptyPileCfg
 import Seahaven.MaximalCfg
 
+open Rules
+
 /-!
 # `componentTable`, read backwards
 

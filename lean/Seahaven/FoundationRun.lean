@@ -1,5 +1,7 @@
 import Seahaven.FluteMoves
 
+open Rules
+
 /-!
 # Playing a run of cards to the foundation
 

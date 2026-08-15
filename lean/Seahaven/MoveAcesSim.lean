@@ -1,6 +1,8 @@
 import Seahaven.SimulateMoveAces
 import Seahaven.SolverSpecMoveAces
 
+open Rules
+
 /-!
 # `SolverMoveAces`, simulated end to end
 

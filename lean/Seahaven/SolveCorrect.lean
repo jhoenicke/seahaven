@@ -1,6 +1,8 @@
 import Seahaven.SolveSound
 import Seahaven.RecCheckComplete
 
+open Rules
+
 /-!
 # `solve` is correct
 

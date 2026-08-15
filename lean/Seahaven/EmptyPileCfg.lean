@@ -1,6 +1,8 @@
 import Seahaven.CriticalMove
 import Seahaven.KingReshuffle
 
+open Rules
+
 /-!
 # The king configuration only moves when a column is empty
 

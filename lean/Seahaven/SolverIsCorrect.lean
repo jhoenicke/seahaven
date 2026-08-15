@@ -6,6 +6,8 @@ import Seahaven.KingPileMax
 import Seahaven.DealMatches
 import Seahaven.SolverCorrectness
 
+open Rules
+
 /-!
 # `solver_is_correct`
 
@@ -107,7 +109,7 @@ theorem dealCards_shuffle (sh : Shuffle) : dealCards sh.vector = sh.perm := by
   rfl
 
 /-- Hence the state `Rules.init` builds is `DealMatches`' `dealState`. -/
-theorem dealState_shuffle (sh : Shuffle) : dealState sh.vector = _root_.init sh.perm := by
+theorem dealState_shuffle (sh : Shuffle) : dealState sh.vector = Rules.init sh.perm := by
   rw [dealState, dealCards_shuffle]
 
 /-! ## 2. The invariants -/
@@ -195,7 +197,7 @@ theorem StateMatchesLayout.set_hashmap {g : Globals} {hm : Vector UInt16 BIG_HAS
 does (`dealState_matchesLayout`), and `StateMatchesLayout.applyMove` carries it along the
 play. -/
 theorem matchesLayout_of_reachable {sh : Shuffle} {g : Globals} (hinv : Inv1 sh g)
-    {s : State} (hreach : isReachable (_root_.init sh.perm) s) : StateMatchesLayout g s := by
+    {s : State} (hreach : isReachable (Rules.init sh.perm) s) : StateMatchesLayout g s := by
   have hdeal : StateMatchesLayout g (dealState sh.vector) :=
     StateMatchesLayout.set_hashmap (dealState_matchesLayout (shuffle_isDeal sh) hinv.2.2)
   rw [dealState_shuffle sh] at hdeal
@@ -259,7 +261,7 @@ depth `5`.  True because a move either pushes onto a column — extending its to
 so `removeFlute` is unchanged — or pops from it, and `removeFlute` never grows; the
 dealt columns start at five.  (The `pk[10] < 16` half is `pilesKings_get10_lt16`.) -/
 def ReachableValidDepths : Prop :=
-  ∀ (sh : Shuffle) (s : State), isReachable (_root_.init sh.perm) s →
+  ∀ (sh : Shuffle) (s : State), isReachable (Rules.init sh.perm) s →
     ValidDepths (pilesKingsFromState s)
 
 /-- **Obligation 1, discharged** (`ReachableMatch`).  There is no `Globals` in the
@@ -285,7 +287,7 @@ close the gap; what is left over are the two simulation obligations `CvPrologueS
 (loop 2) and `CvCleanupSim` (loop 3), and `ReachableEntry` below. -/
 def ReachableAnswer : Prop :=
   ∀ (sh : Shuffle) (g : Globals), Inv1 sh g →
-    ∀ s : State, isReachable (_root_.init sh.perm) s →
+    ∀ s : State, isReachable (Rules.init sh.perm) s →
       ∀ (r : UInt8) (g' : Globals),
         EStateM.run (_root_.solve (pilesKingsFromState s)) g = .ok r g' →
         (r = UInt8.ofNat SUCCESS ↔ isSolvable s)
@@ -304,7 +306,7 @@ entry state (`CvEntry`):
   reach `[]`), which is exactly a king pile for the suit whose bit is set. -/
 def ReachableEntry : Prop :=
   ∀ (sh : Shuffle) (g : Globals), Inv1 sh g →
-    ∀ s : State, isReachable (_root_.init sh.perm) s →
+    ∀ s : State, isReachable (Rules.init sh.perm) s →
       ∃ game' : SolverPosType,
         CvEntry g (pilesKingsFromState s) s game'
           (kingCfgOf (pilesKingsFromState s) (pilesKings_get10_lt16 s))

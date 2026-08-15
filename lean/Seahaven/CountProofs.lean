@@ -1,5 +1,7 @@
 import Seahaven.Rules
 
+open Rules
+
 @[simp]
 theorem update_same [DecidableEq T1] (f : T1 → T2) (i : T1) (v : T2) :
   update f i v i = v := by

@@ -2,6 +2,8 @@ import Seahaven.FoundationRun
 import Seahaven.LayoutProofs
 import Seahaven.SolverInvariant
 
+open Rules
+
 /-!
 # Matching a `Rules.State` against a `SolverPosType`
 

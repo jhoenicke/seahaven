@@ -1,5 +1,7 @@
 import Seahaven.MoveSimulatedReduce
 
+open Rules
+
 /-!
 # Phase 1 of `SolverMove`, simulated
 

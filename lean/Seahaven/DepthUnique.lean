@@ -1,5 +1,7 @@
 import Seahaven.MaximalCfg
 
+open Rules
+
 /-!
 # The depth is a function of the column
 

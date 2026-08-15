@@ -1,6 +1,8 @@
 import Seahaven.CPNormal
 import Seahaven.CleanupSim
 
+open Rules
+
 /-!
 # The depth vector determines the match
 

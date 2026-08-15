@@ -1,6 +1,8 @@
 import Seahaven.SubsetTransport
 import Seahaven.CompletenessSkeleton
 
+open Rules
+
 /-!
 # The critical iteration sets the bit
 

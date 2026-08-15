@@ -1,6 +1,8 @@
 import Seahaven.RecCheckSound
 import Seahaven.DestComplete
 
+open Rules
+
 /-!
 # The completeness spec layer
 

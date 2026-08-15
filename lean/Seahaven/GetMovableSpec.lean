@@ -1,5 +1,7 @@
 import Seahaven.RecCheckSound
 
+open Rules
+
 /-!
 # What `solverGetMovable` returns
 

@@ -1,6 +1,8 @@
 import Seahaven.ExtraDest
 import Seahaven.SolverSpecMove
 
+open Rules
+
 /-!
 # The critical move is affordable, in the form `solverGetMovable` reads it
 

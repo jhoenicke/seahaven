@@ -1,6 +1,8 @@
 import Seahaven.CriticalMove
 import Seahaven.CleanupSim
 
+open Rules
+
 /-!
 # The critical move lands on `movePre`'s depth vector
 

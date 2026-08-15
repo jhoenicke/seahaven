@@ -1,6 +1,8 @@
 import Seahaven.ConvertSound
 import Seahaven.SolverMoveSim
 
+open Rules
+
 /-!
 # `SolverConvertFromPilesKings` is simulated by legal `Rules` moves
 

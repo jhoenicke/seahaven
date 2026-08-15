@@ -1,5 +1,7 @@
 import Seahaven.CriticalMove
 
+open Rules
+
 /-!
 # The critical move's destination is forced
 

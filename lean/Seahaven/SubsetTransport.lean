@@ -1,6 +1,8 @@
 import Seahaven.MovableBit
 import Seahaven.RecLoopSound
 
+open Rules
+
 /-!
 # Carrying the child's answer back into `movable'`
 

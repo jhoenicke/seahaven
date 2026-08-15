@@ -1,6 +1,8 @@
 import Seahaven.CPNormMatch
 import Seahaven.EmptyPileCfg
 
+open Rules
+
 /-!
 # CP-normalizing keeps the king configuration
 

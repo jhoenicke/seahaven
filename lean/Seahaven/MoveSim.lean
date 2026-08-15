@@ -1,6 +1,8 @@
 import Seahaven.SolvableBits
 import Seahaven.SolverSpecMove
 
+open Rules
+
 /-!
 # Simulating one `SolverMove`, part 1: the flute move
 

@@ -1,5 +1,7 @@
 import Seahaven.ConvertMatch
 
+open Rules
+
 /-!
 # One cleanup call, from a pile that already carries part of its flute
 

@@ -1,5 +1,7 @@
 import Seahaven.DestAfford
 
+open Rules
+
 /-!
 # Every configuration is covered by one of its block's stored ones
 

@@ -1,6 +1,8 @@
 import Seahaven.ConvertMatch
 import Seahaven.SolverCorrectness
 
+open Rules
+
 /-!
 # A reachable state matches the position its own encoding describes
 

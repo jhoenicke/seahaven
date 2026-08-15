@@ -1,6 +1,8 @@
 import Seahaven.MatchesDepth
 import Seahaven.DeckCount
 
+open Rules
+
 /-!
 # Matching a depth vector, and the critical move
 
@@ -90,12 +92,12 @@ theorem foundations_king_of_goal {u : State} (hgoal : isGoal u = true) (su : Sui
     cases v with
     | none => revert hv; decide
     | some r => cases r <;> revert hv <;> decide
-  simp only [isGoal, List.all_cons, List.all_nil, Bool.and_eq_true] at hgoal
+  simp only [isGoal, allSuits, List.all_cons, List.all_nil, Bool.and_eq_true] at hgoal
   cases su
   · exact h _ hgoal.1
   · exact h _ hgoal.2.1
-  · exact h _ hgoal.2.2.2.1
   · exact h _ hgoal.2.2.1
+  · exact h _ hgoal.2.2.2.1
 
 theorem tableau_eq_nil_of_goal {u : State} (hcount : ∀ c : Card, countState u c = 1)
     (hgoal : isGoal u = true) (i : Fin 10) : u.tableau i = [] := by

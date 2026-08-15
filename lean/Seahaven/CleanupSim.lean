@@ -2,6 +2,8 @@ import Seahaven.MoveSim
 import Seahaven.GetDestination
 import Seahaven.CPNormal
 
+open Rules
+
 /-!
 # Simulating `SolverCleanupPile`, phase 2 of `SolverMove`
 

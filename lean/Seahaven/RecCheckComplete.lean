@@ -2,6 +2,8 @@ import Seahaven.RecCheckSpec
 import Seahaven.ComponentComplete
 import Seahaven.Phase1Sim
 
+open Rules
+
 /-!
 # The pile loop misses no solvable configuration
 

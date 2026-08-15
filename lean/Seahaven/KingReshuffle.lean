@@ -2,6 +2,8 @@ import Seahaven.KingConfigSim
 import Seahaven.ComponentKingBits
 import Seahaven.SoundnessSkeleton
 
+open Rules
+
 /-!
 # King reshuffling: the component is one mutually reachable class
 

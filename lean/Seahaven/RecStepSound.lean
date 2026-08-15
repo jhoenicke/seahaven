@@ -1,5 +1,7 @@
 import Seahaven.SoundnessSkeleton
 
+open Rules
+
 /-!
 # One contribution of `solverRecCheckSolvable`'s pile loop
 

@@ -1,6 +1,8 @@
 import Seahaven.KingMoveSim
 import Seahaven.MaximalCfg
 
+open Rules
+
 /-!
 # Completing a configuration, reversibly
 

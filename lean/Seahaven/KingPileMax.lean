@@ -1,5 +1,7 @@
 import Seahaven.FoundationMax
 
+open Rules
+
 /-!
 # Completing the king piles
 

@@ -1,5 +1,7 @@
 import Seahaven.Normalize
 
+open Rules
+
 /-!
 # Moving a flute
 

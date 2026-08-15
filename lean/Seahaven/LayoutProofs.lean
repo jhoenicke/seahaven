@@ -3,6 +3,8 @@ import Seahaven.Rules
 import Seahaven.Solver
 import Seahaven.UInt8Lemmas
 import Seahaven.CountProofs
+
+open Rules
 -- CountProofs exports @[simp] lemmas for `update` that interfere with proofs here.
 attribute [-simp] update_same update_diff update2
 
@@ -593,10 +595,10 @@ theorem StateMatchesLayout.applyMove
       takeFromPosition s m.src = some (card, s1) ∧
       dropPosition s1 m.dest card = some s' := by
     rcases h_tf : takeFromPosition s m.src with _ | ⟨card, s1⟩
-    · simp [_root_.applyMove, h_tf] at hm
+    · simp [Rules.applyMove, h_tf] at hm
     · -- rcases substituted takeFromPosition s m.src ↦ some (card, s1) in the goal;
       -- first conjunct is rfl. Rewrite hm to extract dropPosition.
-      unfold _root_.applyMove at hm
+      unfold Rules.applyMove at hm
       rw [h_tf] at hm   -- match some (card,s1) reduces
       exact Exists.intro card (Exists.intro s1 ⟨rfl, hm⟩)
   obtain ⟨card, s1, h_take, h_drop⟩ := h_step

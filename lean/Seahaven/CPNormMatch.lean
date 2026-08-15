@@ -1,5 +1,7 @@
 import Seahaven.DepthUnique
 
+open Rules
+
 /-!
 # CP-normalizing after the critical move
 

@@ -2,6 +2,8 @@ import Seahaven.CleanupSim
 import Seahaven.SimulatesNorm
 import Seahaven.SoundnessSkeleton
 
+open Rules
+
 /-!
 # King configurations through the simulation
 

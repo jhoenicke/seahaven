@@ -1,5 +1,7 @@
 import Seahaven.DestComplete
 
+open Rules
+
 /-!
 # `EXTRA` means the card fits nowhere
 

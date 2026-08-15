@@ -1,6 +1,8 @@
 import Seahaven.GetMovableSpec
 import Seahaven.SolverMoveSim
 
+open Rules
+
 /-!
 # `MoveSimulated`, reduced to phase 1
 
