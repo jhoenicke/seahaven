@@ -71,9 +71,6 @@ theorem convertPre_free (c : UInt8) :
 
 /-! ## Elementary facts about the two walk values -/
 
-theorem cvAceVal_le (d : Vector UInt8 10) (su : Nat) : cvAceVal g d su ≤ 13 :=
-  runLen_le _ _
-
 theorem cvKingVal_le (d : Vector UInt8 10) (su : Nat) : cvKingVal g d su ≤ 13 := by
   unfold cvKingVal
   split
@@ -101,7 +98,7 @@ theorem cvAceVal_le_cvKingVal (d : Vector UInt8 10) (su : Nat) :
   split
   · omega
   · rename_i hne
-    have hA : cvAceVal g d su < 13 := by have := cvAceVal_le g d su; omega
+    have hA : cvAceVal g d su < 13 := by have := cvAceVal_le_13 g d su; omega
     have hT : cvKingRun g d su ≤ 12 := cvKingRun_le g d su hA
     have hTdef : runLen (kingFree g d su) 13 = cvKingRun g d su := rfl
     by_contra hc
@@ -118,7 +115,7 @@ theorem cvKingVal_free (d : Vector UInt8 10) (su w : Nat)
     freeAt g d (CARD (UInt8.ofNat su) (UInt8.ofNat w)) := by
   have hA : cvAceVal g d su < 13 := by
     by_contra hc
-    have hA13 : cvAceVal g d su = 13 := by have := cvAceVal_le g d su; omega
+    have hA13 : cvAceVal g d su = 13 := by have := cvAceVal_le_13 g d su; omega
     unfold cvKingVal at hw
     rw [if_pos hA13] at hw
     omega
@@ -193,7 +190,7 @@ theorem convertPre_pileBase (hwf : WellFormedLayout g) (hpk : ValidDepths pk) (i
         (show ((cvDepths pk).get i).toNat - 1 < ((cvDepths pk).get i).toNat from by omega)
     have hBreal : IsRealCard B := hBdef ▸ hwf.pos2card_real i ⟨_, hidx⟩
     obtain ⟨A, hAdef⟩ : ∃ A, cvAceVal g (cvDepths pk) (SUIT B).toNat = A := ⟨_, rfl⟩
-    have hA13 : A ≤ 13 := by rw [← hAdef]; exact cvAceVal_le g _ _
+    have hA13 : A ≤ 13 := by rw [← hAdef]; exact cvAceVal_le_13 g _ _
     have hlt : A < (VALUE B).toNat := by
       by_contra hc
       refine hBnf ?_
@@ -218,7 +215,7 @@ theorem convertPre_suitClean (s : Fin 4)
   have hsu : s.val < 4 := s.isLt
   obtain ⟨A, hAdef⟩ : ∃ A, cvAceVal g (cvDepths pk) s.val = A := ⟨_, rfl⟩
   obtain ⟨K, hKdef⟩ : ∃ K, cvKingVal g (cvDepths pk) s.val = K := ⟨_, rfl⟩
-  have hA13 : A ≤ 13 := by rw [← hAdef]; exact cvAceVal_le g _ _
+  have hA13 : A ≤ 13 := by rw [← hAdef]; exact cvAceVal_le_13 g _ _
   have hK13 : K ≤ 13 := by rw [← hKdef]; exact cvKingVal_le g _ _
   have hAK : A ≤ K := by rw [← hAdef, ← hKdef]; exact cvAceVal_le_cvKingVal g _ _
   have hacesEq : (convertPre g pk).aces.get s = CARD (UInt8.ofNat s.val) (UInt8.ofNat A) := by
@@ -313,8 +310,8 @@ theorem convertPre_usedSpace_def (hwf : WellFormedLayout g) (hpk : ValidDepths p
     rw [vector_foldl_add_eq_finsum, ← hAS, cvAcePrefix_four g (cvDepths pk)]
     refine Finset.sum_congr rfl (fun s _ => ?_)
     rw [convertPre_aces, cv_card_value s.isLt
-      (by have := cvAceVal_le g (cvDepths pk) s.val; omega), UInt8.toNat_ofNat']
-    have := cvAceVal_le g (cvDepths pk) s.val
+      (by have := cvAceVal_le_13 g (cvDepths pk) s.val; omega), UInt8.toNat_ofNat']
+    have := cvAceVal_le_13 g (cvDepths pk) s.val
     omega
   have hzsum : (List.zipWith (fun d f => if d ≠ (0 : UInt8) then f.toNat - 1 else 0)
       (convertPre g pk).pileDepth.toList (convertPre g pk).pileFlute.toList).foldl (· + ·) 0

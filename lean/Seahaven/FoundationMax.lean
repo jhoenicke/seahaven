@@ -1,4 +1,5 @@
 import Seahaven.CleanupLax
+import Seahaven.ConvertPre
 import Seahaven.ReachableMatch
 
 open Rules
@@ -279,7 +280,7 @@ theorem exists_plays_suit {g : Globals} {p : PosType} (hwf : WellFormedLayout g)
     have hup := foundation_le_aceVal hwf hd6 hdm hcount su
     have hlt : optRankToNat (u.foundations su) < cvAceVal g p.pileDepth (suitToNat su) := by omega
     have hcv13 : cvAceVal g p.pileDepth (suitToNat su) ≤ 13 :=
-      runLen_le (aceFree g p.pileDepth (suitToNat su)) 13
+      cvAceVal_le_13 g p.pileDepth (suitToNat su)
     have hcvdef : cvAceVal g p.pileDepth (suitToNat su)
         = runLen (aceFree g p.pileDepth (suitToNat su)) 13 := rfl
     -- the suit's next card
@@ -387,9 +388,6 @@ theorem exists_plays_suit {g : Globals} {p : PosType} (hwf : WellFormedLayout g)
 The four plays do not interfere: each advances only its own foundation, and freeness — the
 only thing the accessibility argument reads — depends on the depth vector, which no
 foundation play touches. -/
-
-theorem cvAceVal_le_13 (g : Globals) (d : Vector UInt8 10) (su : Nat) :
-    cvAceVal g d su ≤ 13 := runLen_le (aceFree g d su) 13
 
 /-- **The foundations, maximized.**  Only foundation plays, and the depth match survives:
 every card played was free, hence above its column's boundary. -/

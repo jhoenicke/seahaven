@@ -350,7 +350,7 @@ solvability-neutral and terminating: `Solvable.iff_normReach`, `exists_normalFor
 The concrete `2L-1`-move realization of one abstract flute move: `fluteMoves`,
 `run_fluteMoves` (headline), `reach_fluteMoves`.
 
-### `ConvertPre.lean` (1085 — largest of the Convert family; split candidate, see Cleanup notes)
+### `ConvertPre.lean` (1086 — largest of the Convert family; split candidate, see Cleanup notes)
 `rfl`-twin of all four convert loops, the per-suit walk theory (`runLen`, `cvAceVal`,
 `cvKingVal`), and the closed-form position **`convertPre`** + **`convert_run_eq`**.
 
@@ -358,7 +358,7 @@ The concrete `2L-1`-move realization of one abstract flute move: `fluteMoves`,
 Proves the counting bound `CvCountBound` via a cardinality injection into the 52-card deck:
 **`cvCountBound`**.
 
-### `ConvertInv.lean` (341)
+### `ConvertInv.lean` (338)
 `convertPre` satisfies `MergedUpTo g · 0`: **`convertPre_mergedUpTo_zero`**.
 
 ### `ConvertSound.lean` (79)
@@ -382,7 +382,7 @@ The Rules-side obligations about a state's *own* encoding: **`validDepths_pilesK
 Discharges `CvCleanupSim`: **`cvCleanupSim`** (generalizes `SimulatesNorm.ofCleanupPile` to
 a pile already carrying part of its flute extension).
 
-### `FoundationMax.lean` (428) — `namespace SolverSpec`
+### `FoundationMax.lean` (426) — `namespace SolverSpec`
 First half of `CvPrologueSim`: every suit's foundation playable up to `cvAceVal`:
 **`exists_maximal_foundations`**.
 
@@ -525,14 +525,6 @@ on.
   argument of the original spelling was already unused." A harmless dead-parameter shim,
   kept only so call sites don't need to change.
 
-### Genuine duplicate theorem (only one found)
-
-- **`ConvertInv.cvAceVal_le`** and **`FoundationMax.cvAceVal_le_13`** are the exact same
-  statement (`cvAceVal g d su ≤ 13`), independently proved by the same one-line
-  `runLen_le` call, under different names, in two different files —
-  `FoundationMax.lean` already (transitively) imports `ConvertInv.lean`, so it should just
-  reuse `cvAceVal_le` instead of restating it.
-
 ### Same argument proved multiple times at increasing generality (not duplicates, but consolidatable)
 
 - The convert loop-3 (cleanup-loop) induction is written out **three times**, each
@@ -658,8 +650,6 @@ worth normalizing (or at least documenting) in one pass:
 
 **No large-scale duplication or dead subsystem was found.** The project's file-per-theme
 discipline mostly holds up under scrutiny — several apparent duplicates turned out on
-inspection to be deliberate, documented soundness/completeness mirror pairs. The one
-theorem worth actually deleting is
-one of the two `cvAceVal ≤ 13` copies; everything else above is either a naming
-clarification or an optional "collapse N similar proofs into one" refactor, not a
-correctness or dead-code problem.
+inspection to be deliberate, documented soundness/completeness mirror pairs. Everything above
+is either a naming clarification or an optional "collapse N similar proofs into one"
+refactor, not a correctness or dead-code problem.

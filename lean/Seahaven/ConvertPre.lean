@@ -443,6 +443,9 @@ instance (g : Globals) (d : Vector UInt8 10) (su : Nat) : DecidablePred (kingFre
     freed consecutively from the ace up. -/
 def cvAceVal (g : Globals) (d : Vector UInt8 10) (su : Nat) : Nat := runLen (aceFree g d su) 13
 
+theorem cvAceVal_le_13 (g : Globals) (d : Vector UInt8 10) (su : Nat) :
+    cvAceVal g d su ≤ 13 := runLen_le (aceFree g d su) 13
+
 /-- The number of cards freed consecutively from the king down. -/
 def cvKingRun (g : Globals) (d : Vector UInt8 10) (su : Nat) : Nat := runLen (kingFree g d su) 13
 
