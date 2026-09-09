@@ -1,5 +1,4 @@
 import Seahaven.SolverInvariant
-import Seahaven.SolverModel
 import Seahaven.SolverRealSpec
 
 open Solver
@@ -7,7 +6,7 @@ open Solver
 /-!
 # Specs: the model canonicalization functions establish the invariant tower
 
-Each theorem says: run the corresponding `SolverModel` function on a state
+Each theorem says: run the corresponding `Solver` function on a state
 satisfying a precondition, and it succeeds (`.ok`, no `Error` thrown), leaving
 `globals` unchanged and producing a `PosType` satisfying the postcondition.
 
@@ -20,7 +19,6 @@ shared across the per-function spec files (`SolverSpecKingMove`,
 
 namespace SolverSpec
 
-open SolverModel
 open Lean Lean.Order
 
 -- ---------------------------------------------------------------------------

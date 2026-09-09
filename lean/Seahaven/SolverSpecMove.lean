@@ -16,7 +16,6 @@ composed from `cleanupPile`/`removeFlute`/`moveAces`, preserves
 
 namespace SolverSpec
 
-open SolverModel
 open Lean Lean.Order
 
 /-! ### The destination-bookkeeping step

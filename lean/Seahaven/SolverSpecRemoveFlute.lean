@@ -36,7 +36,6 @@ single phase preserves the invariant on its own.
 
 namespace SolverSpec
 
-open SolverModel
 open Lean Lean.Order
 
 /-! ## The progress measure: depths only ever go down

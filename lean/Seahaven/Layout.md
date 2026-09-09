@@ -23,7 +23,6 @@ tidy-up pass.
   import list, directly or transitively (checked explicitly for the 6 files `Seahaven.lean`
   doesn't import directly: `EStateMOrder`, `MathlibImports`, `MoveAcesSim`, `RecCheckRuns`,
   `Rules`, `SolverRealSpec` — all are imported by something else in the tree).
-- One file, **`SolverModel.lean`, is a strong candidate for removal** — see Cleanup notes.
 
 ## How this map is organized
 
@@ -70,12 +69,6 @@ Line-by-line transliteration of `solver.c`: `PosType`/`Globals`, the lookup tabl
 `getDestination`, `computeKingSpaces`, `computeComponentKingBits`), the recursive search
 `recCheckSolvable`, and the entry point `solve`. This is "ground truth" — everything else
 reasons about *this* file's definitions.
-
-### `SolverModel.lean` (318) — `namespace SolverModel` — **see Cleanup notes**
-Fuel-bounded structural-recursion re-implementations of `Solver.lean`'s loops
-(`cleanupPile`, `removeFlute`, `getDestination`, `moveAces`, `move`,
-`convertFromPilesKings`), historically needed before `while` loops were unfoldable. The
-file's own comment says that need is gone; only `#eval` sanity checks remain live.
 
 ### `LayoutProofs.lean` (701)
 Bridges `Rules.State` ↔ `Solver.Globals`: `encodeCard`/`decodeCard` (the `Card ↔ UInt8`
@@ -522,17 +515,6 @@ on.
 
 ### Likely dead code
 
-- **`SolverModel.lean`** — its own doc comment (lines 106–111) says the original purpose
-  (proving specs against a fuel-bounded model instead of the real `while`-based solver) was
-  dropped once Lean 4.31 made the real loops non-opaque, and that a model = real equality
-  would now be **false as written** (`freedLoop`'s hard-coded fuel of 60 caps a loop the
-  real `while` can run further). All that's left is `#eval`-only sanity checks
-  (`runConvert`, `convertMatches`, `sampleShuffle`), which are not proofs. Checked: the only
-  other file that imports it is `SolverSpecCommon.lean` (`import Seahaven.SolverModel`,
-  `open SolverModel`), but every occurrence there of a `SolverModel`-defined name
-  (`cleanupPile`, `removeFlute`, `move`, `moveAces`) is inside a *doc comment*, not an
-  actual term — no proof anywhere in the tree calls a `SolverModel.*` declaration. So both
-  the file and its one import site's `open SolverModel` look safe to delete.
 - **`CompletenessSkeleton.recCheckSolvableSpec_of`** — its own doc comment says outright:
   *"Superseded by `RecCheckSpec.recCheck_spec`, which runs one merged induction instead —
   and which also proves the call *returns*, something neither half supplies."* Left in the
@@ -676,8 +658,8 @@ worth normalizing (or at least documenting) in one pass:
 
 **No large-scale duplication or dead subsystem was found.** The project's file-per-theme
 discipline mostly holds up under scrutiny — several apparent duplicates turned out on
-inspection to be deliberate, documented soundness/completeness mirror pairs. The one file
-worth actually deleting is `SolverModel.lean`; the one theorem worth actually deleting is
+inspection to be deliberate, documented soundness/completeness mirror pairs. The one
+theorem worth actually deleting is
 one of the two `cvAceVal ≤ 13` copies; everything else above is either a naming
 clarification or an optional "collapse N similar proofs into one" refactor, not a
 correctness or dead-code problem.

@@ -12,7 +12,6 @@ Field-projection helpers (mirroring the `preCleanupPile` family) and the
 
 namespace SolverSpec
 
-open SolverModel
 open Lean Lean.Order
 
 /-- **`kingMove` always leaves the drained pile `PileClean`.**  No hypotheses

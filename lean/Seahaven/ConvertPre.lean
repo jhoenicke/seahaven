@@ -24,7 +24,6 @@ below — and this file is the `rfl`-twin plus the exact-run lemmas that identif
 
 namespace SolverSpec
 
-open SolverModel
 open Lean Lean.Order
 
 /-! ## The loop bodies, mirrored -/

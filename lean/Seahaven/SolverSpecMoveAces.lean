@@ -14,7 +14,6 @@ symbolic run `moveAcesLoop_run` and the top-level `moveAces_merged` theorem
 
 namespace SolverSpec
 
-open SolverModel
 open Lean Lean.Order
 
 -- ---------------------------------------------------------------------------

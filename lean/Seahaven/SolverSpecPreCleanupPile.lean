@@ -14,7 +14,6 @@ theorems' doc comments still cross-reference.
 
 namespace SolverSpec
 
-open SolverModel
 open Lean Lean.Order
 
 /-- **`cleanupRunResult` only ever decreases `pileDepth`**, pointwise across all

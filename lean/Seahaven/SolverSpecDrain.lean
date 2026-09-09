@@ -13,7 +13,6 @@ open Solver
 
 namespace SolverSpec
 
-open SolverModel
 open Lean Lean.Order
 
 /-- **Termination measure for the `busyAces` drain loop.**  A plain sum, over

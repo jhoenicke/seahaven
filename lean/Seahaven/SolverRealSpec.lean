@@ -8,9 +8,7 @@ open Solver
 
 On Lean 4.31 the real solver's `while` loops are no longer opaque (see the
 `MonadTail` instances in `Seahaven.EStateMOrder`), so we can state and prove
-specifications directly about
-`Solver.cleanupPile` etc., instead of going through the `SolverModel` fuel
-twin and a (fragile, fuel-dependent) `model = real` equality.
+specifications directly about `Solver.cleanupPile` etc.
 
 This file seeds that approach.  `cleanupPile_empty` is a *complete* proof (only
 the standard `propext/Classical.choice/Quot.sound` axioms — no `sorry`) about the

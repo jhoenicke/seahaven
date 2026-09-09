@@ -18,7 +18,6 @@ import Seahaven.KingMoveSim
 import Seahaven.RecLoopSound
 import Seahaven.SolverInvariant
 import Seahaven.GetDestination
-import Seahaven.SolverModel
 import Seahaven.SolverSpecCommon
 import Seahaven.SolverSpecKingMove
 import Seahaven.SolverSpecPreCleanupPile

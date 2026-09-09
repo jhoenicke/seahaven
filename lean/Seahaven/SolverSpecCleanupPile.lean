@@ -15,7 +15,6 @@ above.
 
 namespace SolverSpec
 
-open SolverModel
 open Lean Lean.Order
 
 -- `cleanupPile_baseNF`'s discharge has grown large enough (12 clauses × 2

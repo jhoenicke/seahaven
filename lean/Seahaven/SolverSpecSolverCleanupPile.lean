@@ -14,7 +14,6 @@ carrying the `MergedUpTo` invariant across it.
 
 namespace SolverSpec
 
-open SolverModel
 open Lean Lean.Order
 
 /-- **`cleanupPile` — one step of the convert cleanup loop.**  Given the
@@ -23,9 +22,7 @@ open Lean Lean.Order
     `globals` and the other piles' depths untouched, and re-establishes the
     invariant with one more pile merged.
 
-    Stated against the **real** `Solver.cleanupPile` (its `while` loops are no
-    longer opaque on Lean 4.31 — see `Seahaven.EStateMOrder`); the `SolverModel` fuel
-    twin is no longer needed.
+    Stated against `Solver.cleanupPile`.
 
     The loop invariant `MergedUpTo` has been refined so this is now true: its
     free-piles clause is the *prefix-relative* `freePilesUpTo … k` (the cleanup loop
