@@ -98,6 +98,24 @@ theorem CARD_toNat {s v : Nat} (hs : s < 16) (hv : v < 16) :
   rw [h1, h2, show ((4:UInt8).toNat % 8 = 4) from by decide, Nat.shiftLeft_eq]
   omega
 
+/-- `CARD_toNat`, stated directly on `UInt8` suit/value instead of `UInt8.ofNat` of
+their `Nat` values — the form callers building `s`/`v` by `UInt8` arithmetic (e.g.
+`decodeShuffle`) actually have on hand, so they don't need to round-trip through
+`UInt8.ofNat` before rewriting. -/
+theorem CARD_toNat' {s v : UInt8} (hs : s.toNat < 16) (hv : v.toNat < 16) :
+    (CARD s v).toNat = s.toNat * 16 + v.toNat := by
+  have := CARD_toNat hs hv
+  rwa [UInt8.ofNat_toNat, UInt8.ofNat_toNat] at this
+
+/-- `SUIT`/`VALUE` split a card into nibbles and `CARD` reassembles them — for
+*any* `UInt8`, not just real cards, since it is just the bit decomposition. -/
+theorem CARD_SUIT_VALUE (c : UInt8) : CARD (SUIT c) (VALUE c) = c := by
+  have hs : (SUIT c).toNat < 16 := by rw [SUIT_toNat]; have := c.toNat_lt; omega
+  have hv : (VALUE c).toNat < 16 := by rw [VALUE_toNat]; omega
+  apply UInt8.toNat_inj.1
+  rw [CARD_toNat' hs hv, SUIT_toNat, VALUE_toNat]
+  omega
+
 theorem UInt8.toInt_sub (a b : UInt8) : (a - b).toInt = (a.toInt - b.toInt) % 256 := by
   have h : (a - b).toNat = (2 ^ 8 - b.toNat + a.toNat) % 2 ^ 8 := UInt8.toNat_sub a b
   have hcast : ((2 ^ 8 - b.toNat + a.toNat) % 2 ^ 8 : Nat) =

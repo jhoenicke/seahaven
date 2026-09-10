@@ -1,4 +1,5 @@
 import Seahaven.RecCheckSound
+import Seahaven.UInt8Lemmas
 
 open Solver
 
@@ -61,8 +62,6 @@ The four facts below are pure `UInt8` arithmetic over the 256 possible shuffle
 entries, so `decide` settles them; they are the only place the packing
 `suit*16 + value` vs `suit*13 + value` is unfolded. -/
 
-set_option maxRecDepth 2000
-
 /-- The card code the solver derives from shuffle entry `ci ∈ 1…52`:
 suit `(ci-1)/13`, value `ci - 13·suit`, packed as `suit*16 + value`. -/
 def decodeShuffle (ci : UInt8) : UInt8 :=
@@ -78,32 +77,87 @@ def encodeShuffle (c : UInt8) : UInt8 := 13 * (SUIT c) + VALUE c
 /-- `decodeShuffle` lands in the real cards. -/
 theorem decodeShuffle_real {ci : UInt8} (h1 : 1 ≤ ci.toNat) (h2 : ci.toNat ≤ 52) :
     IsRealCard (decodeShuffle ci) := by
-  revert h1 h2
-  revert ci
-  decide
+  unfold decodeShuffle
+  set suit := (ci - 1) / 13 with hsuit
+  set val := ci - 13 * suit with hval
+  have h1' : (1 : UInt8).toNat = 1 := rfl
+  have h13 : (13 : UInt8).toNat = 13 := rfl
+  have hsub1 : (ci - 1).toNat = ci.toNat - 1 := by rw [UInt8.toNat_sub, h1']; omega
+  have hsuitN : suit.toNat = (ci.toNat - 1) / 13 := by rw [hsuit, UInt8.toNat_div, hsub1, h13]
+  have hmulN : (13 * suit).toNat = 13 * suit.toNat := by
+    rw [UInt8.toNat_mul, h13]; omega
+  have hvalN : val.toNat = ci.toNat - 13 * suit.toNat := by
+    rw [hval, UInt8.toNat_sub, hmulN]; omega
+  unfold IsRealCard
+  rw [SUIT_toNat, VALUE_toNat, CARD_toNat' (by omega) (by omega)]
+  omega
 
 /-- `decodeShuffle` codes are valid `card2*` indices. -/
 theorem decodeShuffle_lt {ci : UInt8} (h1 : 1 ≤ ci.toNat) (h2 : ci.toNat ≤ 52) :
-    (decodeShuffle ci).toNat < 64 := by
-  revert h1 h2
-  revert ci
-  decide
+    (decodeShuffle ci).toNat < 64 :=
+  IsRealCard_lt64 (decodeShuffle_real h1 h2)
 
 /-- `encodeShuffle` undoes `decodeShuffle` — hence `decodeShuffle` is injective
 on `1…52`. -/
 theorem encodeShuffle_decodeShuffle {ci : UInt8} (h1 : 1 ≤ ci.toNat) (h2 : ci.toNat ≤ 52) :
     encodeShuffle (decodeShuffle ci) = ci := by
-  revert h1 h2
-  revert ci
-  decide
+  unfold decodeShuffle
+  set suit := (ci - 1) / 13 with hsuit
+  set val := ci - 13 * suit with hval
+  have h1' : (1 : UInt8).toNat = 1 := rfl
+  have h13 : (13 : UInt8).toNat = 13 := rfl
+  have hsub1 : (ci - 1).toNat = ci.toNat - 1 := by rw [UInt8.toNat_sub, h1']; omega
+  have hsuitN : suit.toNat = (ci.toNat - 1) / 13 := by rw [hsuit, UInt8.toNat_div, hsub1, h13]
+  have hmulN : (13 * suit).toNat = 13 * suit.toNat := by
+    rw [UInt8.toNat_mul, h13]; omega
+  have hvalN : val.toNat = ci.toNat - 13 * suit.toNat := by
+    rw [hval, UInt8.toNat_sub, hmulN]; omega
+  have hcardN : (CARD suit val).toNat = suit.toNat * 16 + val.toNat :=
+    CARD_toNat' (by omega) (by omega)
+  have hSUIT : SUIT (CARD suit val) = suit := by
+    apply UInt8.toNat_inj.1
+    rw [SUIT_toNat, hcardN]
+    omega
+  have hVALUE : VALUE (CARD suit val) = val := by
+    apply UInt8.toNat_inj.1
+    rw [VALUE_toNat, hcardN]
+    omega
+  unfold encodeShuffle
+  rw [hSUIT, hVALUE]
+  apply UInt8.toNat_inj.1
+  have hsumN : (13 * suit + val).toNat = 13 * suit.toNat + val.toNat := by
+    rw [UInt8.toNat_add, hmulN]
+    omega
+  rw [hsumN, hvalN]
+  omega
 
 /-- Every real card is `decodeShuffle` of its own code, and that code is in range. -/
 theorem decodeShuffle_encodeShuffle {c : UInt8} (h : IsRealCard c) :
     decodeShuffle (encodeShuffle c) = c ∧ 1 ≤ (encodeShuffle c).toNat ∧
       (encodeShuffle c).toNat ≤ 52 := by
-  revert h
-  revert c
-  decide
+  obtain ⟨hs4, hv1, hv13⟩ := h
+  set s := SUIT c with hsdef
+  set v := VALUE c with hvdef
+  have h13 : (13 : UInt8).toNat = 13 := rfl
+  have h1' : (1 : UInt8).toNat = 1 := rfl
+  have hmulN : (13 * s).toNat = 13 * s.toNat := by
+    rw [UInt8.toNat_mul, h13]; omega
+  have heNat : (encodeShuffle c).toNat = 13 * s.toNat + v.toNat := by
+    show (13 * s + v).toNat = 13 * s.toNat + v.toNat
+    rw [UInt8.toNat_add, hmulN]; omega
+  set x := encodeShuffle c with hxdef
+  refine ⟨?_, by omega, by omega⟩
+  unfold decodeShuffle
+  set suit := (x - 1) / 13 with hsuit
+  set val := x - 13 * suit with hval
+  have hsub1 : (x - 1).toNat = x.toNat - 1 := by rw [UInt8.toNat_sub, h1']; omega
+  have hsuitN : suit.toNat = (x.toNat - 1) / 13 := by rw [hsuit, UInt8.toNat_div, hsub1, h13]
+  have hsuiteq : suit.toNat = s.toNat := by omega
+  have hmulN2 : (13 * suit).toNat = 13 * suit.toNat := by rw [UInt8.toNat_mul, h13]; omega
+  have hvalN : val.toNat = x.toNat - 13 * suit.toNat := by rw [hval, UInt8.toNat_sub, hmulN2]; omega
+  have hvaleq : val.toNat = v.toNat := by omega
+  rw [UInt8.toNat_inj.1 hsuiteq, UInt8.toNat_inj.1 hvaleq, hsdef, hvdef]
+  exact CARD_SUIT_VALUE c
 
 /-! ## One step of the deal loop -/
 
@@ -337,7 +391,9 @@ theorem initLoop_ok {sh : Vector UInt8 52} (hdeal : IsDeal sh) :
 /-! ## What `initcard` establishes -/
 
 theorem isRealCard_lt {c : UInt8} (h : IsRealCard c) : c.toNat < 64 := by
-  revert h; revert c; decide
+  unfold IsRealCard at h
+  simp[SUIT_toNat,VALUE_toNat] at h
+  omega
 
 /-- Index congruence for the doubly-indexed `pos2card` reads (the `getElem`
 bound proofs are irrelevant, but `rw` cannot see that). -/
