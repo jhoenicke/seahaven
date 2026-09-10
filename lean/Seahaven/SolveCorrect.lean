@@ -1,5 +1,5 @@
 import Seahaven.SolveSound
-import Seahaven.RecCheckComplete
+import Seahaven.RecCheckSpec
 
 open Rules
 open Solver
@@ -13,7 +13,7 @@ never anything else.
 
 Everything is already in place; this file only joins it up.
 
-* `recCheckSolvableSpec` (`RecCheckComplete`) replaces `recCheckSolvableSound`: the
+* `recCheckSolvableSpec` (`RecCheckSpec`) replaces `recCheckSolvableSound`: the
   recursion's answer is an `↔` (`SolvableBits`) rather than a one-way implication.
 * `kingStep_transport_complete` (`SubsetTransport`) replaces `Simulates.transport`:
   the same `&&& forcedKings` step, read *up* instead of down.

@@ -261,8 +261,8 @@ two developments is pure bookkeeping.
 
 (The `RecCheckSolvableComplete`/`recCheckSolvableSpec_of` pair that used to sit here —
 assembling `RecCheckSolvableSound` and a standalone completeness half into
-`RecCheckSolvableSpec.apply`'s shape — is gone: `RecCheckSpec.recCheck_spec` runs one
-merged induction instead, proves the call *returns* rather than assuming `hrun`, and
+`RecCheckSolvableSpec.apply`'s shape — is gone: `RecCheckSpec.recCheckSolvableSpec` runs
+one merged induction instead, proves the call *returns* rather than assuming `hrun`, and
 `RecCheckSolvableComplete` was never proved, so nothing instantiated it.) -/
 
 /-- The recombination at the level of one answer. -/

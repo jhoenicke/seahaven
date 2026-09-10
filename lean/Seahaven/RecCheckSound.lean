@@ -31,10 +31,10 @@ are hypotheses — which is exactly why the definition site stays free of it.
 
 ## What is left
 
-Nothing syntactic: both side conditions of the induction are discharged here
-(`prologueRuns`, `recBodyStep`), so `recCheck_sound_of_semantics` reduces the
-recursion's soundness to the two *semantic* hypotheses `SubsetSound` and
-`MoveSimulated`.
+Nothing: both side conditions of the induction are discharged here (`prologueRuns`,
+`recBodyStep`), and the two *semantic* ingredients `SubsetSound`/`MoveSimulated` are
+theorems by the time **`recCheckSolvableSound`** runs (`KingMoveSim.subsetSound`,
+`Phase1Sim.moveSimulated`), so nothing is assumed.
 -/
 
 open Lean Lean.Order
@@ -791,56 +791,6 @@ theorem localMask_one (p : PosType) : LocalMask p 1 := by
   calc 1 < 2 ^ 1 := by norm_num
     _ ≤ 2 ^ (closureInfoOf p).numBits.toNat := Nat.pow_le_pow_right (by omega) hnb
 
-/-- **`recCheckSolvable` is sound**, modulo the two obligations above (both
-discharged below) and the two semantic ones (`SubsetSound`, `MoveSimulated`).
-
-The recursion is the `busyAces`-drain recipe: a `Nat` bounding `DepthSum p` in the
-*theorem*, `induction` on it, `recCheck_eq` unfolding one level per step.  The three
-branches are the `hash == 0` leaf, the memo hit, and the pile loop followed by the
-memo write. -/
-theorem recCheck_sound
-    (hPro : PrologueRuns) (hRB : RecBodyStep HashmapSound) : RecCheckSolvableSound := by
-  suffices H : ∀ n : Nat, ∀ (g g' : Globals) (p : PosType) (v : UInt16),
-      SolverSpec.DepthSum p < n → WFGlobals g → IsCanonicalPos g p →
-      EStateM.run (recCheckSolvable p) g = .ok v g' →
-      (SoundBits g p v ∧ LocalMask p v) ∧ HashmapSound g' ∧
-        ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm } by
-    intro g g' p v hwfg hcan hrun
-    exact H (SolverSpec.DepthSum p + 1) g g' p v (by omega) hwfg hcan hrun
-  intro n
-  induction n with
-  | zero => intro g g' p v hmeas; omega
-  | succ n ih =>
-    intro g g' p v hmeas hwfg hcan hrun
-    have hfp : p.freePiles.toNat ≤ 10 := by
-      have h := freePiles_bound hcan.toSolverInvMerged
-      have : p.freePiles.toInt = (p.freePiles.toNat : Int) := rfl
-      omega
-    by_cases hz : p.hash = 0
-    · -- the leaf: already solved
-      rw [recCheck_run_hash_zero g p hz] at hrun
-      obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj hrun
-      exact ⟨⟨soundBits_of_hash_zero hcan hz 1, localMask_one p⟩, hwfg.memo, g.hashmap, rfl⟩
-    · by_cases hfree : slotRead g p.hash = UInt8.ofNat FREESLOT
-      · -- the pile loop, then the memo write
-        obtain ⟨⟨ki, hki, hkiloc, hkic⟩, ⟨comp, hcomp⟩⟩ := hPro g p hwfg.layout hcan
-        obtain ⟨gl, hloop, rfl⟩ :=
-          recCheck_run_loop_inv g g' p ki comp v hfp hz hfree hki hcomp hrun
-        have hchild : ChildSpec HashmapSound p := fun child g₁ g₂ w hlt hwf₁ hcan₁ hms₁ hrun₁ =>
-          ih g₁ g₂ child w (by omega) ⟨hwf₁, hms₁⟩ hcan₁ hrun₁
-        obtain ⟨hsound, hlocal, hms', hm, rfl⟩ :=
-          recLoop_all hRB hwfg.layout hcan hwfg.memo hkiloc hkic hchild hcomp hloop
-        refine ⟨⟨hsound.of_set_hashmap, hlocal⟩, ?_, ?_⟩
-        · exact hashmapSound_slotWrite (hwfg.layout.set_hashmap hm) (hcan.set_hashmap hm)
-            hms' hsound hlocal
-        · exact ⟨_, rfl⟩
-      · -- a memo hit
-        rw [recCheck_run_cached g p hfp hz hfree] at hrun
-        obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj hrun
-        rcases hwfg.memo p hcan (slotRead g p.hash) (getSlot_run g p.hash) with hfs | ⟨hs, hl⟩
-        · exact absurd hfs hfree
-        · exact ⟨⟨hs, hl⟩, hwfg.memo, g.hashmap, rfl⟩
-
 /-! ## `usedSpace ≥ kingRefund`
 
 `PrologueRuns`' only real content: the loop in `computeKingSpaces` writes
@@ -1177,12 +1127,57 @@ theorem prologueRuns : PrologueRuns := fun g p hwf hcan => by
   exact ⟨⟨ki, hki, hkiloc, (kingSpaces_spec g p ki hcan.toSolverInvBase hki).1⟩,
     component_run_exists hcan.toSolverInvMerged⟩
 
-/-- **Soundness of `recCheckSolvable`, with the prologue discharged.**  The
-body step is discharged too, at the end of this file; `recCheck_sound_of_semantics`
-is the version with both in place. -/
-theorem recCheck_sound_of_body
-    (hRB : RecBodyStep HashmapSound) : RecCheckSolvableSound :=
-  recCheck_sound prologueRuns hRB
+/-- **`recCheckSolvable` is sound**, modulo the one obligation above still open
+(both semantic ones, `SubsetSound`/`MoveSimulated`, are theorems by the time this runs;
+`PrologueRuns` is discharged just above as `prologueRuns`, and used directly rather than
+taken as a hypothesis — it is never instantiated with anything else).
+
+The recursion is the `busyAces`-drain recipe: a `Nat` bounding `DepthSum p` in the
+*theorem*, `induction` on it, `recCheck_eq` unfolding one level per step.  The three
+branches are the `hash == 0` leaf, the memo hit, and the pile loop followed by the
+memo write. -/
+theorem recCheck_sound
+    (hRB : RecBodyStep HashmapSound) : RecCheckSolvableSound := by
+  suffices H : ∀ n : Nat, ∀ (g g' : Globals) (p : PosType) (v : UInt16),
+      SolverSpec.DepthSum p < n → WFGlobals g → IsCanonicalPos g p →
+      EStateM.run (recCheckSolvable p) g = .ok v g' →
+      (SoundBits g p v ∧ LocalMask p v) ∧ HashmapSound g' ∧
+        ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm } by
+    intro g g' p v hwfg hcan hrun
+    exact H (SolverSpec.DepthSum p + 1) g g' p v (by omega) hwfg hcan hrun
+  intro n
+  induction n with
+  | zero => intro g g' p v hmeas; omega
+  | succ n ih =>
+    intro g g' p v hmeas hwfg hcan hrun
+    have hfp : p.freePiles.toNat ≤ 10 := by
+      have h := freePiles_bound hcan.toSolverInvMerged
+      have : p.freePiles.toInt = (p.freePiles.toNat : Int) := rfl
+      omega
+    by_cases hz : p.hash = 0
+    · -- the leaf: already solved
+      rw [recCheck_run_hash_zero g p hz] at hrun
+      obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj hrun
+      exact ⟨⟨soundBits_of_hash_zero hcan hz 1, localMask_one p⟩, hwfg.memo, g.hashmap, rfl⟩
+    · by_cases hfree : slotRead g p.hash = UInt8.ofNat FREESLOT
+      · -- the pile loop, then the memo write
+        obtain ⟨⟨ki, hki, hkiloc, hkic⟩, ⟨comp, hcomp⟩⟩ := prologueRuns g p hwfg.layout hcan
+        obtain ⟨gl, hloop, rfl⟩ :=
+          recCheck_run_loop_inv g g' p ki comp v hfp hz hfree hki hcomp hrun
+        have hchild : ChildSpec HashmapSound p := fun child g₁ g₂ w hlt hwf₁ hcan₁ hms₁ hrun₁ =>
+          ih g₁ g₂ child w (by omega) ⟨hwf₁, hms₁⟩ hcan₁ hrun₁
+        obtain ⟨hsound, hlocal, hms', hm, rfl⟩ :=
+          recLoop_all hRB hwfg.layout hcan hwfg.memo hkiloc hkic hchild hcomp hloop
+        refine ⟨⟨hsound.of_set_hashmap, hlocal⟩, ?_, ?_⟩
+        · exact hashmapSound_slotWrite (hwfg.layout.set_hashmap hm) (hcan.set_hashmap hm)
+            hms' hsound hlocal
+        · exact ⟨_, rfl⟩
+      · -- a memo hit
+        rw [recCheck_run_cached g p hfp hz hfree] at hrun
+        obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj hrun
+        rcases hwfg.memo p hcan (slotRead g p.hash) (getSlot_run g p.hash) with hfs | ⟨hs, hl⟩
+        · exact absurd hfs hfree
+        · exact ⟨⟨hs, hl⟩, hwfg.memo, g.hashmap, rfl⟩
 
 /-! ## `getMovable`: the run and its locality
 
@@ -1498,16 +1493,12 @@ theorem recBodyStep (H : Globals → Prop) : RecBodyStep H := by
       obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj hrun
       exact ⟨Or.inl ⟨rfl, rfl⟩, hms, g₁.hashmap, rfl⟩
 
-/-- **Soundness of `recCheckSolvable`, with both syntactic obligations
-discharged.**  The two *semantic* ingredients — `SubsetSound` (the `subsetTable`
-expansion really is reachable) and `MoveSimulated` (the solver's move simulates a
-real move) — are theorems now (`KingMoveSim.subsetSound`, `Phase1Sim.moveSimulated`),
-so nothing is left to assume. -/
-theorem recCheck_sound_of_semantics : RecCheckSolvableSound :=
-  recCheck_sound prologueRuns (recBodyStep HashmapSound)
-
-/-- **`recCheckSolvable` is sound, unconditionally.**  Renamed alias of
-`recCheck_sound_of_semantics` marking the milestone: what is left between this and
+/-- **`recCheckSolvable` is sound, unconditionally.**  Both syntactic obligations are
+discharged above (`prologueRuns`, `recBodyStep`), and the two *semantic* ingredients —
+`SubsetSound` (the `subsetTable` expansion really is reachable) and `MoveSimulated` (the
+solver's move simulates a real move) — are theorems (`KingMoveSim.subsetSound`,
+`Phase1Sim.moveSimulated`), so nothing is left to assume: what is left between this and
 end-to-end `SolveSound` is the `solve` wrapper — the convert canonicalization, the
 Rules-side normalization, and `WellFormedLayout` for the initial deal. -/
-theorem recCheckSolvableSound : RecCheckSolvableSound := recCheck_sound_of_semantics
+theorem recCheckSolvableSound : RecCheckSolvableSound :=
+  recCheck_sound (recBodyStep HashmapSound)

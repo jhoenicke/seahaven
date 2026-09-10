@@ -2,6 +2,7 @@ import Seahaven.FoundationMax
 
 open Rules
 open Solver
+open Lean Lean.Order
 
 /-!
 # Completing the king piles
@@ -759,5 +760,74 @@ theorem cvPrologueSim : CvPrologueSim := by
           exact hnp su hbit q hq0 ⟨su, Rank.king⟩ hqlast rfl
         · rw [dif_neg hex]
           exact hiff su
+
+/-! ## The whole call
+
+`convert_simulates_lax`/`solve_correct_lax` moved here from `CleanupLax.lean`:
+`CvPrologueSim`'s only proof, `cvPrologueSim`, is right above, and this file already
+imports `CleanupLax` transitively (via `FoundationMax`), so the reverse import that would
+let `CleanupLax.lean` drop this hypothesis instead would cycle. -/
+
+/-- **`convertFromPilesKings`, simulated from the entry state.**  The
+`convert_simulates` of a caller that has *not* normalized: `s` need only match some
+position with the queried depths, and the call's own moves — loop 2's foundation plays
+and king-pile drops, loop 3's freed-predecessor drops, loop 4's drain — take it to a
+state matching the canonical position the call returns. -/
+theorem convert_simulates_lax
+    (g : Globals) (hwf : WellFormedLayout g) (pk : Vector UInt8 11) (hpk : ValidDepths pk)
+    (p0 : PosType) (s : State) (game' : PosType) (k : Fin 16)
+    (hentry : CvEntry g pk s game' k) :
+    ∃ (fk : UInt16) (p' : PosType) (s' : State) (k' : Fin 16) (FK : Finset Suit),
+      EStateM.run (Solver.convertFromPilesKings pk) (g, p0) = .ok fk (g, p') ∧
+      IsCanonicalPos g p' ∧
+      SimulatesNorm g s game' k s' p' k' FK fk := by
+  have hcount : CvCountBound g pk := cvCountBound g hwf pk hpk
+  -- loops 1 and 2: the solver reaches `convertPre`, the state catches up with its writes
+  obtain ⟨u, hru, hmu⟩ := cvPrologueSim g pk s game' k hwf hpk hentry
+  set fl : Vector UInt8 10 := cvFluteOf u (convertPre g pk).pileDepth with hfldef
+  have hfl : CvFlutes (convertPre g pk) fl :=
+    cvFlutes_cvFluteOf
+      (show ∀ i : Fin 10, ((convertPre g pk).pileDepth.get i).toNat < 6 from
+        hmu.toMatches.depth_lt6)
+      (show ∀ i : Fin 10, PileMatches g (u.tableau i) i
+          ⟨((convertPre g pk).pileDepth.get i).toNat, hmu.toMatches.depth_lt6 i⟩ from
+        hmu.toMatches.depth_match)
+  have hP0 : MoveAcesSim g s game' k 0xffff (cvRelax (convertPre g pk) fl) :=
+    ⟨u, k, ∅, SimulatesNorm.ofNormReach hru hmu⟩
+  -- loop 3
+  obtain ⟨fk1, q1, hrun1, hq1, hP1⟩ :=
+    cvCleanupLoop_lax g hwf s game' k 10 0 rfl 0xffff (convertPre g pk) fl
+      (convertPre_mergedUpTo_zero g pk hwf hpk) hfl (fun i hi => absurd hi (by omega)) hP0
+  have hmerged : SolverInvMerged g q1 := mergedUpTo_ten_iff.mp hq1
+  -- loop 4
+  obtain ⟨fk2, q2, hrun2, hcan, hP2⟩ := SimulatesNorm.drain hwf hmerged hP1
+  obtain ⟨s', k', FK, hsim⟩ := hP2
+  refine ⟨fk2, q2, s', k', FK, ?_, hcan, hsim⟩
+  show Solver.convertFromPilesKings pk (g, p0) = _
+  rw [convert_run_eq g hwf pk p0 hpk hcount]
+  show (forIn (List.range 10) (0xffff : UInt16) cvCleanupBody >>= fun fk =>
+      Loop.forIn Loop.mk fk drainBody >>= fun r => pure r) (g, convertPre g pk) = _
+  simp only [bind, EStateM.bind, pure, EStateM.pure,
+    show List.range 10 = List.range' 0 10 from by rw [List.range_eq_range'], hrun1, hrun2]
+
+/-- **`solve` is correct on the state it was asked about.**  `solve_correct` with its
+matching hypothesis replaced by the entry relation: no normalization, no maximal
+foundation, no run-free piles. -/
+theorem solve_correct_lax
+    {g g' : Globals} {pk : Vector UInt8 11} {s : State} {game' : PosType} {r : UInt8}
+    (hwf : WellFormedLayout g) (hcor : HashmapCorrect g) (hpk : ValidDepths pk)
+    (hs10 : (pk.get ⟨10, by omega⟩).toNat < 16)
+    (hentry : CvEntry g pk s game' (kingCfgOf pk hs10))
+    (hrun : EStateM.run (Solver.solve pk) g = .ok r g') :
+    (HashmapCorrect g' ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm }) ∧
+    ((r = UInt8.ofNat NOMOVE ∧ ¬ isSolvable s) ∨ (r = UInt8.ofNat SUCCESS ∧ isSolvable s)) := by
+  obtain ⟨fk, p, v, k', FK, hrunC, hcan, hsim⟩ :=
+    convert_simulates_lax g hwf pk hpk emptyPosType s game' (kingCfgOf pk hs10)
+      hentry
+  have hrun' : Solver.solve pk g = .ok r g' := hrun
+  rw [solve_eq_explicit pk] at hrun'
+  simp only [bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get, hrunC,
+    set, EStateM.set] at hrun'
+  exact solveTail_correct hwf hcor hcan hs10 hsim hrun'
 
 end SolverSpec

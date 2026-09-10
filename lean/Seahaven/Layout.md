@@ -9,7 +9,7 @@ tidy-up pass.
 
 ## Status
 
-- **90 `.lean` files, ~47,000 lines total, zero `sorry`s.** Every occurrence of the string
+- **89 `.lean` files, ~47,000 lines total, zero `sorry`s.** Every occurrence of the string
   "sorry" left in the tree is inside a doc comment, not a proof.
 - **The project is fully proved.** The headline theorem is
   `SolverSpec.solver_is_correct : Correctness` in `SolverIsCorrect.lean`, unconditional
@@ -269,8 +269,8 @@ Reduces `MoveSimulated` to a single remaining hypothesis `Phase1Simulated`:
 Closes `Phase1Simulated` unconditionally, hence **`moveSimulated : MoveSimulated`** — the
 soundness capstone of this cluster (despite the modest file size — point here, not to
 `SolverMoveSim.lean`, when looking for "is `move` sound"). `recCheckSolvableSound` itself
-now lives in `RecCheckSound.lean` (cluster 5): it needs `recCheck_sound_of_semantics`,
-which transitively imports this file, so it can no longer live upstream of it.
+lives in `RecCheckSound.lean` (cluster 5): it needs `recCheck_sound`, which transitively
+imports this file, so it can no longer live upstream of it.
 
 ### `GetMovableSpec.lean` (330)
 Specs `getMovable`: `getMovable_cells`/`_freeCells` (soundness), `getMovable_bitSet`
@@ -315,30 +315,34 @@ its composition lemmas (`.refl`/`.trans`/`.vacate`/…), plus `VacateSites`.
 
 Soundness *and* completeness of the memoized recursion itself, then lifted through `solve`.
 Files split by top-level namespace: `RecCheckSound`/`RecCheckSpec`/`RecCheckRuns`/
-`RecCheckComplete`/`InitCard` declare at the root; `SolveSound`/`SolveCorrect`/
-`DealMatches`/`SolverIsCorrect` wrap in `namespace SolverSpec` — see Cleanup notes.
+`InitCard` declare at the root; `SolveSound`/`SolveCorrect`/`DealMatches`/`SolverIsCorrect`
+wrap in `namespace SolverSpec` — see Cleanup notes. (`RecCheckComplete.lean`, formerly
+listed here, is gone — folded into `RecCheckSpec.lean`, see "2026-09-10 update".)
 
-### `RecCheckSound.lean` (1513)
+### `RecCheckSound.lean` (1504)
 Soundness of `recCheckSolvable` (the memo wrapper): `hash == 0` leaf
-(`solvable_of_hash_zero`), memo slot-tag arithmetic, the theorem
-**`recCheck_sound_of_semantics`**, and (moved here from `Phase1Sim.lean`, cluster 4, since
-it can no longer live upstream of `recCheck_sound_of_semantics`) the capstone
-**`recCheckSolvableSound : RecCheckSolvableSound`** — provable with no hypotheses now that
-`SubsetSound`/`MoveSimulated` are theorems (`KingMoveSim.subsetSound`/
-`Phase1Sim.moveSimulated`). The `getDestination`→`DestValid` bridge that used to live here
-moved out to `DestValid.lean` (cluster 4).
+(`solvable_of_hash_zero`), memo slot-tag arithmetic, `PrologueRuns` discharged as
+**`prologueRuns`** (`recCheck_sound` reads it directly, having been moved to just after
+it, rather than taking it as a hypothesis), and the capstone
+**`recCheckSolvableSound : RecCheckSolvableSound`** — moved here from `Phase1Sim.lean`
+(cluster 4) since it can no longer live upstream of `recCheck_sound`, and merged with what
+used to be a separate `recCheck_sound_of_semantics` one alias away (nothing else ever used
+that name). Provable with no hypotheses now that `SubsetSound`/`MoveSimulated` are
+theorems (`KingMoveSim.subsetSound`/`Phase1Sim.moveSimulated`). The `getDestination`→
+`DestValid` bridge that used to live here moved out to `DestValid.lean` (cluster 4).
 
-### `RecCheckSpec.lean` (214)
-The **two-sided** spec, one merged induction: **`recCheck_spec`** (serves soundness and
-completeness at once, leaving only `RecLoopComplete` open — `SubsetSound`/`MoveSimulated`
-are no longer parameters here either).
+### `RecCheckSpec.lean` (317)
+The **two-sided** spec, one merged induction: **`recCheckSolvableSpec`**, unconditional
+(serves soundness and completeness at once). `RecLoopComplete` is discharged in this same
+file, as **`recLoopComplete`** — moved here from the now-deleted `RecCheckComplete.lean`,
+since its proof's ingredients (`CriticalIteration`/`ComponentComplete`) were already
+reachable from here, so there was no reason to keep it downstream; `recCheckSolvableSpec`
+reads it directly rather than taking it as a hypothesis. (This theorem was itself named
+`recCheck_spec` until `RecCheckComplete.lean` — which had contained only a same-named
+renamed alias — was folded in; see "2026-09-10 update".)
 
 ### `RecCheckRuns.lean` (163)
 Totality: `recCheckSolvable` actually returns (`forIn_exists`, `recBodyRuns`).
-
-### `RecCheckComplete.lean` (113)
-Discharges the last obligation `RecLoopComplete`, closing
-**`recCheckSolvableSpec : RecCheckSolvableSpec`** unconditionally.
 
 ### `SolveSound.lean` (322) — `namespace SolverSpec`
 `solve`'s soundness: `solveTail_bits`, **`solve_sound`**/`solve_sound_canonical`.
@@ -351,10 +355,17 @@ Discharges the last obligation `RecLoopComplete`, closing
 Only `Correctness : Prop` (the target spec) and the small glue defs it needs
 (`pilesKingsFromState`, `Rules.Shuffle.vector`).
 
-### `SolverIsCorrect.lean` (372) — `namespace SolverSpec`
+### `SolverIsCorrect.lean` (357) — `namespace SolverSpec`
 **`solver_is_correct : Correctness`** — the final unconditional theorem, assembled from
-`Inv0`/`Inv1`, the deal bridge, `initcard_ok'`, and `ReachableMatch`/`CleanupLax`/
-`KingPileMax`.
+`Inv0`/`Inv1`, the deal bridge, `initcard_ok'`, `reachableValidDepths`, and
+**`reachableAnswer`** (renamed from `reachableAnswer_of`, matching its siblings
+`reachableValidDepths`/`reachableEntry` now that it takes no hypothesis either). What used
+to be a four-theorem chain — `solver_is_correct_of`→`solver_is_correct_of'`→
+`solver_is_correct_of_prologue`→`solver_is_correct`, each threading
+`ReachableValidDepths`/`CvPrologueSim`/`ReachableEntry`/`ReachableAnswer` as a hypothesis
+and then just forwarding to the next — collapsed to this one theorem: every one of those
+obligations has exactly one proof, so the chain was four identical statements of
+`Correctness` wearing different names.
 
 ### `DealMatches.lean` (333) — `namespace SolverSpec`
 The fresh-deal-only entry point: `dealCards`/`dealState`, `fullPk`, `dealState_matches`,
@@ -401,27 +412,31 @@ Rules-side: a matching state's convert call is realized by legal moves, ending m
 ### `ConvertMatch.lean` (393)
 Generalizes to an *unnormalized* caller: `CvEntry`, the two remaining obligations
 `CvPrologueSim`/`CvCleanupSim`. `convert_simulates_lax`/`solve_correct_lax` (the version
-`SolverIsCorrect` actually calls) moved to `CleanupLax.lean` below: `CvCleanupSim`'s only
-proof lives there, so they can no longer take it as a hypothesis upstream of that proof.
+`SolverIsCorrect` actually calls) moved out — first to `CleanupLax.lean`, then on to
+`KingPileMax.lean` — since neither obligation is ever taken as a hypothesis anymore, and
+each moved to sit just downstream of its one real proof.
 
 ### `ReachableMatch.lean` (748) — mixed: root namespace, then `namespace SolverSpec` from line ~457
 The Rules-side obligations about a state's *own* encoding: **`validDepths_pilesKings`**,
 **`exists_cvEntry`**.
 
-### `CleanupLax.lean` (633) — `namespace SolverSpec`
+### `CleanupLax.lean` (573) — `namespace SolverSpec`
 Discharges `CvCleanupSim`: **`cvCleanupSim`** (generalizes `SimulatesNorm.ofCleanupPile` to
-a pile already carrying part of its flute extension), then (moved here from
-`ConvertMatch.lean`, now that the hypothesis is a local theorem) assembles it into
-**`convert_simulates_lax`**/**`solve_correct_lax`** — the version `SolverIsCorrect`
-actually calls.
+a pile already carrying part of its flute extension), then `cvCleanupLoop_lax` (moved here
+from `ConvertMatch.lean`, now that the `CvCleanupSim` hypothesis is a local theorem).
+`convert_simulates_lax`/`solve_correct_lax` used to sit here too but moved on again, to
+`KingPileMax.lean`: `CvPrologueSim`'s only proof lives there, and this file already imports
+`KingPileMax` transitively via `FoundationMax`, so the reverse import would cycle.
 
 ### `FoundationMax.lean` (426) — `namespace SolverSpec`
 First half of `CvPrologueSim`: every suit's foundation playable up to `cvAceVal`:
 **`exists_maximal_foundations`**.
 
-### `KingPileMax.lean` (763) — `namespace SolverSpec`
+### `KingPileMax.lean` (833) — `namespace SolverSpec`
 Second half of `CvPrologueSim` (king piles completed) plus the assembly:
-**`cvPrologueSim`**.
+**`cvPrologueSim`**, then (moved here from `CleanupLax.lean`, now that the `CvPrologueSim`
+hypothesis is this file's own local theorem) **`convert_simulates_lax`**/
+**`solve_correct_lax`** — the version `SolverIsCorrect` actually calls.
 
 ---
 
@@ -640,8 +655,8 @@ worth normalizing (or at least documenting) in one pass:
   only from line ~457), `SolveCorrect`, `SolveSound`, `SolverIsCorrect`, plus `MoveSim.lean`
   (only around its `movePre` definitions).
 - **No namespace wrapper (top-level):** `SolverInvariant`, `SolverRealSpec`,
-  `RecCheckSound`, `RecCheckSpec`, `RecCheckRuns`, `RecCheckComplete`,
-  `SolverCorrectness`, and essentially everything in clusters 3, 4, 7, 8 above.
+  `RecCheckSound`, `RecCheckSpec`, `RecCheckRuns`, `SolverCorrectness`, and essentially
+  everything in clusters 3, 4, 7, 8 above.
 - A few files use a namespace for a different purpose entirely: `KingReshuffle`
   (`namespace KingSwap`, for the abstract graph theory only), `InitCard`
   (`namespace IsDeal`, for that one structure's projections).
@@ -692,27 +707,90 @@ those parameters were dropped in favor of referencing the real proof directly, r
 now-redundant instantiation step. Three instances were fixed:
 
 - **`SubsetSound`/`MoveSimulated`** — 9 theorems across `RecStepSound.lean`,
-  `RecLoopSound.lean` (5), `RecCheckSound.lean` (3, plus the new `recCheckSolvableSound`
-  alias) and `RecCheckSpec.lean`/`RecCheckComplete.lean` no longer take these as
-  hypotheses; they reference `KingMoveSim.subsetSound`/`Phase1Sim.moveSimulated` directly.
-  Doing this required `RecStepSound.lean` to import `Phase1Sim.lean`, which surfaced two
-  pieces of content that were sitting in the wrong file for the new import order — both
-  were standalone lemmas misplaced downstream of where they were actually needed, now split
-  into their own files: `BitSetShiftRight.lean` (out of `RecStepSound.lean`) and
-  `DestValid.lean` (out of `RecCheckSound.lean`). `GetMovableSpec.lean`'s import of the
-  *whole* `RecCheckSound.lean` — the accidental source of the cycle this exposed — was
-  replaced with direct imports of what it actually uses. The milestone theorem
-  `recCheckSolvableSound` moved from `Phase1Sim.lean` to `RecCheckSound.lean` accordingly
-  (it can no longer live upstream of the theorem it's an alias for).
-- **`CvCleanupSim`** — `cvCleanupLoop_lax`, `convert_simulates_lax`, `solve_correct_lax`
-  moved from `ConvertMatch.lean` to `CleanupLax.lean` (right after `cvCleanupSim`'s proof),
-  dropping the hypothesis in favor of `cvCleanupSim` directly. `CvPrologueSim`'s hypothesis
-  on the same theorems was left alone — unlike `CvCleanupSim`, it is genuinely reused with
-  different proofs by other callers.
+  `RecLoopSound.lean` (5), `RecCheckSound.lean` (3) and `RecCheckSpec.lean` no longer take
+  these as hypotheses; they reference `KingMoveSim.subsetSound`/`Phase1Sim.moveSimulated`
+  directly. Doing this required `RecStepSound.lean` to import `Phase1Sim.lean`, which
+  surfaced two pieces of content that were sitting in the wrong file for the new import
+  order — both were standalone lemmas misplaced downstream of where they were actually
+  needed, now split into their own files: `BitSetShiftRight.lean` (out of
+  `RecStepSound.lean`) and `DestValid.lean` (out of `RecCheckSound.lean`).
+  `GetMovableSpec.lean`'s import of the *whole* `RecCheckSound.lean` — the accidental
+  source of the cycle this exposed — was replaced with direct imports of what it actually
+  uses. The milestone theorem `recCheckSolvableSound` moved from `Phase1Sim.lean` to
+  `RecCheckSound.lean` accordingly (it can no longer live upstream of `recCheck_sound`).
+- **`CvCleanupSim`** — `cvCleanupLoop_lax` moved from `ConvertMatch.lean` to
+  `CleanupLax.lean` (right after `cvCleanupSim`'s proof), dropping the hypothesis in favor
+  of `cvCleanupSim` directly.
 - **Dead code removed**: `CompletenessSkeleton.RecCheckSolvableComplete`/
   `recCheckSolvableSpec_of` — the hypothesis-taking half of a pair that was never
   instantiated (`RecCheckSolvableComplete` was never proved) and whose own doc comment
-  said it was already superseded by `RecCheckSpec.recCheck_spec`.
+  said it was already superseded; and `RecCheckSound.recCheck_sound_of_body`, discovered
+  unused once its own `PrologueRuns` hypothesis was dropped (see next bullet), at which
+  point it became a verbatim, never-called duplicate of `recCheck_sound`.
+- **`PrologueRuns`** — `recCheck_sound` (`RecCheckSound.lean`) took `(hPro : PrologueRuns)`
+  even though its only proof, `prologueRuns`, lived later in the *same file* (so no import
+  reordering was needed, just moving `recCheck_sound` down to just after `prologueRuns`)
+  and was the only value ever passed at either of its two call sites.
+- **`RecLoopComplete`** — `recCheck_spec` (`RecCheckSpec.lean`, since renamed
+  `recCheckSolvableSpec`) took it as a hypothesis because its only proof,
+  `recLoopComplete`, lived in `RecCheckComplete.lean`, which imports `RecCheckSpec.lean`
+  (so the naive fix would have been a cycle). Checked what `recLoopComplete`'s proof
+  actually needs (`CriticalIteration`/`ComponentComplete` content) and found it was already
+  reachable from `RecCheckSpec.lean`'s existing imports bar one (`ComponentComplete`,
+  added directly) — so `recLoopComplete` moved into `RecCheckSpec.lean` instead.
+- **`ReachableValidDepths`/`CvPrologueSim`/`ReachableEntry`/`ReachableAnswer`** — the
+  `reachableAnswer_of`→`solver_is_correct_of`→`solver_is_correct_of'`→
+  `solver_is_correct_of_prologue`→`solver_is_correct` chain in `SolverIsCorrect.lean` had
+  each of these threaded as a hypothesis, even though each has exactly one proof and none
+  is ever called with anything else — an earlier pass through this file mistakenly called
+  `CvPrologueSim`'s hypothesis here "genuinely reused with different proofs by other
+  callers"; checking the actual call sites (all internal to this one file) showed that was
+  wrong. `convert_simulates_lax`/`solve_correct_lax` (used only by `reachableAnswer_of`)
+  had the same problem one file over, in `CleanupLax.lean`: `CvPrologueSim`'s hypothesis
+  there could not just be dropped in place, since its only proof (`cvPrologueSim`) lives in
+  `KingPileMax.lean`, which already imports `CleanupLax.lean` transitively (via
+  `FoundationMax.lean`) — so both theorems moved to `KingPileMax.lean`, right after
+  `cvPrologueSim`, the same move `CvCleanupSim`'s fix made one file earlier.
 
-Two new files, zero files removed: **90 `.lean` files** now (was 89). Full `lake build`
-passes with no new `sorry`s.
+### Follow-up: collapsing chains of now-identical theorems
+
+Dropping all of the above hypotheses left several theorems that were purely trivial
+aliases of one another — a theorem `X`, and a separately-named theorem `Y := X` (or a
+chain of these) with no remaining parameters, so `X` and `Y` were literally the same
+statement and the same proof under two names. Once a name in such a chain is externally
+used (by another file) or is the more meaningful public name, the fix is: fold the proof
+into that name directly and delete the rest, rather than leaving a chain of aliases. Found
+and fixed three instances, plus the `RecLoopComplete` fix above already produced one
+(`RecCheckComplete.lean` shrank to a single-line alias, per its own entry above):
+
+- **`solver_is_correct_of`/`solver_is_correct_of'`/`solver_is_correct_of_prologue`/
+  `solver_is_correct`** (`SolverIsCorrect.lean`) — four theorems, all of type
+  `Correctness`, chained by pure forwarding. Collapsed to one `solver_is_correct` (the
+  first one's proof, under the last one's name — the one the rest of the project, and
+  the "headline theorem" framing, actually uses). `reachableAnswer_of` — used only inside
+  this chain, single-instance, but a distinct type (`ReachableAnswer`) so not itself
+  collapsible — was renamed to `reachableAnswer`, matching its siblings
+  `reachableValidDepths`/`reachableEntry` now that none of the three takes a hypothesis.
+- **`recCheck_sound_of_semantics`/`recCheckSolvableSound`** (`RecCheckSound.lean`) — the
+  latter was a bare alias of the former, and only the latter has external callers
+  (`SolveSound.lean`, `SolveCorrect.lean`). Merged into one `recCheckSolvableSound`.
+- **`recCheck_spec`/`recCheckSolvableSpec`** — same shape, but split across two files:
+  `recCheck_spec` (`RecCheckSpec.lean`) had the proof, `recCheckSolvableSpec`
+  (`RecCheckComplete.lean`, a 23-line file containing nothing else) was the alias with
+  external callers (`SolveCorrect.lean`). Renamed `recCheck_spec` to `recCheckSolvableSpec`
+  in place and **deleted `RecCheckComplete.lean`** — the only file removed in this whole
+  cleanup — repointing `SolveCorrect.lean`'s import to `RecCheckSpec.lean` directly.
+
+**Not collapsed, on purpose**: `KingMoveSim.componentSound`/`subsetSound` are built from
+`KingReshuffle.componentSound_of`/`subsetSound_of`, which — like the cases above — take
+hypotheses (`KingUnpileReachable`/`KingPileReachable`) with exactly one real proof each
+(`kingUnpileReachable`/`kingPileReachable`, both in `KingMoveSim.lean`). These look like
+further instances of the *original* forward-reference pattern, but merging them would
+require moving the "physical" proofs upstream into `KingReshuffle.lean` (the abstract
+`KingSwap.reachable` graph-theory layer) or the "abstract" theorems downstream into
+`KingMoveSim.lean` — undoing a deliberate abstract/physical split the project's own docs
+describe as the point of having two files. Left as is.
+
+Two new files earlier in this update, one file deleted in this follow-up round:
+**89 `.lean` files** (net +1 over the original 88). Full `lake build` passes with no new
+`sorry`s.

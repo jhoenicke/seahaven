@@ -279,7 +279,7 @@ nothing but the memo table (`solve_frame`) — is now proved, so this is the who
 remaining content of `Correctness`.
 
 It is no longer a monolith: `ConvertMatch` splits it into three, and
-`reachableAnswer_of` below is the assembly.  What used to make it hard was that
+`reachableAnswer` below is the assembly.  What used to make it hard was that
 `solve_correct` matched the state against `convertPre g pk` — a position with all
 flutes at `1` and the *maximal* foundation, i.e. one no state of an ongoing game
 matches.  `solve_correct_lax` matches against a position with the queried depths and
@@ -317,56 +317,41 @@ theorem reachableEntry : ReachableEntry := fun _ _ hinv s hreach =>
   exists_cvEntry hinv.1 (matchesLayout_of_reachable hinv hreach) (pilesKings_get10_lt16 s)
 
 /-- **Obligation 2, assembled.**  `solve_correct_lax` answers about the state the
-caller handed in, so nothing has to be normalized before the query. -/
-theorem reachableAnswer_of (hvd : ReachableValidDepths) (hA : CvPrologueSim)
-    (hE : ReachableEntry) : ReachableAnswer := by
+caller handed in, so nothing has to be normalized before the query.  Takes none of
+`ReachableValidDepths`/`CvPrologueSim`/`ReachableEntry` as hypotheses: each has exactly
+one proof (`reachableValidDepths`, `cvPrologueSim`, `reachableEntry`, all already in
+scope), and nothing else is ever plugged in here. -/
+theorem reachableAnswer : ReachableAnswer := by
   intro sh g hinv s hreach r g' hrun
-  obtain ⟨game', hentry⟩ := hE sh g hinv s hreach
-  obtain ⟨-, hcase⟩ := solve_correct_lax hA hinv.1 hinv.2.1 (hvd sh s hreach)
-    (pilesKings_get10_lt16 s) hentry hrun
+  obtain ⟨game', hentry⟩ := reachableEntry sh g hinv s hreach
+  obtain ⟨-, hcase⟩ := solve_correct_lax hinv.1 hinv.2.1
+    (reachableValidDepths sh s hreach) (pilesKings_get10_lt16 s) hentry hrun
   rcases hcase with ⟨hr, hns⟩ | ⟨hr, hs⟩
   · exact ⟨fun h => absurd (h.symm.trans hr) (by decide), fun h => absurd h hns⟩
   · exact ⟨fun _ => hs, fun _ => hr⟩
 
 /-! ## The theorem -/
 
-/-- **The solver is correct**, given the two query obligations. -/
-theorem solver_is_correct_of (hvd : ReachableValidDepths) (hans : ReachableAnswer) :
-    Correctness := by
+/-- **The solver is correct.**  Assembled from the two query obligations
+(`reachableValidDepths`, `reachableAnswer` above): the encoding is legal, a reachable
+state matches it (`ReachableMatch`), convert's loop 2 is simulated (`KingPileMax.cvPrologueSim`
+— the maximal foundations are reached by foundation plays (`FoundationMax`) and the king
+piles by cell-to-pile drops), and the cleanup loop is simulated (`CleanupLax`), so every
+position convert writes is reachable from the queried state by solvability-preserving
+moves.  None of these is a hypothesis here: each has exactly one proof, already in scope. -/
+theorem solver_is_correct : Correctness := by
   refine ⟨Inv0, Inv1, inv0_emptyGlobals, fun sh g => ⟨Inv1.toInv0, ?_, ?_⟩⟩
   · exact fun h => inv1_of_initcard sh h
   · intro hinv s hreach
-    have hpk : ValidDepths (pilesKingsFromState s) := hvd sh s hreach
+    have hpk : ValidDepths (pilesKingsFromState s) := reachableValidDepths sh s hreach
     have hs10 := pilesKings_get10_lt16 s
     obtain ⟨r, g', hrun⟩ := solve_runs hinv.1 hinv.2.1 hpk hs10
     obtain ⟨hcode, hcor', hm, rfl⟩ := solve_frame hinv.1 hinv.2.1 hpk hs10 hrun
     refine ⟨_, r, hrun, hinv.set_hashmap hm hcor', ?_⟩
-    have hiff := hans sh g hinv s hreach r _ hrun
+    have hiff := reachableAnswer sh g hinv s hreach r _ hrun
     rcases hcode with h | h
     · exact Or.inr ⟨h, hiff.1 h⟩
     · refine Or.inl ⟨h, fun hsol => ?_⟩
       exact absurd (h.symm.trans (hiff.2 hsol)) (by decide)
-
-/-- **The solver is correct**, in the three-obligation form: the encoding is legal
-(`ReachableValidDepths`), a reachable state matches it (`ReachableEntry`), and convert's
-loop 2 is simulated (`CvPrologueSim`). -/
-theorem solver_is_correct_of' (hvd : ReachableValidDepths) (hA : CvPrologueSim)
-    (hE : ReachableEntry) : Correctness :=
-  solver_is_correct_of hvd (reachableAnswer_of hvd hA hE)
-
-/-- **The solver is correct**, given only convert's loop-2 simulation.  The encoding is
-legal and a reachable state matches it (`ReachableMatch`), and the cleanup loop is
-simulated (`CleanupLax`), so all that is left of `Correctness` is that loop 2's writes —
-the maximal foundation and the completed king piles — are realized by normalizing
-moves. -/
-theorem solver_is_correct_of_prologue (hA : CvPrologueSim) : Correctness :=
-  solver_is_correct_of' reachableValidDepths hA reachableEntry
-
-/-- **The solver is correct.**  Loop 2's simulation is `KingPileMax.cvPrologueSim`: the
-maximal foundations are reached by foundation plays (`FoundationMax`) and the king piles by
-cell-to-pile drops, so every position convert writes is reachable from the queried state by
-solvability-preserving moves. -/
-theorem solver_is_correct : Correctness :=
-  solver_is_correct_of_prologue cvPrologueSim
 
 end SolverSpec
