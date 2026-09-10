@@ -138,8 +138,7 @@ Spec for `preCleanupPile` (the non-king cleanup tail): `preCleanupPile_pileBase_
 
 ### `SolverSpecCleanupPile.lean` (1158)
 Spec for `cleanupPile` (dispatches `kingMove` vs. `preCleanupPile`): `cleanupPile_eq` (the
-shared exact-run preamble), `cleanupPile_base`, `cleanupPile_merged`. Needs
-`set_option maxHeartbeats 4000000` — a known, documented build-time hotspot.
+shared exact-run preamble), `cleanupPile_base`, `cleanupPile_merged`.
 
 ### `SolverSpecRemoveFlute.lean` (238)
 Spec for `removeFlute`, reduced to `cleanupPile`'s spec via `removeFlute_eq`. Defines the
