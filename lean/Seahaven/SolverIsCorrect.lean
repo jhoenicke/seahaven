@@ -322,7 +322,7 @@ theorem reachableAnswer_of (hvd : ReachableValidDepths) (hA : CvPrologueSim)
     (hE : ReachableEntry) : ReachableAnswer := by
   intro sh g hinv s hreach r g' hrun
   obtain ⟨game', hentry⟩ := hE sh g hinv s hreach
-  obtain ⟨-, hcase⟩ := solve_correct_lax hA cvCleanupSim hinv.1 hinv.2.1 (hvd sh s hreach)
+  obtain ⟨-, hcase⟩ := solve_correct_lax hA hinv.1 hinv.2.1 (hvd sh s hreach)
     (pilesKings_get10_lt16 s) hentry hrun
   rcases hcase with ⟨hr, hns⟩ | ⟨hr, hs⟩
   · exact ⟨fun h => absurd (h.symm.trans hr) (by decide), fun h => absurd h hns⟩

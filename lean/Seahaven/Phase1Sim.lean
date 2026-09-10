@@ -320,13 +320,8 @@ theorem phase1Simulated : Phase1Simulated := by
     · omega
 
 /-- **`MoveSimulated` is discharged.**  One of the two semantic obligations of
-`recCheck_sound_of_semantics`; `SubsetSound` is the other. -/
+`recCheck_sound_of_semantics`; `SubsetSound` is the other.  (`recCheckSolvableSound`,
+the unconditional soundness milestone built from this and `KingMoveSim.subsetSound`,
+now lives in `RecCheckSound` — it needs `recCheck_sound_of_semantics`, which imports
+this file, so it cannot live here without an import cycle.) -/
 theorem moveSimulated : MoveSimulated := moveSimulated_of_phase1 phase1Simulated
-
-/-- **`recCheckSolvable` is sound, unconditionally.**  Both semantic
-hypotheses are theorems now: `subsetSound` (`KingMoveSim`, via the king-piling
-step) and `moveSimulated` just above.  What is left between this and end-to-end
-`SolveSound` is the `solve` wrapper — the convert canonicalization, the
-Rules-side normalization, and `WellFormedLayout` for the initial deal. -/
-theorem recCheckSolvableSound : RecCheckSolvableSound :=
-  recCheck_sound_of_semantics subsetSound moveSimulated

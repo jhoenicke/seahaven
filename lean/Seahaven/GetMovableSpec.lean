@@ -1,4 +1,5 @@
-import Seahaven.RecCheckSound
+import Seahaven.BitSetShiftRight
+import Seahaven.UsedSpaceBound
 
 open Rules
 open Solver

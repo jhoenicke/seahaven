@@ -1,5 +1,6 @@
 import Seahaven.GetMovableSpec
 import Seahaven.SolverMoveSim
+import Seahaven.DestValid
 
 open Rules
 open Solver

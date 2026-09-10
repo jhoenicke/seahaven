@@ -2,6 +2,7 @@ import Seahaven.ConvertMatch
 
 open Rules
 open Solver
+open Lean Lean.Order
 
 /-!
 # One cleanup call, from a pile that already carries part of its flute
@@ -471,5 +472,162 @@ theorem cvCleanupSim : CvCleanupSim := by
     · show p'.aces = _
       rw [hfa]
 
+/-! ## Loop 3, from the state's own flutes
+
+The induction, with the state's flute vector riding along: the piles the loop has
+passed carry the flutes the solver computed for them, the ones it has not carry
+whatever the state has.  At `j = 10` the two vectors agree, so the relaxed reading *is*
+the solver's position and the drain can take over unchanged.
+
+These three theorems (through `solve_correct_lax`) live here rather than in
+`ConvertMatch`, where they were originally stated: `CvCleanupSim`'s only proof is
+`cvCleanupSim` just above, so they no longer take it as a hypothesis, and that means
+they must live downstream of this proof rather than upstream of it. -/
+
+theorem cvCleanupLoop_lax (g : Globals) (hwf : WellFormedLayout g)
+    (s : State) (P : PosType) (k : Fin 16) :
+    ∀ (n j : Nat), j + n = 10 → ∀ (fk : UInt16) (q : PosType) (fl : Vector UInt8 10),
+      MergedUpTo g q j → CvFlutes q fl →
+      (∀ i : Fin 10, i.val < j → fl.get i = q.pileFlute.get i) →
+      MoveAcesSim g s P k fk (cvRelax q fl) →
+      ∃ (fk' : UInt16) (q' : PosType),
+        forIn (List.range' j n) fk cvCleanupBody (g, q) = .ok fk' (g, q') ∧
+        MergedUpTo g q' 10 ∧ MoveAcesSim g s P k fk' q' := by
+  intro n
+  induction n with
+  | zero =>
+    intro j hj fk q fl hq hfl hfld hP
+    obtain rfl : j = 10 := by omega
+    refine ⟨fk, q, rfl, hq, ?_⟩
+    rwa [cvRelax_eq q (fun i => hfld i i.isLt)] at hP
+  | succ n ih =>
+    intro j hj fk q fl hq hfl hfld hP
+    have hjlt : j < 10 := by omega
+    have hpile : (UInt32.ofNat j).toNat < 10 := by rw [UInt32.toNat_ofNat']; omega
+    have hpkn : (UInt32.ofNat j).toNat = j := by rw [UInt32.toNat_ofNat']; omega
+    -- the solver's own step
+    obtain ⟨fk0, q1, hrun1, hq1, hdframe⟩ := solverCleanupPile_step g q j hjlt hwf hq
+    obtain ⟨hnf, -, -, hfluteRest⟩ := hq
+    have hnf1 : SolverInvBase g q1 := hq1.1
+    -- pile `j` has not been touched yet, so its flute is still the default
+    have hfl1j : q.pileFlute.get ⟨(UInt32.ofNat j).toNat, hpile⟩ = 1 :=
+      hfluteRest ⟨(UInt32.ofNat j).toNat, hpile⟩
+        (show j ≤ (UInt32.ofNat j).toNat from le_of_eq hpkn.symm)
+    have hfn : fluteNorm (UInt32.ofNat j) hpile q = q := fluteNorm_self _ hpile q hfl1j
+    -- the state side: one relaxed cleanup step, chained onto what we already have
+    obtain ⟨w, kk, FK, hsim⟩ := hP
+    obtain ⟨w', kk', FK', hsim'⟩ :=
+      cvCleanupSim g w q fl kk (UInt32.ofNat j) hpile fk0 q1 hwf hnf hfl1j hfl hsim.cfg hrun1
+    -- the state's new flute vector
+    set fl1 : Vector UInt8 10 :=
+      fl.set (UInt32.ofNat j).toNat (q1.pileFlute.get ⟨(UInt32.ofNat j).toNat, hpile⟩) hpile
+      with hfl1def
+    have hfl1get : fl1.get ⟨(UInt32.ofNat j).toNat, hpile⟩
+        = q1.pileFlute.get ⟨(UInt32.ofNat j).toNat, hpile⟩ := by
+      rw [hfl1def]
+      show (fl.set (UInt32.ofNat j).toNat _ hpile)[(UInt32.ofNat j).toNat]'hpile = _
+      exact Vector.getElem_set_self hpile
+    have hfl1ne : ∀ i : Fin 10, i.val ≠ (UInt32.ofNat j).toNat → fl1.get i = fl.get i := by
+      intro i hi
+      rw [hfl1def]
+      show (fl.set (UInt32.ofNat j).toNat _ hpile)[i.val]'i.isLt = fl[i.val]'i.isLt
+      exact Vector.getElem_set_ne hpile i.isLt (Ne.symm hi)
+    -- it is still a legal flute vector, now for `q1`
+    have hflNew : CvFlutes q1 fl1 := by
+      refine ⟨fun i => ?_, fun i hi => ?_⟩
+      · by_cases hij : i.val = (UInt32.ofNat j).toNat
+        · rw [show i = ⟨(UInt32.ofNat j).toNat, hpile⟩ from Fin.ext hij, hfl1get]
+          exact hnf1.flute_pos _
+        · rw [hfl1ne i hij]; exact hfl.pos i
+      · by_cases hij : i.val = (UInt32.ofNat j).toNat
+        · rw [show i = ⟨(UInt32.ofNat j).toNat, hpile⟩ from Fin.ext hij] at hi ⊢
+          rw [hfl1get]
+          exact hnf1.flute_empty _ hi
+        · rw [hfl1ne i hij]
+          refine hfl.empty i ?_
+          rw [← hdframe i (by rw [hpkn] at hij; exact hij)]
+          exact hi
+    -- and it agrees with the solver on every pile the loop has now passed
+    have hfldNew : ∀ i : Fin 10, i.val < j + 1 → fl1.get i = q1.pileFlute.get i := by
+      intro i hi
+      by_cases hij : i.val = (UInt32.ofNat j).toNat
+      · rw [show i = ⟨(UInt32.ofNat j).toNat, hpile⟩ from Fin.ext hij, hfl1get]
+      · rw [hpkn] at hij
+        rw [hfl1ne i (by rw [hpkn]; exact hij), hfld i (by omega),
+          cleanupPile_pileFlute_frame hwf hpile (by rw [hfn]; exact hnf) hrun1 i
+            (by rw [hpkn]; exact hij)]
+    have hP1 : MoveAcesSim g s P k (fk &&& fk0) (cvRelax q1 fl1) :=
+      ⟨w', kk', FK ∪ FK', hsim.trans hsim'⟩
+    obtain ⟨fk', q', hrun', hq', hP'⟩ :=
+      ih (j + 1) (by omega) (fk &&& fk0) q1 fl1 hq1 hflNew hfldNew hP1
+    refine ⟨fk', q', ?_, hq', hP'⟩
+    rw [List.range'_succ, List.forIn_cons]
+    show (cvCleanupBody j fk >>= _) (g, q) = _
+    simp only [bind, EStateM.bind, cvCleanupBody_run j fk fk0 g q q1 hrun1]
+    exact hrun'
+
+/-! ## The whole call -/
+
+/-- **`convertFromPilesKings`, simulated from the entry state.**  The
+`convert_simulates` of a caller that has *not* normalized: `s` need only match some
+position with the queried depths, and the call's own moves — loop 2's foundation plays
+and king-pile drops, loop 3's freed-predecessor drops, loop 4's drain — take it to a
+state matching the canonical position the call returns. -/
+theorem convert_simulates_lax (hA : CvPrologueSim)
+    (g : Globals) (hwf : WellFormedLayout g) (pk : Vector UInt8 11) (hpk : ValidDepths pk)
+    (p0 : PosType) (s : State) (game' : PosType) (k : Fin 16)
+    (hentry : CvEntry g pk s game' k) :
+    ∃ (fk : UInt16) (p' : PosType) (s' : State) (k' : Fin 16) (FK : Finset Suit),
+      EStateM.run (Solver.convertFromPilesKings pk) (g, p0) = .ok fk (g, p') ∧
+      IsCanonicalPos g p' ∧
+      SimulatesNorm g s game' k s' p' k' FK fk := by
+  have hcount : CvCountBound g pk := cvCountBound g hwf pk hpk
+  -- loops 1 and 2: the solver reaches `convertPre`, the state catches up with its writes
+  obtain ⟨u, hru, hmu⟩ := hA g pk s game' k hwf hpk hentry
+  set fl : Vector UInt8 10 := cvFluteOf u (convertPre g pk).pileDepth with hfldef
+  have hfl : CvFlutes (convertPre g pk) fl :=
+    cvFlutes_cvFluteOf
+      (show ∀ i : Fin 10, ((convertPre g pk).pileDepth.get i).toNat < 6 from
+        hmu.toMatches.depth_lt6)
+      (show ∀ i : Fin 10, PileMatches g (u.tableau i) i
+          ⟨((convertPre g pk).pileDepth.get i).toNat, hmu.toMatches.depth_lt6 i⟩ from
+        hmu.toMatches.depth_match)
+  have hP0 : MoveAcesSim g s game' k 0xffff (cvRelax (convertPre g pk) fl) :=
+    ⟨u, k, ∅, SimulatesNorm.ofNormReach hru hmu⟩
+  -- loop 3
+  obtain ⟨fk1, q1, hrun1, hq1, hP1⟩ :=
+    cvCleanupLoop_lax g hwf s game' k 10 0 rfl 0xffff (convertPre g pk) fl
+      (convertPre_mergedUpTo_zero g pk hwf hpk) hfl (fun i hi => absurd hi (by omega)) hP0
+  have hmerged : SolverInvMerged g q1 := mergedUpTo_ten_iff.mp hq1
+  -- loop 4
+  obtain ⟨fk2, q2, hrun2, hcan, hP2⟩ := SimulatesNorm.drain hwf hmerged hP1
+  obtain ⟨s', k', FK, hsim⟩ := hP2
+  refine ⟨fk2, q2, s', k', FK, ?_, hcan, hsim⟩
+  show Solver.convertFromPilesKings pk (g, p0) = _
+  rw [convert_run_eq g hwf pk p0 hpk hcount]
+  show (forIn (List.range 10) (0xffff : UInt16) cvCleanupBody >>= fun fk =>
+      Loop.forIn Loop.mk fk drainBody >>= fun r => pure r) (g, convertPre g pk) = _
+  simp only [bind, EStateM.bind, pure, EStateM.pure,
+    show List.range 10 = List.range' 0 10 from by rw [List.range_eq_range'], hrun1, hrun2]
+
+/-- **`solve` is correct on the state it was asked about.**  `solve_correct` with its
+matching hypothesis replaced by the entry relation: no normalization, no maximal
+foundation, no run-free piles. -/
+theorem solve_correct_lax (hA : CvPrologueSim)
+    {g g' : Globals} {pk : Vector UInt8 11} {s : State} {game' : PosType} {r : UInt8}
+    (hwf : WellFormedLayout g) (hcor : HashmapCorrect g) (hpk : ValidDepths pk)
+    (hs10 : (pk.get ⟨10, by omega⟩).toNat < 16)
+    (hentry : CvEntry g pk s game' (kingCfgOf pk hs10))
+    (hrun : EStateM.run (Solver.solve pk) g = .ok r g') :
+    (HashmapCorrect g' ∧ ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm }) ∧
+    ((r = UInt8.ofNat NOMOVE ∧ ¬ isSolvable s) ∨ (r = UInt8.ofNat SUCCESS ∧ isSolvable s)) := by
+  obtain ⟨fk, p, v, k', FK, hrunC, hcan, hsim⟩ :=
+    convert_simulates_lax hA g hwf pk hpk emptyPosType s game' (kingCfgOf pk hs10)
+      hentry
+  have hrun' : Solver.solve pk g = .ok r g' := hrun
+  rw [solve_eq_explicit pk] at hrun'
+  simp only [bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get, hrunC,
+    set, EStateM.set] at hrun'
+  exact solveTail_correct hwf hcor hcan hs10 hsim hrun'
 
 end SolverSpec

@@ -108,7 +108,7 @@ the move is affordable at `i` and the child's answer covers what it reaches.
 Otherwise bit `i` came from `component`, and `componentSound` transports the
 reachability to a bit `j` that *is* in `movable'` — which exists precisely because
 the code only ORs `component` in when `movable' &&& component ≠ 0`. -/
-theorem contribution_sound (hSS : SubsetSound) (hMS : MoveSimulated)
+theorem contribution_sound
     {g : Globals} {p p' : PosType} {pile : UInt32} {toPile : UInt8}
     {mv cs fk : UInt16} {comp : UInt8} {kingInfo : KingInfo}
     (hwf : WellFormedLayout g) (hcanon : IsCanonicalPos g p)
@@ -129,7 +129,7 @@ theorem contribution_sound (hSS : SubsetSound) (hMS : MoveSimulated)
     localMask_movableComp hmvloc' (localMask_component hcomprun)
   -- the queried configuration reaches a configuration named by a local bit
   obtain ⟨i, hi, hbiti, hreach⟩ :=
-    hSS g p s _ k hloc hwf hcanon.toSolverInvMerged
+    subsetSound g p s _ k hloc hwf hcanon.toSolverInvMerged
       ⟨s, Relation.ReflTransGen.refl, hs⟩ hbit
   -- that bit is in `movable'`, or `component` put it there
   have hstep : ∀ (n : Nat) (hn : n < (closureInfoOf p).numBits.toNat),
@@ -137,7 +137,7 @@ theorem contribution_sound (hSS : SubsetSound) (hMS : MoveSimulated)
       KingConfigReachable g p s (globalCfg (closureInfoOf p) n) → Solvable s := by
     intro n hn hbn ⟨s1, hr1, hs1⟩
     refine Solvable.of_reach hr1
-      (recStep_sound hMS hn hwf hcanon hs1 hkic hpile hdepth hdest hmv hrun hcs hchild ?_)
+      (recStep_sound hn hwf hcanon hs1 hkic hpile hdepth hdest hmv hrun hcs hchild ?_)
     exact hbn
   by_cases hmv' : BitSet (movablePrime p p' mv cs fk) ⟨min i 15, by omega⟩
   · exact hstep i hi hmv' hreach
@@ -230,7 +230,7 @@ def Contributes (p : PosType) (kingInfo : KingInfo) (comp : UInt8)
 (`SoundBits.union`), so the whole step is: the old accumulator stays sound
 (frame), the new contribution is sound (`contribution_sound`), and both are
 local. -/
-theorem LoopInv.step (hSS : SubsetSound) (hMS : MoveSimulated)
+theorem LoopInv.step
     {p : PosType} {kingInfo : KingInfo} {comp : UInt8} {v v' : UInt16} {g g' : Globals}
     (hcomploc : LocalMask p comp.toUInt16) (hkic : KingInfoCorrect p kingInfo)
     (h : LoopInv p comp v g) (hc : Contributes p kingInfo comp v g v' g') :
@@ -240,7 +240,7 @@ theorem LoopInv.step (hSS : SubsetSound) (hMS : MoveSimulated)
   · exact h
   · obtain ⟨hwf, hcanon, hcomprun, hsound⟩ := hframe
     have hcontrib : SoundBits g p (movableComp (movablePrime p p' mv cs fk) comp.toUInt16) :=
-      contribution_sound hSS hMS h.wf h.canon hmvloc h.comprun hkic hpile hdepth hdest hmv hrun
+      contribution_sound h.wf h.canon hmvloc h.comprun hkic hpile hdepth hdest hmv hrun
         hcs hchild
     have hlocmv : LocalMask p (movableComp (movablePrime p p' mv cs fk) comp.toUInt16) :=
       localMask_movableComp (localMask_movablePrime hmvloc) hcomploc
@@ -290,7 +290,7 @@ theorem forIn_inv {β : Type} (P : β → Globals → Prop)
 ORs in a sound contribution, so the value the loop returns satisfies the
 invariant: *a set bit in its `subsetTable` expansion means the state really is
 solvable*. -/
-theorem recLoop_sound (hSS : SubsetSound) (hMS : MoveSimulated)
+theorem recLoop_sound
     {p : PosType} {kingInfo : KingInfo} {comp : UInt8}
     (hcomploc : LocalMask p comp.toUInt16) (hkic : KingInfoCorrect p kingInfo)
     {body : Nat → UInt16 → EStateM Error Globals (ForInStep UInt16)} {l : List Nat}
@@ -300,11 +300,11 @@ theorem recLoop_sound (hSS : SubsetSound) (hMS : MoveSimulated)
     (hinv : LoopInv p comp v g) (hrun : forIn l v body g = .ok v' g') :
     LoopInv p comp v' g' :=
   forIn_inv (LoopInv p comp) body l
-    (fun a ha b gg r gg' hP hb => hP.step hSS hMS hcomploc hkic (hbody a ha b gg r gg' hb)) v g v' g'
+    (fun a ha b gg r gg' hP hb => hP.step hcomploc hkic (hbody a ha b gg r gg' hb)) v g v' g'
     hinv hrun
 
 /-- **From an empty accumulator**, which is how the loop starts. -/
-theorem recLoop_sound_zero (hSS : SubsetSound) (hMS : MoveSimulated)
+theorem recLoop_sound_zero
     {p : PosType} {kingInfo : KingInfo} {comp : UInt8}
     (hcomploc : LocalMask p comp.toUInt16) (hkic : KingInfoCorrect p kingInfo)
     {body : Nat → UInt16 → EStateM Error Globals (ForInStep UInt16)} {l : List Nat}
@@ -315,7 +315,7 @@ theorem recLoop_sound_zero (hSS : SubsetSound) (hMS : MoveSimulated)
     (hcomprun : EStateM.run (computeComponentKingBits p) g = .ok comp g)
     (hrun : forIn l (0 : UInt16) body g = .ok v' g') :
     SoundBits g' p v' ∧ LocalMask p v' :=
-  let h := recLoop_sound hSS hMS hcomploc hkic hbody (LoopInv.zero hwf hcanon hcomprun) hrun
+  let h := recLoop_sound hcomploc hkic hbody (LoopInv.zero hwf hcanon hcomprun) hrun
   ⟨h.sound, h.isLocal⟩
 
 /-! ## The loop body of `recCheckSolvable`
@@ -420,7 +420,7 @@ This is the statement `recCheckSolvable`'s memo write and return value need
 (`SolvableBits`' soundness half), with the loop reduced to its three inputs: the
 per-contribution soundness proved here, the body-reading obligation above, and
 the induction hypothesis inside it. -/
-theorem recLoop_body_sound (hSS : SubsetSound) (hMS : MoveSimulated)
+theorem recLoop_body_sound
     {rec : PosType → EStateM Error Globals UInt16}
     {p : PosType} {kingInfo : KingInfo} {comp : UInt8} {allkings : UInt16}
     (hcomploc : LocalMask p comp.toUInt16) (hkic : KingInfoCorrect p kingInfo)
@@ -431,6 +431,6 @@ theorem recLoop_body_sound (hSS : SubsetSound) (hMS : MoveSimulated)
     (hrun : forIn (List.range 10) (0 : UInt16)
       (recBody rec p (closureInfoOf p) kingInfo comp.toUInt16 allkings) g = .ok v' g') :
     SoundBits g' p v' ∧ LocalMask p v' :=
-  recLoop_sound_zero hSS hMS hcomploc hkic
+  recLoop_sound_zero hcomploc hkic
     (fun a ha v gg r gg' hb => hbody a (by simpa using ha) v gg r gg' hb)
     hwf hcanon hcomprun hrun

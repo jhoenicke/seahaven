@@ -254,24 +254,16 @@ def ChildSpecComplete (H : Globals → Prop) (p : PosType) : Prop :=
     (CompleteBits g₁ child w ∧ LocalMask child w) ∧ H g₂ ∧
       ∃ hm : Vector UInt16 BIG_HASH_SIZE, g₂ = { g₁ with hashmap := hm }
 
-/-! ## The statements to discharge
-
-Mirrors of `RecCheckSolvableSound` and of `SolveSpec`'s forward half.  Stated so
-that `recCheckSolvableSpec_of` below assembles the two halves into the spec
-`SolvableBits.lean` asks for. -/
-
-/-- **What `recCheckSolvable` must satisfy, completeness half.** -/
-def RecCheckSolvableComplete : Prop :=
-  ∀ (g g' : Globals) (p : PosType) (v : UInt16),
-    WellFormedLayout g → HashmapComplete g → IsCanonicalPos g p →
-    EStateM.run (recCheckSolvable p) g = .ok v g' →
-    (CompleteBits g p v ∧ LocalMask p v) ∧ HashmapComplete g' ∧
-      ∃ hm : Vector UInt16 BIG_HASH_SIZE, g' = { g with hashmap := hm }
-
 /-! ## Recombination
 
 `HashmapCorrect` is the conjunction of the two memo invariants, so recombining the
-two developments is pure bookkeeping. -/
+two developments is pure bookkeeping.
+
+(The `RecCheckSolvableComplete`/`recCheckSolvableSpec_of` pair that used to sit here —
+assembling `RecCheckSolvableSound` and a standalone completeness half into
+`RecCheckSolvableSpec.apply`'s shape — is gone: `RecCheckSpec.recCheck_spec` runs one
+merged induction instead, proves the call *returns* rather than assuming `hrun`, and
+`RecCheckSolvableComplete` was never proved, so nothing instantiated it.) -/
 
 /-- The recombination at the level of one answer. -/
 theorem recCheck_spec_of {g : Globals} {p : PosType} {v : UInt16}
@@ -286,34 +278,6 @@ theorem hashmapCorrect_of {g : Globals} (hs : HashmapSound g) (hc : HashmapCompl
   · rcases hc p hcan v hget with h | ⟨hcb, -⟩
     · exact Or.inl h
     · exact Or.inr ⟨recCheck_spec_of hsb hcb, hlm⟩
-
-/-- **The two halves give the specification, at a run.**  Superseded by
-`RecCheckSpec.recCheck_spec`, which runs one merged induction instead — and which also
-proves the call *returns*, something neither half supplies (both are conditional on
-`hrun`).  So this assembles the `RecCheckSolvableSpec.apply` shape, not
-`RecCheckSolvableSpec` itself. -/
-theorem recCheckSolvableSpec_of (hsound : RecCheckSolvableSound)
-    (hcomplete : RecCheckSolvableComplete) :
-    ∀ (g g' : Globals) (p : PosType) (v : UInt16),
-      WellFormedLayout g → IsCanonicalPos g p → HashmapCorrect g →
-      EStateM.run (recCheckSolvable p) g = .ok v g' →
-      (SolvableBits g p v ∧ LocalMask p v) ∧ HashmapCorrect g' ∧
-        g'.pos2card = g.pos2card := by
-  intro g g' p v hwf hcan hcorrect hrun
-  have hs : HashmapSound g := by
-    intro q hq w hget
-    rcases hcorrect q hq w hget with h | ⟨hsb, hlm⟩
-    · exact Or.inl h
-    · exact Or.inr ⟨fun s k hk hbit => (hsb s k hk).2 hbit, hlm⟩
-  have hc : HashmapComplete g := by
-    intro q hq w hget
-    rcases hcorrect q hq w hget with h | ⟨hsb, hlm⟩
-    · exact Or.inl h
-    · exact Or.inr ⟨fun s k hk hsol => (hsb s k hk).1 hsol, hlm⟩
-  obtain ⟨⟨hsv, hlv⟩, hs', hframe⟩ := hsound g g' p v ⟨hwf, hs⟩ hcan hrun
-  obtain ⟨⟨hcv, -⟩, hc', -⟩ := hcomplete g g' p v hwf hc hcan hrun
-  obtain ⟨hm, rfl⟩ := hframe
-  exact ⟨⟨recCheck_spec_of hsv hcv, hlv⟩, hashmapCorrect_of hs' hc', rfl⟩
 
 /-! ## No semantic obligation is listed here
 

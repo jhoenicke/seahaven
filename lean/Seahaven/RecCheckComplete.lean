@@ -1,6 +1,5 @@
 import Seahaven.RecCheckSpec
 import Seahaven.ComponentComplete
-import Seahaven.Phase1Sim
 
 open Rules
 open Solver
@@ -105,16 +104,10 @@ theorem recLoopComplete : RecLoopComplete := by
     have hij : jc = il := block_index_eq_of_freePiles_four hfp4 hjc hil
     exact key jc hjc (by rw [hij]; exact hbitl) hsubc
 
-/-- **`recCheckSolvable` meets its specification**, on the same two semantic
-hypotheses the soundness half runs on. -/
-theorem recCheck_spec_of_loops (hSS : SubsetSound) (hMS : MoveSimulated) :
-    RecCheckSolvableSpec :=
-  recCheck_spec hSS hMS recLoopComplete
-
-/-- **`recCheckSolvable` meets its specification, unconditionally.**  Both
-semantic hypotheses are theorems (`KingMoveSim.subsetSound`, `Phase1Sim.moveSimulated`),
-the same two that make `Phase1Sim.recCheckSolvableSound` hypothesis-free — so the
-recursion is now closed in *both* directions, and what stands between this and
-end-to-end correctness is the `solve` wrapper. -/
+/-- **`recCheckSolvable` meets its specification, unconditionally.**  Both semantic
+hypotheses `recCheck_spec` doesn't already close are theorems (`KingMoveSim.subsetSound`,
+`Phase1Sim.moveSimulated`), the same two that make `RecCheckSound.recCheckSolvableSound`
+hypothesis-free — so the recursion is now closed in *both* directions, and what stands
+between this and end-to-end correctness is the `solve` wrapper. -/
 theorem recCheckSolvableSpec : RecCheckSolvableSpec :=
-  recCheck_spec_of_loops subsetSound moveSimulated
+  recCheck_spec recLoopComplete

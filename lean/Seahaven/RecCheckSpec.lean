@@ -125,15 +125,16 @@ def RecLoopComplete : Prop :=
 
 /-! ## The recursion, both directions at once -/
 
-/-- **`recCheckSolvable` meets `RecCheckSolvableSpec`**, modulo the three
-semantic obligations: `SubsetSound` and `MoveSimulated` (both discharged elsewhere —
-`KingMoveSim.subsetSound`, `Phase1Sim.moveSimulated`) and `RecLoopComplete`.
+/-- **`recCheckSolvable` meets `RecCheckSolvableSpec`**, modulo `RecLoopComplete`
+(discharged elsewhere, in `RecCheckComplete`).  The other two semantic obligations,
+`SubsetSound` and `MoveSimulated`, are already theorems (`KingMoveSim.subsetSound`,
+`Phase1Sim.moveSimulated`) by the time this runs, so nothing is assumed about them.
 
 The induction is the one `recCheck_sound` runs, at `HashmapCorrect`: a `Nat` bounding
 `DepthSum p` in the *theorem*, `induction` on it, `recCheck_eq` unfolding one level
 per step.  The single induction hypothesis serves both directions — projected to
 `ChildSpec` for `recLoop_all` and to `ChildSpecComplete` for `RecLoopComplete`. -/
-theorem recCheck_spec (hSS : SubsetSound) (hMS : MoveSimulated) (hRLC : RecLoopComplete) :
+theorem recCheck_spec (hRLC : RecLoopComplete) :
     RecCheckSolvableSpec := by
   suffices Hind : ∀ n : Nat, ∀ (g : Globals) (p : PosType),
       SolverSpec.DepthSum p < n → WellFormedLayout g → IsCanonicalPos g p → HashmapCorrect g →
@@ -196,7 +197,7 @@ theorem recCheck_spec (hSS : SubsetSound) (hMS : MoveSimulated) (hRLC : RecLoopC
         refine ⟨v, _, recCheck_run_loop g gl p ki comp v hfp hz hfree hki hcomp hloop, ?_⟩
         -- the same loop run, read in both directions
         obtain ⟨hsound, hlocal, hcor', hm, rfl⟩ :=
-          recLoop_all hSS hMS (recBodyStep HashmapCorrect) hwf hcan hcor hkiloc hkic hchild
+          recLoop_all (recBodyStep HashmapCorrect) hwf hcan hcor hkiloc hkic hchild
             hcomp hloop
         have hcomplete : CompleteBits g p v :=
           hRLC HashmapCorrect g _ p ki comp v hz hlocal hwf hcan hcor hkiloc hkic hchildc hcomp

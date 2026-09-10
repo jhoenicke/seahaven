@@ -1,4 +1,5 @@
-import Seahaven.SoundnessSkeleton
+import Seahaven.BitSetShiftRight
+import Seahaven.Phase1Sim
 
 open Rules
 open Solver
@@ -47,22 +48,6 @@ affordable at to the one the child state actually stands for
 `Solvable` side by `Solvable.of_reach`.
 -/
 
-/-! ## Reading a bit of a right-shifted mask
-
-`movable'` intersects `movable` with a *global* configuration set shifted down by
-the parent's `shiftValue`, so local bit `i` of the result is global bit
-`shiftValue + i` — i.e. `globalCfg` — of the set. -/
-
-/-- Local bit `i` of `w >>> ci.shiftValue` is `w`'s bit at global configuration
-`globalCfg ci i`. -/
-theorem BitSet_shiftRight_globalCfg (w : UInt16) (ci : ClosureInfo) (i : Nat)
-    (hlt : ci.shiftValue.toNat + i < 16) :
-    BitSet (w >>> ci.shiftValue.toUInt16) ⟨min i 15, by omega⟩ ↔ BitSet w (globalCfg ci i) := by
-  rw [BitSet_toNat, BitSet_toNat, globalCfg_val ci i (by omega), UInt16.toNat_shiftRight,
-    UInt8.toNat_toUInt16, Nat.mod_eq_of_lt (show ci.shiftValue.toNat < 16 by omega),
-    Nat.testBit_shiftRight,
-    show (⟨min i 15, by omega⟩ : Fin 16).val = i from min_eq_left (by omega)]
-
 /-! ## The contribution -/
 
 /-- **The `movable'` step, from a simulation package.**  `hbit` is the
@@ -95,7 +80,7 @@ are solvable.
 The hypotheses split cleanly in two: `hi`/`hwf`/`hcanon`/`hs`/`hmv`/`hrun` are
 what `MoveSimulated` consumes about *this* move, and `hcs`/`hchild` are the
 induction hypothesis about the recursive call. -/
-theorem recStep_sound (hMS : MoveSimulated) {g : Globals} {s : State} {p p' : PosType}
+theorem recStep_sound {g : Globals} {s : State} {p p' : PosType}
     {pile : UInt32} {toPile : UInt8} {mv cs fk : UInt16} {kingInfo : KingInfo} {i : Nat}
     (hi : i < (closureInfoOf p).numBits.toNat)
     (hwf : WellFormedLayout g) (hcanon : IsCanonicalPos g p)
@@ -115,6 +100,6 @@ theorem recStep_sound (hMS : MoveSimulated) {g : Globals} {s : State} {p p' : Po
   have hble : (closureInfoOf p).shiftValue.toNat + (closureInfoOf p).numBits.toNat ≤ 16 :=
     closureInfo_shift_add_numBits ⟨min p.freePiles.toNat 10, by omega⟩
   rw [BitSet_and] at hbit
-  refine recStep_sound_of_sim (hMS g s p p' pile toPile fk mv kingInfo i hi hwf hcanon hs hkic
+  refine recStep_sound_of_sim (moveSimulated g s p p' pile toPile fk mv kingInfo i hi hwf hcanon hs hkic
     hpile hdepth hdest hmv hbit.1 hrun) hcs hchild ?_
   exact (BitSet_shiftRight_globalCfg _ (closureInfoOf p) i (by omega)).1 hbit.2
