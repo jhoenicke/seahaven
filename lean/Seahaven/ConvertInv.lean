@@ -162,7 +162,6 @@ theorem zipWith_flute_one_zero (dv fv : Vector UInt8 10) (hf : ∀ i : Fin 10, f
 
 /-! ## The base invariant -/
 
-set_option maxHeartbeats 1000000 in
 theorem convertPre_pileBase (hwf : WellFormedLayout g) (hpk : ValidDepths pk) (i : Fin 10) :
     PileBase g (convertPre g pk) i := by
   have hd5 : ((cvDepths pk).get i).toNat ≤ 5 := by rw [cvDepths_get]; exact hpk i
@@ -208,7 +207,6 @@ theorem convertPre_pileBase (hwf : WellFormedLayout g) (hpk : ValidDepths pk) (i
       rw [SUIT_toNat, VALUE_toNat]; omega
     omega
 
-set_option maxHeartbeats 1000000 in
 theorem convertPre_suitClean (s : Fin 4)
     (hb : ∀ i : Fin 10, ((convertPre g pk).pileDepth.get i).toNat ≤ 5) :
     SuitClean g (convertPre g pk) s hb := by
@@ -289,7 +287,6 @@ theorem convertPre_suitClean (s : Fin 4)
     rw [hfree]
     exact hfr
 
-set_option maxHeartbeats 1000000 in
 theorem convertPre_usedSpace_def (hwf : WellFormedLayout g) (hpk : ValidDepths pk) :
     (convertPre g pk).usedSpace.toInt =
       (52 : Int)

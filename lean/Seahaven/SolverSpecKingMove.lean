@@ -434,7 +434,6 @@ theorem kingMove_pileMerged_ne (pile : UInt32) (g : Globals) (hpile : pile.toNat
     rw [hboundEq2, hfeq, haeq, hbeq]
     exact hpm.busyAces_complete hdi'
 
-set_option maxHeartbeats 1000000 in
 /-- **`SuitClean` holds for every suit `s` after `kingMove`.**  Split on
     whether `s` is the drained suit (`s.val = (SUIT K).toUInt32.toNat`, where
     `K` is `pile`'s sole remaining boundary card, the king being drained) or

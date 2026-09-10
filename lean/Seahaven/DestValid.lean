@@ -82,7 +82,6 @@ theorem getDest_spec' {g : Globals} {p : PosType} {pile : UInt32}
                  then cardPile g (B + UInt8.ofNat n) else 14) g) :=
   getDest_spec g p pile hwf hcan hp hd
 
-set_option maxHeartbeats 1000000 in
 /-- **`getDestination` establishes `move_merged`'s destination
 preconditions.** -/
 theorem destValid_of_getDest {g : Globals} {p : PosType} (hwf : WellFormedLayout g)

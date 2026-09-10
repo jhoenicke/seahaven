@@ -172,14 +172,13 @@ theorem deck_partition {u : State} (hcount : ∀ c : Card, countState u c = 1) :
 
 /-! ## In the vocabulary of `UsedSpaceBound` / `Normalize` -/
 
-set_option linter.unnecessarySeqFocus false in
 private theorem sum_map_ite_eq_countP {α : Type} (l : List α) (q : α → Bool) :
     (l.map (fun a => if q a then 1 else 0)).sum = l.countP q := by
   induction l with
   | nil => simp
   | cons x xs ih =>
     rw [List.map_cons, List.sum_cons, List.countP_cons, ih]
-    by_cases h : q x <;> simp [h] <;> omega
+    by_cases h : q x <;> simp [h]; omega
 
 /-- The cell term of `deck_partition` is `cellList`'s length. -/
 theorem occupiedCells_eq (s : State) :

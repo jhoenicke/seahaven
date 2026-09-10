@@ -552,7 +552,6 @@ theorem cvKingVal_eq_13_of_no_pile {g : Globals} {u : State} {p : PosType}
 
 /-! ## `CvPrologueSim`, assembled -/
 
-set_option maxHeartbeats 1000000 in
 /-- **Loop 2's writes are realized by normalizing moves.**  Half A plays the foundations up
 to `cvAceVal`, half B completes each king pile to `13 - cvKingVal`, and the match is read
 off the result: the flutes by `cvFluteOf`, `aces_match` from half A, `king_pile` from the

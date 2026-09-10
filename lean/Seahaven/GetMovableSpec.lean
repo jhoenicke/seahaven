@@ -40,7 +40,6 @@ theorem bitSet_kingOnPileMap (su : Suit) (k : Fin 16) :
 
 /-! ## The spec -/
 
-set_option maxHeartbeats 1000000 in
 /-- **`getMovable` charges the right number of cells.**  A set bit `i` in the
 returned mask certifies, for the configuration `globalCfg ci i`, exactly the
 free-cell count the corresponding destination needs.

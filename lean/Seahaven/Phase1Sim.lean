@@ -29,7 +29,6 @@ knew which columns they touch, and the four `movePre_*` lemmas now pass it on.
 private theorem getLast?_snoc (l : List Card) (d : Card) : (l ++ [d]).getLast? = some d := by
   simp
 
-set_option maxHeartbeats 1000000 in
 /-- **A king destination, simulated.**  The bit of `k` decides the shape: a set bit
 means the suit's run is in the cells and the whole flute joins it there
 (`parkMoves`, one column); a clear bit means it owns a column and the flute moves
@@ -108,7 +107,6 @@ theorem StateMatchesKingConfig.movePre_king_sim {g : Globals} {s : State} {p : P
 
 /-! ## All four destinations -/
 
-set_option maxHeartbeats 1000000 in
 /-- **Phase 1, simulated, whatever `getDestination` returned.**  Same dispatch
 as `movePre_run`, carrying the configuration through. -/
 theorem StateMatchesKingConfig.movePre_sim {g : Globals} {s : State} {p : PosType}
@@ -178,7 +176,6 @@ the matching-only version, composed into one wrapper: a king destination owes on
 the frontier test `encodeCard c = kings[c.suit]`, a pile destination only
 "same suit" and "`VALUE B_dst = VALUE B_src + pileFlute[dst]`". -/
 
-set_option maxHeartbeats 1000000 in
 /-- **Phase 1, simulated, from the destination facts `DestValid` carries.** -/
 theorem StateMatchesKingConfig.movePre_sim_of_dest {g : Globals} {s : State}
     {p : PosType} {k : Fin 16} {pile : UInt32} {toPile : UInt8} (hpile : pile.toNat < 10)
@@ -239,7 +236,6 @@ and pile hypotheses, once `boundary_code` identifies the Rules-side boundary car
 `c` with the solver's `B` and `dest_flute_eq_walk` identifies the walk length with
 the destination's flute. -/
 
-set_option maxHeartbeats 2000000 in
 /-- **Phase 1 of `move` is simulated.**  With `moveSimulated_of_phase1` this
 closes `MoveSimulated` up to the two remaining semantic obligations elsewhere. -/
 theorem phase1Simulated : Phase1Simulated := by

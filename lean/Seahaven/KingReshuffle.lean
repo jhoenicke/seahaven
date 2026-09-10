@@ -700,7 +700,6 @@ block — `componentTable_localBound` read at `f := freePiles - 1`.
 `SubsetSound` is `movable' ||| component`, and the expansion of a mask is only
 meaningful in-block.) -/
 
-set_option linter.unusedSimpArgs false in
 theorem localMask_component {g : Globals} {p : PosType} {comp : UInt8}
     (hrun : EStateM.run (computeComponentKingBits p) g = .ok comp g) :
     LocalMask p comp.toUInt16 := by

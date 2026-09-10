@@ -50,7 +50,6 @@ def initBody (cardshuffle : Vector UInt8 52) (i : Nat) (_r : PUnit) :
       let _y ← pure PUnit.unit
       __do_jp g _y
 
-set_option maxHeartbeats 1000000 in
 /-- The `rfl`-twin: `initcard` with its `for` loop presented as `forIn … initBody`. -/
 theorem initcard_eq (sh : Vector UInt8 52) :
     initcard sh = (do init; forIn (List.range 52) PUnit.unit (initBody sh); pure PUnit.unit) :=
@@ -62,7 +61,7 @@ The four facts below are pure `UInt8` arithmetic over the 256 possible shuffle
 entries, so `decide` settles them; they are the only place the packing
 `suit*16 + value` vs `suit*13 + value` is unfolded. -/
 
-set_option maxRecDepth 10000
+set_option maxRecDepth 2000
 
 /-- The card code the solver derives from shuffle entry `ci ∈ 1…52`:
 suit `(ci-1)/13`, value `ci - 13·suit`, packed as `suit*16 + value`. -/
@@ -119,7 +118,6 @@ def initStep (g : Globals) (c : UInt8) (hc : c.toNat < 64) (i : Nat) : Globals :
     { g1 with pos2card := g1.pos2card.set (i % 10) inner (by omega) }
   else g1
 
-set_option linter.unusedSimpArgs false in
 /-- Exact symbolic run of one loop iteration. -/
 theorem initBody_run (sh : Vector UInt8 52) (i : Nat) (hi : i < 52) (g : Globals)
     (hc : (dealCard sh i).toNat < 64) :

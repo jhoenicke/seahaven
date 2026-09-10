@@ -17,14 +17,6 @@ namespace SolverSpec
 
 open Lean Lean.Order
 
--- `cleanupPile_baseNF`'s discharge has grown large enough (12 clauses × 2
--- branches, each needing its own index/arithmetic bookkeeping) that the
--- default 200000-heartbeat budget is exceeded on unrelated later bullets
--- purely from the theorem's overall size — confirmed by reproducing the
--- timeout even with the newest clause `sorry`'d out (so it isn't a specific
--- broken `rfl`/`exact` looping forever; it's cumulative elaboration cost).
--- Same remedy already used elsewhere in this file's `rfl`-twin proofs.
-set_option maxHeartbeats 4000000 in
 /-- **Shared guard-derivation preamble for `cleanupPile`**, factored out of
     `cleanupPile_base`/`solverCleanupPile_step` (which used to duplicate an
     identical ~400-line derivation, differing only by a `pile ↦ UInt32.ofNat k`
@@ -739,7 +731,6 @@ theorem preCleanupPile_busyAces_lt16 (pile : UInt32) (hpile : pile.toNat < 10)
   · exact uint8_or_lt16_of_lt16 hp16 (uint8_one_shl_lt16_of_lt4 (SUIT B) hs4')
   · exact hp16
 
-set_option maxHeartbeats 4000000 in
 /-- **`cleanupPile` preserves the base invariant layer** (up to the
     `freePiles` field, which `SolverInvBase` deliberately omits).
 

@@ -701,7 +701,6 @@ theorem SimulatesNorm.moveAcesTail {g : Globals} {w : State} {gameF pF : PosType
 
 /-! ## The whole call -/
 
-set_option maxHeartbeats 1000000 in
 /-- **`moveAces` is simulated.**  One `busyAces` drain step: the solver advances
 one suit's foundation as far as the position allows, and the `Rules` side plays exactly
 those cards.  The returned `forcedKings` mask is the `Simulates`' own mask, so this

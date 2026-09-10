@@ -125,7 +125,6 @@ theorem piledSuit_of_move {t₀ t₁ : State} {mv : Move} (hap : applyMove t₀ 
 
 /-! ## The assembly -/
 
-set_option maxHeartbeats 1000000 in
 /-- **The critical move, simulated forward.**
 
 The play supplies the post-move state `t₁`; unparking every pile *but the source*

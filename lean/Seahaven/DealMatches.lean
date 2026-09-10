@@ -157,7 +157,6 @@ theorem dealState_countTableau (sh : Vector UInt8 52) (c : Card) :
   rw [dealState_tableau]
   simp only [countColumn, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil]
 
-set_option maxHeartbeats 1000000 in
 /-- **The deal is a deal**: every card occurs exactly once in the dealt state. -/
 theorem dealState_cards_count {sh : Vector UInt8 52} (hdeal : IsDeal sh) (c : Card) :
     countState (dealState sh) c = 1 := by
@@ -260,7 +259,6 @@ theorem convertPre_fullPk_depth (g : Globals) (i : Fin 10) :
     (convertPre g fullPk).pileDepth.get i = 5 := by
   rw [convertPre_pileDepth, cvDepths_fullPk]
 
-set_option maxHeartbeats 1000000 in
 /-- **A fresh deal, matched.**  Any state with the dealt columns still intact whose
     foundations sit exactly at the walks' values stands for the position convert's
     prologue computes from the all-fives depth vector, at the configuration

@@ -77,7 +77,6 @@ def RecBodyRuns (H : Globals → Prop) : Prop :=
       recBody recCheckSolvable p (closureInfoOf p) ki comp.toUInt16 allkings pile w g₁
         = .ok r g₂
 
-set_option maxHeartbeats 1000000 in
 theorem recBodyRuns (H : Globals → Prop) : RecBodyRuns H := by
   intro p ki comp allkings g₁ pile w hpile hwf hcan hms hkiloc hchild
   have hidx : (UInt32.ofNat pile).toNat < 10 := by

@@ -119,7 +119,6 @@ def cvCleanupBody (i : Nat) (r : UInt16) :
     pure PUnit.unit
     pure (ForInStep.yield forcedKings)
 
-set_option maxHeartbeats 1000000 in
 /-- The `rfl`-twin: `convertFromPilesKings` with all four loops presented
     through the mirrored bodies above. -/
 theorem convert_eq_explicit (pk : Vector UInt8 11) :
@@ -151,7 +150,6 @@ def cvDepthStep (pk : Vector UInt8 11) (i : Nat) (hi : i < 10) (game : PosType) 
     usedSpace := game.usedSpace - pk[i]'(by omega)
     hash := game.hash + (pileHashes[i]'hi) * (pk[i]'(by omega)).toUInt32 }
 
-set_option linter.unusedSimpArgs false in
 /-- The depth-loop body never touches the state and never fails. -/
 theorem cvDepthBody_run (pk : Vector UInt8 11) (i : Nat) (hi : i < 10)
     (game : PosType) (s : Globals × PosType) :
@@ -478,7 +476,6 @@ theorem cv_card_le {su v w : Nat} (hsu : su < 4) (hv : v < 16) (hw : w < 16) :
 
 /-! ### The foundation walk, one step at a time -/
 
-set_option linter.unusedSimpArgs false in
 theorem cvAceBody_yield (g : Globals) (q : PosType) (hwf : WellFormedLayout g)
     (card ace : UInt8) (s : Globals × PosType) (hc64 : ace.toNat < 64)
     (hle : ace ≤ card) (hfree : isFreeCard g q ace) :
@@ -494,7 +491,6 @@ theorem cvAceBody_yield (g : Globals) (q : PosType) (hwf : WellFormedLayout g)
   simp only [cvAceBody, bind, EStateM.bind, pure, EStateM.pure, andM, Vector.getE,
     getElem?_pos, hc32, hp10, hleT, decide_true, toBool, hcmp, reduceIte]
 
-set_option linter.unusedSimpArgs false in
 theorem cvAceBody_done_notFree (g : Globals) (q : PosType) (hwf : WellFormedLayout g)
     (card ace : UInt8) (s : Globals × PosType) (hc64 : ace.toNat < 64)
     (hle : ace ≤ card) (hfree : ¬ isFreeCard g q ace) :
@@ -511,7 +507,6 @@ theorem cvAceBody_done_notFree (g : Globals) (q : PosType) (hwf : WellFormedLayo
   simp only [cvAceBody, bind, EStateM.bind, pure, EStateM.pure, andM, Vector.getE,
     getElem?_pos, hc32, hp10, hleT, decide_true, toBool, hcmp, Bool.false_eq_true, reduceIte]
 
-set_option linter.unusedSimpArgs false in
 theorem cvAceBody_done_gt (g : Globals) (q : PosType)
     (card ace : UInt8) (s : Globals × PosType) (hle : ¬ (ace ≤ card)) :
     cvAceBody g q card () ace s = .ok (.done ace) s := by
@@ -591,7 +586,6 @@ theorem cv_card_pred {su v : Nat} (hsu : su < 4) (hv : v < 16) (hv1 : 1 ≤ v) :
     cv_card_toNat hsu hv, cv_card_toNat hsu (by omega), show ((1 : UInt8).toNat = 1) from rfl]
   omega
 
-set_option linter.unusedSimpArgs false in
 theorem cvKingBody_yield (g : Globals) (q : PosType) (hwf : WellFormedLayout g)
     (card : UInt8) (s : Globals × PosType) (hc64 : card.toNat < 64)
     (hfree : isFreeCard g q card) :
@@ -607,7 +601,6 @@ theorem cvKingBody_yield (g : Globals) (q : PosType) (hwf : WellFormedLayout g)
   rw [if_pos hge]
   rfl
 
-set_option linter.unusedSimpArgs false in
 theorem cvKingBody_done (g : Globals) (q : PosType) (hwf : WellFormedLayout g)
     (card : UInt8) (s : Globals × PosType) (hc64 : card.toNat < 64)
     (hfree : ¬ isFreeCard g q card) :
@@ -716,8 +709,6 @@ def cvSuitStep (g : Globals) (su : Nat) (hsu : su < 4) (game : PosType) : PosTyp
     kings := game.kings.set su
       (CARD (UInt8.ofNat su) (UInt8.ofNat (cvKingVal g game.pileDepth su))) hsu }
 
-set_option maxHeartbeats 1000000 in
-set_option linter.unusedSimpArgs false in
 theorem cvSuitBody_run (g : Globals) (hwf : WellFormedLayout g) (su : Nat) (hsu : su < 4)
     (game : PosType) (s : Globals × PosType) :
     cvSuitBody g su game s = .ok (.yield (cvSuitStep g su hsu game)) s := by

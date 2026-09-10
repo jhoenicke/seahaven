@@ -98,7 +98,6 @@ theorem SimulatesNorm.drainFrom {g : Globals} {v : State} {q : PosType} {k : Fin
   obtain ⟨s', k', FK, hsim⟩ := hP
   exact ⟨fk, q', s', k', FK, hrun, hcan, hsim⟩
 
-set_option maxHeartbeats 1000000 in
 /-- **Phases 2 and 3 of a `move`, as a *normalizing* simulation.**  From a state
 matching the flute move's target position `movePre …`, the cleanup's freed-predecessor
 drops and the `busyAces` drain are all foundation plays and cell→pile drops — so the

@@ -341,7 +341,7 @@ def MoveAcesSyncStep (g : Globals) (suit : Fin 4) (P : UInt16 → PosType → Pr
     Solver.removeFlute pile (g, gameA) = .ok fk (g, p') →
     P forcedKings game → P (forcedKings &&& fk) p'
 
-set_option maxHeartbeats 4000000 in
+set_option maxHeartbeats 400000 in
 /-- **Exact run of the `moveAces` foundation walk, with its invariant.**
     By induction on a `Nat` bounding `14 - VALUE(card)` (which strictly
     decreases on every continuing iteration, since `card` only ever

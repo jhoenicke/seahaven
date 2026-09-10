@@ -19,7 +19,6 @@ real function: it is the base case of the convert cleanup loop.
 -- (`pileDepth[pile] = 0`) succeeds without running either `while` loop: it leaves
 -- `globals` unchanged, bumps `freePiles`, rewrites the (unchanged) depth/flute of
 -- `pile`, and returns `0xffff`.
-set_option linter.unusedSimpArgs false in
 theorem cleanupPile_empty_eq (pile : UInt32) (g : Globals) (p : PosType)
     (hpile : pile.toNat < 10)
     (hd : p.pileDepth[pile.toNat]'(by omega) = 0) :
@@ -30,7 +29,7 @@ theorem cleanupPile_empty_eq (pile : UInt32) (g : Globals) (p : PosType)
         pileFlute := p.pileFlute.set pile.toNat 1 (by omega) }) := by
   unfold cleanupPile
   simp only [EStateM.run, bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get,
-    set, EStateM.set, EStateM.pure, Vector.getE, Vector.setE, getElem?_pos, hpile, hd, dif_pos]
+    set, Vector.getE, Vector.setE, getElem?_pos, hpile, hd, dif_pos]
   rfl
 
 theorem cleanupPile_empty (pile : UInt32) (g : Globals) (p : PosType)

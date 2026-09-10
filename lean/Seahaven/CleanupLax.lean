@@ -323,7 +323,6 @@ theorem cleanupRunResult_cvRelax_mask (pile : UInt32) (hpile : pile.toNat < 10) 
 
 /-! ## `CvCleanupSim` -/
 
-set_option maxHeartbeats 1000000 in
 /-- **One `cleanupPile` call, simulated from the state's own flutes.** -/
 theorem cvCleanupSim : CvCleanupSim := by
   intro g v q0 fl kk pile hpile fk p' hwf hb hfl1 hflutes hk hrun

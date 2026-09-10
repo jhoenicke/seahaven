@@ -84,7 +84,6 @@ theorem uint8_toUInt16_eq (x : UInt8) : x.toUInt16 = UInt16.ofNat x.toNat := by
 
 /-! ## The tail is sound -/
 
-set_option maxHeartbeats 1000000 in
 /-- **What `solve`'s tail knows when it answers `SUCCESS`.**  Either the position
     is already solved (`hash = 0`), or the recursive check returned a sound local
     mask whose `forcedKings`-filtered `subsetTable` expansion contains the

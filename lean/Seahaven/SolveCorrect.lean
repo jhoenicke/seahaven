@@ -65,7 +65,6 @@ theorem wfGlobals_of_correct {g : Globals} (hwf : WellFormedLayout g)
 
 /-! ## The tail, two-sided -/
 
-set_option maxHeartbeats 1000000 in
 /-- **What `solve`'s tail computes.**  The `↔`-flavoured `solveTail_bits`: either
     the position is already solved (`hash = 0`, and the answer is `SUCCESS`), or the
     recursive check returned a mask that decides solvability exactly, and the answer

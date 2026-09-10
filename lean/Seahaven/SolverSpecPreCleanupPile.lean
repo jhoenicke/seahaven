@@ -778,7 +778,6 @@ theorem preCleanupPile_pileBase_self (pile : UInt32) (g : Globals) (p : PosType)
       rw [hBmAdd]
       omega }
 
-set_option maxHeartbeats 1000000 in
 /-- **`PileMerged` holds for `pile` itself after `preCleanupPile`.**  Genuinely
     new content (never proved anywhere before, unlike `preCleanupPile_pileBase_self`
     which ports the old monolithic proof): `merge_complete`/`flute_maximal` each
@@ -1603,7 +1602,6 @@ theorem preCleanupPile_pileDepth_bound_all (pile : UInt32) (g : Globals) (p : Po
       i hip]
     exact hnf.pileDepth_bound i
 
-set_option maxHeartbeats 1000000 in
 /-- **`SuitClean` holds for every suit `s` after `preCleanupPile`.**  The
     hardest part of the per-pile/per-suit tower split: unlike `PileBase`/
     `PileMerged` (which only ever look at `pile` itself), `SuitClean`'s
@@ -2161,7 +2159,6 @@ theorem preCleanupPile_hash_def (pile : UInt32) (g : Globals) (p : PosType)
   rw [hfoldEq] at h2
   rw [hhd, UInt32.mul_comm (UInt32.ofNat m) (pileHashes[pile.toNat]'hpile), ← h2]
 
-set_option maxHeartbeats 1000000 in
 /-- **`preCleanupPile` preserves the `usedSpace_def` field of `SolverInvBase`.**
     Both `pileDepth` and `pileFlute` change at `pile`: depth shrinks by `m`
     (`depth_sum_foldl_set`), and the flute-term goes from `0` (normalized

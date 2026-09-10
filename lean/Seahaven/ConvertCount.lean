@@ -92,7 +92,6 @@ private def cardOfDom (g : Globals) (d : Vector UInt8 10) : CountDom g d → UIn
   | .inl ⟨i, j⟩ => if h : j.val < 5 then (g.pos2card.get i).get ⟨j.val, h⟩ else 0
   | .inr ⟨s, v⟩ => CARD (UInt8.ofNat s.val) (UInt8.ofNat (v.val + 1))
 
-set_option maxHeartbeats 1000000 in
 private theorem cardOfDom_real (g : Globals) (hwf : WellFormedLayout g) (d : Vector UInt8 10)
     (hd5 : ∀ i : Fin 10, (d.get i).toNat ≤ 5) :
     ∀ x : CountDom g d, IsRealCard (cardOfDom g d x) := by
@@ -114,7 +113,6 @@ private theorem cardOfDom_real (g : Globals) (hwf : WellFormedLayout g) (d : Vec
     · rw [cv_card_value s.isLt (by omega), UInt8.toNat_ofNat']; omega
     · rw [cv_card_value s.isLt (by omega), UInt8.toNat_ofNat']; omega
 
-set_option maxHeartbeats 1000000 in
 private theorem cardOfDom_inj (g : Globals) (hwf : WellFormedLayout g) (d : Vector UInt8 10)
     (hd5 : ∀ i : Fin 10, (d.get i).toNat ≤ 5) :
     Function.Injective (cardOfDom g d) := by

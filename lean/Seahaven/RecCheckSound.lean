@@ -331,7 +331,6 @@ def slotWrite (g : Globals) (key : UInt32) (v : UInt16) : Globals :=
       ((v <<< 9) ||| ((slotHigh key).toUInt16 &&& 0x1ff)) (slotEntry_lt key)
   { g with hashmap := hm }
 
-set_option linter.unusedSimpArgs false in
 theorem getSlot_run (g : Globals) (key : UInt32) :
     EStateM.run (getSlot key) g = .ok (slotRead g key) g := by
   -- The bound, respelled in the *raw* form the unfolded code uses, so that
@@ -345,14 +344,13 @@ theorem getSlot_run (g : Globals) (key : UInt32) :
   -- the last gap is `if c then .ok A g else .ok B g` vs `.ok (if c then A else B) g`
   split <;> rfl
 
-set_option linter.unusedSimpArgs false in
 theorem setSlot_run (g : Globals) (key : UInt32) (v : UInt16) :
     EStateM.run (setSlot key v) g = .ok () (slotWrite g key v) := by
   have hlt := slotEntry_lt key
   unfold slotEntry slotHigh at hlt
   unfold setSlot
   simp only [EStateM.run, bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get,
-    set, EStateM.set, pure, EStateM.pure, Vector.setE, slotWrite, slotHigh, slotEntry]
+    set, EStateM.set, pure, Vector.setE, slotWrite, slotHigh, slotEntry]
   rw [dif_pos hlt]
   rfl
 
@@ -564,12 +562,11 @@ definitionally application), which is the form the reduced goals present. -/
 theorem freePiles_index (p : PosType) :
     (p.freePiles.toInt32.toUInt32).toNat = p.freePiles.toNat := rfl
 
-set_option linter.unusedSimpArgs false in
 theorem closureInfos_getE_apply (g : Globals) (p : PosType) (h : p.freePiles.toNat ≤ 10) :
     (closureInfos.getE p.freePiles.toInt32.toUInt32 :
         EStateM Error Globals ClosureInfo) g = .ok (closureInfoOf p) g := by
   have hidx : (p.freePiles.toInt32.toUInt32).toNat < 11 := by rw [freePiles_index]; omega
-  simp only [Vector.getE, bind, EStateM.bind, pure, EStateM.pure, getElem?_pos, hidx]
+  simp only [Vector.getE, pure, EStateM.pure, getElem?_pos, hidx]
   congr 1
   unfold closureInfoOf
   congr 1
@@ -583,14 +580,12 @@ theorem getSlot_apply (g : Globals) (key : UInt32) :
 theorem setSlot_apply (g : Globals) (key : UInt32) (v : UInt16) :
     setSlot key v g = .ok () (slotWrite g key v) := setSlot_run g key v
 
-set_option linter.unusedSimpArgs false in
 /-- **The `hash == 0` leaf returns `1` and touches nothing.** -/
 theorem recCheck_run_hash_zero (g : Globals) (p : PosType) (hz : p.hash = 0) :
     EStateM.run (recCheckSolvable p) g = .ok 1 g := by
   rw [recCheck_eq]
-  simp only [EStateM.run, bind, EStateM.bind, pure, EStateM.pure, hz, BEq.rfl, if_pos]
+  simp only [EStateM.run, bind, pure, EStateM.pure, hz, BEq.rfl, if_pos]
 
-set_option linter.unusedSimpArgs false in
 /-- **A memo hit returns the cached value and touches nothing.** -/
 theorem recCheck_run_cached (g : Globals) (p : PosType) (hfp : p.freePiles.toNat ≤ 10)
     (hz : p.hash ≠ 0) (hne : slotRead g p.hash ≠ UInt8.ofNat FREESLOT) :
@@ -606,15 +601,13 @@ theorem recCheck_run_cached (g : Globals) (p : PosType) (hfp : p.freePiles.toNat
     Bool.false_eq_true, reduceIte, closureInfos_getE_apply g p hfp, getSlot_apply,
     hne', reduceIte]
 
-set_option linter.unusedSimpArgs false in
 theorem possibleKings_getE_apply (ki : KingInfo) (g : Globals) :
     (ki.possibleKings.getE 0 : EStateM Error Globals UInt8) g
       = .ok (ki.possibleKings.get 0) g := by
-  simp only [Vector.getE, bind, EStateM.bind, pure, EStateM.pure, getElem?_pos,
+  simp only [Vector.getE, pure, EStateM.pure, getElem?_pos,
     show ((0 : UInt32).toNat < 6) from by decide]
   rfl
 
-set_option linter.unusedSimpArgs false in
 /-- **The loop branch, forward.**  Given what the prologue computes and what the
 pile loop returns, this is the whole run — memo write included.  Stated forward
 rather than by inverting the run, so it needs no separate "the prologue succeeds"
@@ -645,7 +638,6 @@ theorem recCheck_run_loop (g gl : Globals) (p : PosType) (ki : KingInfo)
     Bool.false_eq_true, reduceIte, closureInfos_getE_apply g p hfp, getSlot_apply,
     hfree', possibleKings_getE_apply, hki', hcomp', hloop, setSlot_apply]
 
-set_option linter.unusedSimpArgs false in
 /-- **The loop branch, inverted.**  From the whole run, read off the pile loop's own
 run and the memo write.  (`EStateM` being deterministic, this is `recCheck_run_loop`
 run backwards; it is stated separately because the caller has the outer run, not the
@@ -984,7 +976,6 @@ With `usedSpace ≥ kingRefund` in hand, `outerLoop_ok`'s last side condition
 (`-1 ≤ blockSpace`) is discharged and both prologue computations are known to
 succeed; neither writes the state. -/
 
-set_option linter.unusedSimpArgs false in
 theorem kingSpaces_run_exists_local {g : Globals} {p : PosType}
     (hwf : WellFormedLayout g) (h : SolverInvBase g p) :
     ∃ ki : KingInfo, EStateM.run (computeKingSpaces (closureInfoOf p).shiftValue
@@ -1036,7 +1027,6 @@ theorem localMask_of_possibleKings {p : PosType} {ki : KingInfo}
   rw [UInt8.toNat_toUInt16]
   exact hloc c
 
-set_option linter.unusedSimpArgs false in
 theorem component_run_exists {g : Globals} {p : PosType} (h : SolverInvMerged g p) :
     ∃ comp : UInt8, EStateM.run (computeComponentKingBits p) g = .ok comp g := by
   have hfpb := freePiles_bound h
@@ -1186,7 +1176,6 @@ Locality is not part of `KingSpacesSpec` (whose bit characterization is stated o
 below `numBits`), but `outerLoop_ok` gives it: the loop only ever sets bits in
 `List.range numBits`. -/
 
-set_option linter.unusedSimpArgs false in
 /-- **`getMovable`'s run, with locality.**  `fluteLen ≥ 1` (from `flute_pos`) is
 what keeps the `fluteLen - 1` index inside `possibleKings`. -/
 theorem getMovable_run {g : Globals} {p : PosType} (ki : KingInfo)
@@ -1199,7 +1188,7 @@ theorem getMovable_run {g : Globals} {p : PosType} (ki : KingInfo)
     exact Nat.two_pow_pos _
   by_cases hfl : (5 : UInt8) < fluteLen
   · refine ⟨0, ?_, hzero⟩
-    simp only [EStateM.run, getMovable, bind, EStateM.bind, pure, EStateM.pure,
+    simp only [EStateM.run, getMovable, bind, pure, EStateM.pure,
       show ((5 : UInt8) < fluteLen) = true from by simpa using hfl, reduceIte]
   · -- `fluteLen ≤ 5`, so both `possibleKings` indices are in range
     have hfl5 : fluteLen.toNat ≤ 5 := by
