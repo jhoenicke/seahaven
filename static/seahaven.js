@@ -666,7 +666,9 @@ function reset() {
         }
     }
     checkSolvable();
-    updateBoard();
+    if (!isSearching) {
+        updateBoard();
+    }
 }
 
 function makeMove(src) {
@@ -922,6 +924,7 @@ function handleSolverMessage(msg) {
         }
         // a solvable game was found; only the check shows that it is one
         isSearching = false;
+        updateBoard();
         if (!isChecking) {
             hideCog();
             return;
@@ -952,9 +955,9 @@ function checkSolvable() {
         }
         data.push(kingmask);
         console.log("solve: "+data);
+        showCog();
         solver.postMessage({"funcName":"solve", "data": data,
                             "callbackId": ++solverRequest});
-        showCog();
     } else {
         hideCog();
     }
