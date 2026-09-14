@@ -48,6 +48,11 @@ lake build
 * **[`Seahaven/SolverIsCorrect.lean`](Seahaven/SolverIsCorrect.lean)** — the
   final assembly proving the theorem `solver_is_correct : Correctness`.
 
+Since the proof is checked by Lean, only the specification needs to be checked.
+This is self-contained in the first three files above.  The last file contains
+the theorem at the bottom and you only need to check that it has the right type
+`solver_is_correct : Correctness`.
+
 ## Why the proof is hard
 
 The solver does not search the game tree of `Rules.lean` moves.  For
