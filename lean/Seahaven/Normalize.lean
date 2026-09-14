@@ -210,19 +210,19 @@ theorem normalized_iff {s : State} : Normalized s ↔
       have hnf := h.no_fm (Position.cell i)
       unfold applyMove at hnf
       simp only [takeFromPosition, takeFromCell, hc, dropPosition, dropFoundation,
-        updateCell_foundations, if_pos hready] at hnf
+        updateCell_foundations, hready, ite_true] at hnf
       simp at hnf
     · intro q hne hhead
       have hnc := h.no_cp i q hne
       unfold applyMove at hnc
       simp only [takeFromPosition, takeFromCell, hc, dropPosition, dropCol,
-        updateCell_tableau, if_pos hhead] at hnc
+        updateCell_tableau, hhead, ite_true] at hnc
       simp at hnc
     · intro q c rest hcol hready
       have hnf := h.no_fm (Position.pile q)
       unfold applyMove at hnf
       simp only [takeFromPosition, takeFromCol, hcol, dropPosition, dropFoundation,
-        updateColumn_foundations, if_pos hready] at hnf
+        updateColumn_foundations, hready, ite_true] at hnf
       simp at hnf
   · rintro ⟨hcell, hpile⟩ t hstep
     rcases hstep with ⟨p, hp⟩ | ⟨i, q, hne, hq⟩

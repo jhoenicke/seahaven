@@ -1662,7 +1662,7 @@ theorem chain_of_mergeGuards {g : Globals} {p : PosType} {pile : UInt32}
     (hm : m < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat)
     (hB : (g.pos2card.get ⟨pile.toNat, hpile⟩).get ⟨_, hidx⟩ = B)
     (hmg : ∀ i, i < m → mergeGuard g pile
-      (mergeIter ph i ⟨B, (p.pileDepth[pile.toNat]'hpile), 1, p⟩)) :
+      (mergeIter ph i ⟨p, (p.pileDepth[pile.toNat]'hpile), 1, B⟩)) :
     ∀ j, (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat - m ≤ j →
       j < (p.pileDepth.get ⟨pile.toNat, hpile⟩).toNat →
       ∀ (hj1 : j - 1 < 5) (hj : j < 5),

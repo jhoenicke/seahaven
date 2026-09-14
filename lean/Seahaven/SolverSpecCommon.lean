@@ -178,8 +178,7 @@ theorem hash_foldl_set (v : Vector UInt8 10) (k : Nat) (hk : k < 10) (x : UInt8)
       + (pileHashes[k]'hk) * (x.toNat.toUInt32) := by
   simp only [List.finRange, List.ofFn_succ, List.ofFn_zero, List.foldl_cons, List.foldl_nil,
     pileHashes, Vector.get, Vector.getElem_toArray, Fin.isValue, Fin.val_cast, Fin.val_zero,
-    Fin.val_succ, Nat.reduceAdd, List.getElem_toArray, List.getElem_cons_succ,
-    List.getElem_cons_zero, Vector.getElem_set]
+    Fin.val_succ, Nat.reduceAdd, List.getElem_toArray, Vector.getElem_set]
   interval_cases k <;>
     simp only [reduceIte, Nat.reduceEqDiff, UInt32.zero_add] <;>
     ac_rfl
@@ -403,7 +402,7 @@ theorem merge_real_chain (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10)
     (hwf : WellFormedLayout g) (ph : UInt32) (B : UInt8) (d0 : UInt8) (m : Nat)
     (p0 : PosType) (hreal : IsRealCard B) (hd0 : d0.toNat ≤ 5)
     (hmlt : m < d0.toNat)
-    (hmg : ∀ i, i < m → mergeGuard g pile (mergeIter ph i ⟨B, d0, (1 : UInt8), p0⟩)) :
+    (hmg : ∀ i, i < m → mergeGuard g pile (mergeIter ph i ⟨p0, d0, (1 : UInt8), B⟩)) :
     ∀ j, j ≤ m → IsRealCard (B + UInt8.ofNat j) ∧
       (VALUE (B + UInt8.ofNat j)).toNat = (VALUE B).toNat + j := by
   intro j
@@ -473,7 +472,7 @@ theorem merge_real_chain' (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10
 theorem merge_pos_chain (g : Globals) (pile : UInt32) (hpile : pile.toNat < 10)
     (ph : UInt32) (B : UInt8) (d0 : UInt8) (m : Nat) (p0 : PosType)
     (hd0 : d0.toNat ≤ 5) (hmlt : m < d0.toNat)
-    (hmg : ∀ i, i < m → mergeGuard g pile (mergeIter ph i ⟨B, d0, (1 : UInt8), p0⟩)) :
+    (hmg : ∀ i, i < m → mergeGuard g pile (mergeIter ph i ⟨p0, d0, (1 : UInt8), B⟩)) :
     ∀ j, 1 ≤ j → j ≤ m → ∃ hidx : (d0 - UInt8.ofNat j - 1).toUInt32.toNat < 5,
       (g.pos2card[pile.toNat]'hpile)[(d0 - UInt8.ofNat j - 1).toUInt32.toNat]'hidx
         = B + UInt8.ofNat j := by

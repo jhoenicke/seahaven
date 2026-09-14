@@ -477,6 +477,7 @@ theorem StateMatchesKingConfig.kingRefund_le {g : Globals} {s : State} {p : PosT
   rw [kingList_length]
   refine le_of_eq ?_
   simp [Finset.sum, Finset.filter, Finset.univ, Fintype.elems, Multiset.filter]
+  rfl
 
 /-- **The free cells a realized king configuration guarantees.**  `freeCellsOf` —
 the quantity `computeKingSpaces` compares against `fluteLen` — never overstates

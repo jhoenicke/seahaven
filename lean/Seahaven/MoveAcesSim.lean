@@ -60,8 +60,8 @@ private theorem cleanupRunResult_fluteNorm (pile : UInt32) (hpile : pile.toNat <
     (p : PosType) :
     cleanupRunResult pile hpile B ph hs4 d32 m f (SolverSpec.fluteNorm pile hpile p)
       = cleanupRunResult pile hpile B ph hs4 d32 m f p := by
-  simp only [cleanupRunResult, SolverSpec.fluteNorm]
-  split_ifs <;> simp only [SolverSpec.vector_set_set]
+  simp only [cleanupRunResult, SolverSpec.fluteNorm, UInt8.toNat_toUInt32]
+  split_ifs <;> simp_all
 
 /-- **A whole `removeFlute` call is simulated**, from the composed
 `fluteNorm ∘ removeFlutePre` point the cleanup is entered at — the same state

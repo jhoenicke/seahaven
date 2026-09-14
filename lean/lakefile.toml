@@ -8,4 +8,4 @@ name = "Seahaven"
 [[require]]
 name = "mathlib"
 git = "https://github.com/leanprover-community/mathlib4"
-rev = "fabf563a7c95a166b8d7b6efca11c8b4dc9d911f"
+rev = "v4.33.0"

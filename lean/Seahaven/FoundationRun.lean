@@ -125,7 +125,7 @@ theorem PlaysAll.toFMReach {s t : State} {cs : List Card} (h : PlaysAll s cs t) 
   | cons hc _ ih => exact Relation.ReflTransGen.head hc.toFMStep ih
 
 theorem PlaysAll.toReach {s t : State} {cs : List Card} (h : PlaysAll s cs t) : Reach s t :=
-  (NormReach.toReach (h.toFMReach.mono fun _ _ x => Or.inl x))
+  (NormReach.toReach (Relation.ReflTransGen.mono (fun _ _ x => Or.inl x) _ _ h.toFMReach))
 
 theorem PlaysAll.preserves_Solvable {s t : State} {cs : List Card}
     (hnd : NoDupState s) (h : PlaysAll s cs t) (hs : Solvable s) : Solvable t :=

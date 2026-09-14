@@ -72,8 +72,7 @@ theorem pileDepth_eq_zero_of_hash_zero {g : Globals} {p : PosType}
     h.hash_def.symm.trans hz
   simp only [List.finRange, List.ofFn_succ, List.ofFn_zero, List.foldl_cons, List.foldl_nil,
              pileHashes, Vector.get, Vector.getElem_toArray, Fin.isValue, Fin.val_cast,
-             Fin.val_zero, Fin.val_succ, Nat.reduceAdd, List.getElem_toArray,
-             List.getElem_cons_succ, List.getElem_cons_zero] at hfoldl
+             Fin.val_zero, Fin.val_succ, Nat.reduceAdd, List.getElem_toArray] at hfoldl
   have hb : ∀ k : Nat, ∀ hk : k < 10, (p.pileDepth[k]'hk : UInt8).toNat ≤ 5 :=
     fun k hk => h.pileDepth_bound ⟨k, hk⟩
   have key := hash_dot_inj _ _ _ _ _ _ _ _ _ _ 0 0 0 0 0 0 0 0 0 0
@@ -81,7 +80,7 @@ theorem pileDepth_eq_zero_of_hash_zero {g : Globals} {p : PosType}
     (hb 5 (by omega)) (hb 6 (by omega)) (hb 7 (by omega)) (hb 8 (by omega)) (hb 9 (by omega))
     (by omega) (by omega) (by omega) (by omega) (by omega)
     (by omega) (by omega) (by omega) (by omega) (by omega)
-    (by rw [hfoldl]; decide)
+    hfoldl
   clear hfoldl
   obtain ⟨k0, k1, k2, k3, k4, k5, k6, k7, k8, k9⟩ := key
   refine UInt8.toNat_inj.mp ?_
@@ -266,8 +265,7 @@ theorem hash_lt {g : Globals} {p : PosType} (h : SolverInvBase g p) :
   have hfoldl := h.hash_def
   simp only [List.finRange, List.ofFn_succ, List.ofFn_zero, List.foldl_cons, List.foldl_nil,
              pileHashes, Vector.get, Vector.getElem_toArray, Fin.isValue, Fin.val_cast,
-             Fin.val_zero, Fin.val_succ, Nat.reduceAdd, List.getElem_toArray,
-             List.getElem_cons_succ, List.getElem_cons_zero] at hfoldl
+             Fin.val_zero, Fin.val_succ, Nat.reduceAdd, List.getElem_toArray] at hfoldl
   have hb : ∀ k : Nat, ∀ hk : k < 10, (p.pileDepth[k]'hk : UInt8).toNat ≤ 5 :=
     fun k hk => h.pileDepth_bound ⟨k, hk⟩
   -- Rewrite the `UInt32` dot product as `(Nat dot product).toUInt32`, whose `toNat`
@@ -283,6 +281,16 @@ theorem hash_lt {g : Globals} {p : PosType} (h : SolverInvBase g p) :
       + 1679616 * (p.pileDepth[8]'(by omega) : UInt8).toNat
       + 10077696 * (p.pileDepth[9]'(by omega) : UInt8).toNat).toUInt32 := by
     rw [hfoldl]
+    show ((0 : UInt32) + (1 : UInt32) * p.pileDepth[0].toNat.toUInt32
+        + (6 : UInt32) * p.pileDepth[1].toNat.toUInt32
+        + (36 : UInt32) * p.pileDepth[2].toNat.toUInt32
+        + (216 : UInt32) * p.pileDepth[3].toNat.toUInt32
+        + (1296 : UInt32) * p.pileDepth[4].toNat.toUInt32
+        + (7776 : UInt32) * p.pileDepth[5].toNat.toUInt32
+        + (46656 : UInt32) * p.pileDepth[6].toNat.toUInt32
+        + (279936 : UInt32) * p.pileDepth[7].toNat.toUInt32
+        + (1679616 : UInt32) * p.pileDepth[8].toNat.toUInt32
+        + (10077696 : UInt32) * p.pileDepth[9].toNat.toUInt32) = _
     simp only [show ∀ x : Nat, x.toUInt32 = UInt32.ofNat x from fun _ => rfl,
                UInt32.ofNat_add, UInt32.ofNat_mul, UInt32.reduceOfNat, UInt32.zero_add]
   rw [hdot]
@@ -342,7 +350,7 @@ theorem getSlot_run (g : Globals) (key : UInt32) :
     pure, EStateM.pure, Vector.getE, getElem?_pos, hlt, slotRead, slotWord, slotHigh, slotEntry,
     apply_ite (fun f : EStateM Error Globals UInt8 => f g)]
   -- the last gap is `if c then .ok A g else .ok B g` vs `.ok (if c then A else B) g`
-  split <;> rfl
+  split <;> simp_all
 
 theorem setSlot_run (g : Globals) (key : UInt32) (v : UInt16) :
     EStateM.run (setSlot key v) g = .ok () (slotWrite g key v) := by
@@ -666,7 +674,7 @@ theorem recCheck_run_loop_inv (g g' : Globals) (p : PosType) (ki : KingInfo)
         = .ok ki g := hki
     have hcomp' : computeComponentKingBits p g = .ok comp g := hcomp
     rw [recCheck_eq] at hrun
-    simp only [EStateM.run, bind, EStateM.bind, pure, EStateM.pure,
+    simp only [EStateM.run, bind, EStateM.bind, pure,
       show (p.hash == 0) = false from beq_eq_false_iff_ne.mpr hz,
       Bool.false_eq_true, reduceIte, closureInfos_getE_apply g p hfp, getSlot_apply,
       hfree', possibleKings_getE_apply, hki', hcomp', hl] at hrun
@@ -1001,7 +1009,7 @@ theorem kingSpaces_run_exists_local {g : Globals} {p : PosType}
       omega)
   refine ⟨res, ?_, ?_⟩
   · rw [kingSpaces_eq_explicit]
-    simp only [kingSpacesExplicit, EStateM.run, bind, EStateM.bind, pure, EStateM.pure, hres]
+    simp only [kingSpacesExplicit, EStateM.run, hres]
   · intro c
     refine Nat.lt_pow_two_of_testBit _ (fun i hi => ?_)
     by_cases h8 : i < 8
@@ -1361,11 +1369,10 @@ theorem component_indep {p : PosType} {comp : UInt8} {s t : Globals}
       rw [bind_ok hres] at h
       rw [bind_ok (compLoop_indep info p _ 0 result s t hcfg hres)]
       by_cases h100 : (info.offset.toUInt32 + result.toUInt32).toNat < 100
-      · rw [bind_ok (vector_getE_apply componentTable _ s h100)] at h
-        rw [bind_ok (vector_getE_apply componentTable _ t h100)]
-        simp only [pure, EStateM.pure] at h ⊢
+      · rw [vector_getE_apply componentTable _ s h100] at h
+        rw [vector_getE_apply componentTable _ t h100]
         exact congrArg (fun x => EStateM.Result.ok x t) (EStateM.Result.ok.inj h).1
-      · rw [bind_error (vector_getE_error componentTable _ s h100)] at h
+      · rw [vector_getE_error componentTable _ s h100] at h
         exact absurd h (by simp)
     · rw [bind_error (vector_getE_error closureInfos _ s hi11)] at h
       exact absurd h (by simp)
@@ -1384,10 +1391,7 @@ theorem recBodyStep (H : Globals → Prop) : RecBodyStep H := by
     replace hrun : EStateM.Result.ok (ForInStep.yield w) g₁ = .ok r g₂ := hrun
     obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj hrun
     exact ⟨Or.inl ⟨rfl, rfl⟩, hms, g₁.hashmap, rfl⟩
-  · rw [if_neg hdz,
-      bind_ok (show (pure PUnit.unit : EStateM Error Globals PUnit) g₁ = .ok PUnit.unit g₁ from rfl)]
-      at hrun
-    dsimp only at hrun
+  · rw [if_neg hdz] at hrun
     rw [bind_ok (vector_getE_apply p.pileFlute (UInt32.ofNat pile) g₁ hidx)] at hrun
     -- the pile is non-empty, so the destination walk and the move both make sense
     have hd : 0 < (p.pileDepth.get ⟨(UInt32.ofNat pile).toNat, hidx⟩).toNat := by

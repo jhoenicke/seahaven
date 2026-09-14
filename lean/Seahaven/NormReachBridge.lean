@@ -28,11 +28,11 @@ re-exposure will consume.
 /-- A foundation run is a normalizing run. -/
 theorem PlaysAll.toNormReach {s t : State} {cs : List Card} (h : PlaysAll s cs t) :
     NormReach s t :=
-  h.toFMReach.mono (fun _ _ x => Or.inl x)
+  Relation.ReflTransGen.mono (fun _ _ x => Or.inl x) _ _ h.toFMReach
 
 /-- A cell→pile run is a normalizing run. -/
 theorem CPReach.toNormReach {s t : State} (h : CPReach s t) : NormReach s t :=
-  h.mono (fun _ _ x => Or.inr x)
+  Relation.ReflTransGen.mono (fun _ _ x => Or.inr x) _ _ h
 
 /-- **Normalizing runs are solvability-neutral in both directions.**  `Solvable.iff_normReach`,
 with the `NoDupState` side condition read off the card count. -/

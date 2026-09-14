@@ -2406,8 +2406,7 @@ theorem IsCanonicalPos_hash_inj (g : Globals) (p q : PosType)
   -- bounds below and the goal produced by Vector.ext.
   simp only [List.finRange, List.ofFn_succ, List.ofFn_zero, List.foldl_cons, List.foldl_nil,
              pileHashes, Vector.get, Vector.getElem_toArray, Fin.isValue, Fin.val_cast,
-             Fin.val_zero, Fin.val_succ, Nat.reduceAdd, List.getElem_toArray,
-             List.getElem_cons_succ, List.getElem_cons_zero] at hfoldl
+             Fin.val_zero, Fin.val_succ, Nat.reduceAdd, List.getElem_toArray] at hfoldl
   -- Bounds stated with [k] getElem notation (definitionally equal to .get ⟨k,_⟩ via the
   -- GetElem instance), so omega sees the same atoms as in hfoldl and the Vector.ext goal.
   have hpb0 : (p.pileDepth[0] : UInt8).toNat ≤ 5 := hp.pileDepth_bound ⟨0, by omega⟩

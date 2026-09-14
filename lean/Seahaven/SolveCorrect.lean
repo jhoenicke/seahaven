@@ -88,9 +88,7 @@ theorem solveTail_spec_bits {g g' : Globals} {pk10 : Vector UInt8 11}
     have hr : r = 0 := (EStateM.Result.ok.inj hrun).1.symm
     have hg : g' = g := (EStateM.Result.ok.inj hrun).2.symm
     exact ⟨Or.inl hr, ⟨hg ▸ hcor, g.hashmap, by rw [hg]⟩, Or.inl ⟨by simpa using hz, hr⟩⟩
-  · rw [if_neg hz, bind_ok (show (pure PUnit.unit : EStateM Error Globals PUnit) g
-      = .ok PUnit.unit g from rfl)] at hrun
-    dsimp only at hrun
+  · rw [if_neg hz] at hrun
     -- the `pk10[10]` read
     have h10 : (10 : UInt32).toNat < 11 := by decide
     have h10' : pk10.get ⟨(10 : UInt32).toNat, h10⟩ = pk10.get ⟨10, by omega⟩ := rfl
@@ -206,9 +204,7 @@ theorem solveTail_runs {g : Globals} {pk10 : Vector UInt8 11} {p : PosType}
   rw [solveTail]
   by_cases hz : (p.hash == 0) = true
   · rw [if_pos hz]; exact ⟨_, _, rfl⟩
-  · rw [if_neg hz, bind_ok (show (pure PUnit.unit : EStateM Error Globals PUnit) g
-      = .ok PUnit.unit g from rfl)]
-    dsimp only
+  · rw [if_neg hz]
     -- the `pk10[10]` read
     have h10 : (10 : UInt32).toNat < 11 := by decide
     have h10' : pk10.get ⟨(10 : UInt32).toNat, h10⟩ = pk10.get ⟨10, by omega⟩ := rfl

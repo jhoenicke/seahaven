@@ -102,9 +102,7 @@ theorem solveTail_bits {g g' : Globals} {pk10 : Vector UInt8 11}
   by_cases hz : (p.hash == 0) = true
   · exact Or.inl (by simpa using hz)
   · refine Or.inr ?_
-    rw [if_neg hz, bind_ok (show (pure PUnit.unit : EStateM Error Globals PUnit) g
-      = .ok PUnit.unit g from rfl)] at hrun
-    dsimp only at hrun
+    rw [if_neg hz] at hrun
     -- the `pk10[10]` read
     have h10 : (10 : UInt32).toNat < 11 := by decide
     have h10' : pk10.get ⟨(10 : UInt32).toNat, h10⟩ = pk10.get ⟨10, by omega⟩ := rfl

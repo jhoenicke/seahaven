@@ -370,9 +370,9 @@ abbrev MoveAcesGoal (g : Globals) (suit : Fin 4) (suitU32 : UInt32)
     (game : PosType) : Prop :=
   ∃ (card' : UInt8) (forcedKings' : UInt16) (found' : UInt8) (game' : PosType),
     Loop.forIn Loop.mk
-        (⟨card, forcedKings, found, game, g⟩ : MoveAcesAcc) (moveAcesBody suitU32)
+        (⟨forcedKings, g, game, card, found⟩ : MoveAcesAcc) (moveAcesBody suitU32)
         (g, game) =
-      .ok (⟨card', forcedKings', found', game', g⟩ : MoveAcesAcc) (g, game') ∧
+      .ok (⟨forcedKings', g, game', card', found'⟩ : MoveAcesAcc) (g, game') ∧
     MoveAcesInv g suit card' found' game' ∧
     ((VALUE card').toNat = 14 ∨
       (¬ isFreeCard g game' card' ∧
@@ -406,9 +406,9 @@ theorem moveAcesLoop_advance
     {card : UInt8} {forcedKings : UInt16} {found : UInt8} {game : PosType}
     {card1 : UInt8} {forcedKings1 : UInt16} {found1 : UInt8} {game1 : PosType}
     (hstep : Loop.forIn Loop.mk
-        (⟨card, forcedKings, found, game, g⟩ : MoveAcesAcc) (moveAcesBody suitU32) (g, game) =
+        (⟨forcedKings, g, game, card, found⟩ : MoveAcesAcc) (moveAcesBody suitU32) (g, game) =
       Loop.forIn Loop.mk
-        (⟨card1, forcedKings1, found1, game1, g⟩ : MoveAcesAcc) (moveAcesBody suitU32)
+        (⟨forcedKings1, g, game1, card1, found1⟩ : MoveAcesAcc) (moveAcesBody suitU32)
         (g, game1))
     (hres : MoveAcesGoal g suit suitU32 P card1 forcedKings1 found1 game1)
     (hframe1 : ∀ t : Fin 4, t ≠ suit → game1.aces.get t = game.aces.get t)
@@ -441,7 +441,7 @@ private theorem moveAcesLoop_step_done
     (hP : P forcedKings game) (hg : ¬ (VALUE card).toNat ≤ 13) :
     MoveAcesGoal g suit suitU32 P card forcedKings found game := by
   have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × PosType))
-    (l := Loop.mk) (b := (⟨card, forcedKings, found, game, g⟩ : MoveAcesAcc))
+    (l := Loop.mk) (b := (⟨forcedKings, g, game, card, found⟩ : MoveAcesAcc))
     (f := moveAcesBody suitU32)
   have h13nat : (13 : UInt8).toNat = 13 := by decide
   have hgIff : (VALUE card ≤ (13 : UInt8)) ↔ (VALUE card).toNat ≤ 13 := by
@@ -482,7 +482,7 @@ private theorem moveAcesLoop_step_buried
     (hcd0 : ¬ ((cd1.toUInt32.toInt32 + 1 - cd2.toInt32 == 0) = true)) :
     MoveAcesGoal g suit suitU32 P card forcedKings found game := by
   have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × PosType))
-    (l := Loop.mk) (b := (⟨card, forcedKings, found, game, g⟩ : MoveAcesAcc))
+    (l := Loop.mk) (b := (⟨forcedKings, g, game, card, found⟩ : MoveAcesAcc))
     (f := moveAcesBody suitU32)
   have hcd0' : cd1.toUInt32.toInt32 + 1 - cd2.toInt32 ≠ 0 := by
     intro heq; exact hcd0 (by rw [heq]; decide)
@@ -551,12 +551,12 @@ private theorem moveAcesLoop_step_skip
     (hcdpos : cd1.toUInt32.toInt32 + 1 - cd2.toInt32 > 0) :
     MoveAcesGoal g suit suitU32 P card forcedKings found game := by
   have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × PosType))
-    (l := Loop.mk) (b := (⟨card, forcedKings, found, game, g⟩ : MoveAcesAcc))
+    (l := Loop.mk) (b := (⟨forcedKings, g, game, card, found⟩ : MoveAcesAcc))
     (f := moveAcesBody suitU32)
   have hstep : Loop.forIn Loop.mk
-      (⟨card, forcedKings, found, game, g⟩ : MoveAcesAcc) (moveAcesBody suitU32) (g, game) =
+      (⟨forcedKings, g, game, card, found⟩ : MoveAcesAcc) (moveAcesBody suitU32) (g, game) =
     Loop.forIn Loop.mk
-      (⟨card + 1, forcedKings, found + 1, game, g⟩ : MoveAcesAcc) (moveAcesBody suitU32)
+      (⟨forcedKings, g, game, card + 1, found + 1⟩ : MoveAcesAcc) (moveAcesBody suitU32)
       (g, game) := by
     rw [hunf]
     simp only [moveAcesBody, hgProp, bind, EStateM.bind, pure,
@@ -1631,7 +1631,7 @@ private theorem moveAcesLoop_step_boundary
     (hcd0 : (cd1.toUInt32.toInt32 + 1 - cd2.toInt32 == 0) = true) :
     MoveAcesGoal g suit suitU32 P card forcedKings found game := by
   have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × PosType))
-    (l := Loop.mk) (b := (⟨card, forcedKings, found, game, g⟩ : MoveAcesAcc))
+    (l := Loop.mk) (b := (⟨forcedKings, g, game, card, found⟩ : MoveAcesAcc))
     (f := moveAcesBody suitU32)
   -- `card` is exactly `pile`'s current boundary.  Writing
   -- `aces[suit] := card` then calling `removeFlute pile`
@@ -2122,9 +2122,9 @@ private theorem moveAcesLoop_step_boundary
     have hrunEq' : Solver.removeFlute pile.toUInt32 (g, gameA) =
         .ok fk (g, p') := hrunEq
     have hstep : Loop.forIn Loop.mk
-        (⟨card, forcedKings, found, game, g⟩ : MoveAcesAcc) (moveAcesBody suitU32) (g, game) =
+        (⟨forcedKings, g, game, card, found⟩ : MoveAcesAcc) (moveAcesBody suitU32) (g, game) =
       Loop.forIn Loop.mk
-        (⟨card + 1, forcedKings &&& fk, 0, p', g⟩ : MoveAcesAcc) (moveAcesBody suitU32)
+        (⟨forcedKings &&& fk, g, p', card + 1, 0⟩ : MoveAcesAcc) (moveAcesBody suitU32)
         (g, p') := by
       rw [hunf]
       simp only [moveAcesBody, hgProp, bind, EStateM.bind, pure,
@@ -2218,9 +2218,9 @@ theorem moveAcesLoop_run (g : Globals) (hwf : WellFormedLayout g) (suit : Fin 4)
       P forcedKings game →
       ∃ (card' : UInt8) (forcedKings' : UInt16) (found' : UInt8) (game' : PosType),
         Loop.forIn Loop.mk
-            (⟨card, forcedKings, found, game, g⟩ : MoveAcesAcc) (moveAcesBody suitU32)
+            (⟨forcedKings, g, game, card, found⟩ : MoveAcesAcc) (moveAcesBody suitU32)
             (g, game) =
-          .ok (⟨card', forcedKings', found', game', g⟩ : MoveAcesAcc) (g, game') ∧
+          .ok (⟨forcedKings', g, game', card', found'⟩ : MoveAcesAcc) (g, game') ∧
         MoveAcesInv g suit card' found' game' ∧
         ((VALUE card').toNat = 14 ∨
           (¬ isFreeCard g game' card' ∧

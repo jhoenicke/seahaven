@@ -54,8 +54,8 @@ For the freed loop the guard itself supplies the lower bound: `aces[suit] ≥ 0`
 
 open Lean Lean.Order
 
-/-- Accumulator of the merge loop: `(card, depth, flute, game)`. -/
-abbrev MergeAcc := MProd UInt8 (MProd UInt8 (MProd UInt8 PosType))
+/-- Accumulator of the merge loop: `(game, depth, flute, card)`. -/
+abbrev MergeAcc := PosType × UInt8 × UInt8 × UInt8
 
 /-- Body of the corrected merge `while` loop (state-pure; reads only `globals`). -/
 def mergeBody (g : Globals) (pile pilehash : UInt32) :
@@ -63,8 +63,8 @@ def mergeBody (g : Globals) (pile pilehash : UInt32) :
   fun _ r => do
     if (← (do return decide (r.snd.fst > 1)) <&&>
       (do return (← (← g.pos2card.getE pile).getE (r.snd.fst - 2).toUInt32)
-         == r.fst + 1)) then
-        return .yield ⟨r.fst + 1, r.snd.fst - 1, r.snd.snd.fst + 1, { r.snd.snd.snd with hash := r.snd.snd.snd.hash - pilehash }⟩
+         == r.snd.snd.snd + 1)) then
+        return .yield ⟨{ r.fst with hash := r.fst.hash - pilehash }, r.snd.fst - 1, r.snd.snd.fst + 1, r.snd.snd.snd + 1⟩
     else return .done r
 
 /-- The merge loop terminates without touching the state, by induction on a `Nat`
@@ -92,12 +92,12 @@ theorem mergeLoop_ok (g : Globals) (pile pilehash : UInt32) (hpile : pile.toNat 
       have hidx : (r.snd.fst - 2).toUInt32.toNat < 5 := by
         rw [UInt8.toNat_toUInt32, hsub2]; omega
       by_cases hcard :
-          ((g.pos2card[pile.toNat]'hpile)[(r.snd.fst - 2).toUInt32.toNat]'hidx == r.fst + 1) = true
+          ((g.pos2card[pile.toNat]'hpile)[(r.snd.fst - 2).toUInt32.toNat]'hidx == r.snd.snd.snd + 1) = true
       · -- card matches: the body yields; the IH closes the recursive call.
         have hsub1 : (r.snd.fst - 1).toNat = r.snd.fst.toNat - 1 :=
           UInt8.toNat_sub_of_le _ _ (by rw [UInt8.le_iff_toNat_le]; show 1 ≤ _; omega)
         obtain ⟨res, hres⟩ := ih
-          ⟨r.fst + 1, r.snd.fst - 1, r.snd.snd.fst + 1, { r.snd.snd.snd with hash := r.snd.snd.snd.hash - pilehash }⟩
+          ⟨{ r.fst with hash := r.fst.hash - pilehash }, r.snd.fst - 1, r.snd.snd.fst + 1, r.snd.snd.snd + 1⟩
           s (by rw [hsub1]; omega) (by rw [hsub1]; omega)
         refine ⟨res, ?_⟩
         rw [hunf]
@@ -129,7 +129,7 @@ forms are derived downstream where Mathlib is available.
 
 /-- One iteration of the merge loop on the accumulator. -/
 def mergeStep (pilehash : UInt32) (r : MergeAcc) : MergeAcc :=
-  ⟨r.fst + 1, r.snd.fst - 1, r.snd.snd.fst + 1, { r.snd.snd.snd with hash := r.snd.snd.snd.hash - pilehash }⟩
+  ⟨{ r.fst with hash := r.fst.hash - pilehash }, r.snd.fst - 1, r.snd.snd.fst + 1, r.snd.snd.snd + 1⟩
 
 /-- `m` iterations of the merge loop (front-recursion). -/
 def mergeIter (pilehash : UInt32) : Nat → MergeAcc → MergeAcc
@@ -141,7 +141,7 @@ def mergeIter (pilehash : UInt32) : Nat → MergeAcc → MergeAcc
 def mergeGuard (g : Globals) (pile : UInt32) (r : MergeAcc) : Prop :=
   1 < r.snd.fst ∧
   ∀ (h10 : pile.toNat < 10) (h5 : (r.snd.fst - 2).toUInt32.toNat < 5),
-    (g.pos2card[pile.toNat]'h10)[(r.snd.fst - 2).toUInt32.toNat]'h5 = r.fst + 1
+    (g.pos2card[pile.toNat]'h10)[(r.snd.fst - 2).toUInt32.toNat]'h5 = r.snd.snd.snd + 1
 
 /-- **Exact run of the merge loop**: it performs some number `m` of `mergeStep`s
     (state untouched), with the guard true before each step and false at exit. -/
@@ -167,7 +167,7 @@ theorem mergeLoop_run (g : Globals) (pile pilehash : UInt32) (hpile : pile.toNat
       have hidx : (r.snd.fst - 2).toUInt32.toNat < 5 := by
         rw [UInt8.toNat_toUInt32, hsub2]; omega
       by_cases hcard :
-          ((g.pos2card[pile.toNat]'hpile)[(r.snd.fst - 2).toUInt32.toNat]'hidx == r.fst + 1) = true
+          ((g.pos2card[pile.toNat]'hpile)[(r.snd.fst - 2).toUInt32.toNat]'hidx == r.snd.snd.snd + 1) = true
       · -- guard true: one `mergeStep`, then the IH characterizes the rest.
         have hsub1 : (r.snd.fst - 1).toNat = r.snd.fst.toNat - 1 :=
           UInt8.toNat_sub_of_le _ _ (by rw [UInt8.le_iff_toNat_le]; show 1 ≤ _; omega)
@@ -206,8 +206,8 @@ private theorem uint32_sub_sub (a b c : UInt32) : a - b - c = a - (b + c) := by
     `depth` shrank by `m`, and the hash lost `m · pilehash`. -/
 theorem mergeIter_eq (ph : UInt32) (m : Nat) (r : MergeAcc) :
     mergeIter ph m r =
-      ⟨r.fst + UInt8.ofNat m, r.snd.fst - UInt8.ofNat m, r.snd.snd.fst + UInt8.ofNat m,
-       { r.snd.snd.snd with hash := r.snd.snd.snd.hash - UInt32.ofNat m * ph }⟩ := by
+      ⟨{ r.fst with hash := r.fst.hash - UInt32.ofNat m * ph }, r.snd.fst - UInt8.ofNat m,
+       r.snd.snd.fst + UInt8.ofNat m, r.snd.snd.snd + UInt8.ofNat m⟩ := by
   induction m generalizing r with
   | zero =>
     show r = _
@@ -218,26 +218,26 @@ theorem mergeIter_eq (ph : UInt32) (m : Nat) (r : MergeAcc) :
     rw [ih]
     simp only [mergeStep, UInt8.ofNat_add, UInt8.ofNat_one,
       UInt32.ofNat_add, UInt32.ofNat_one,
-      UInt32.add_mul, UInt32.one_mul, MProd.mk.injEq]
+      UInt32.add_mul, UInt32.one_mul, Prod.mk.injEq]
     refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [UInt8.add_assoc, UInt8.add_comm 1]
+    · rw [uint32_sub_sub, UInt32.add_comm ph]
     · rw [UInt8.sub_sub, UInt8.add_comm 1]
     · rw [UInt8.add_assoc, UInt8.add_comm 1]
-    · rw [uint32_sub_sub, UInt32.add_comm ph]
+    · rw [UInt8.add_assoc, UInt8.add_comm 1]
 
-/-- Accumulator of the freed-predecessor loop: `(flute, game, prevCard)`. -/
-abbrev FreedAcc := MProd UInt8 (MProd PosType UInt8)
+/-- Accumulator of the freed-predecessor loop: `(game, flute, prevCard)`. -/
+abbrev FreedAcc := PosType × UInt8 × UInt8
 
 /-- Body of the freed-predecessor `while` loop of `cleanupPile` (state-pure;
     reads only `globals` and the accumulator's game). -/
 def freedBody (g : Globals) (suit : UInt8) :
     Unit → FreedAcc → EStateM Error (Globals × PosType) (ForInStep FreedAcc) :=
   fun _ r => do
-    if (← ((do return decide ((← r.snd.fst.aces.getE suit.toUInt32) < r.snd.snd)) <&&>
+    if (← ((do return decide ((← r.fst.aces.getE suit.toUInt32) < r.snd.snd)) <&&>
       (do return ((← g.card2depth.getE r.snd.snd.toUInt32).toNat >=
-          (← r.snd.fst.pileDepth.getE
+          (← r.fst.pileDepth.getE
             (← g.card2pile.getE r.snd.snd.toUInt32).toUInt32).toNat)))) then
-      return .yield ⟨r.fst + 1, { r.snd.fst with usedSpace := r.snd.fst.usedSpace - 1 }, r.snd.snd - 1⟩
+      return .yield ⟨{ r.fst with usedSpace := r.fst.usedSpace - 1 }, r.snd.fst + 1, r.snd.snd - 1⟩
     else return .done r
 
 /-- The freed-predecessor loop terminates without touching the state, by induction
@@ -259,11 +259,11 @@ theorem freedLoop_ok (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat <
     have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × PosType))
       (l := Loop.mk) (b := r) (f := freedBody g suit)
     have hc64 : r.snd.snd.toUInt32.toNat < 64 := by rw [UInt8.toNat_toUInt32]; exact h64
-    by_cases hg1 : r.snd.fst.aces[suit.toUInt32.toNat]'hsuit < r.snd.snd
+    by_cases hg1 : r.fst.aces[suit.toUInt32.toNat]'hsuit < r.snd.snd
     · have hp10 : (g.card2pile[r.snd.snd.toUInt32.toNat]'hc64).toUInt32.toNat < 10 := by
         rw [UInt8.toNat_toUInt32]; exact hpiles _ hc64
       by_cases hg2 : (g.card2depth[r.snd.snd.toUInt32.toNat]'hc64).toNat ≥
-          (r.snd.fst.pileDepth[(g.card2pile[r.snd.snd.toUInt32.toNat]'hc64).toUInt32.toNat]'hp10
+          (r.fst.pileDepth[(g.card2pile[r.snd.snd.toUInt32.toNat]'hc64).toUInt32.toNat]'hp10
             ).toNat
       · -- both conjuncts true: the body yields; `prevCard` strictly decreases.
         have hposN : 0 < r.snd.snd.toNat := by
@@ -274,7 +274,7 @@ theorem freedLoop_ok (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat <
         have hsub : (r.snd.snd - 1).toNat = r.snd.snd.toNat - 1 :=
           UInt8.toNat_sub_of_le _ _ h1le
         obtain ⟨res, hres⟩ := ih
-          ⟨r.fst + 1, { r.snd.fst with usedSpace := r.snd.fst.usedSpace - 1 }, r.snd.snd - 1⟩ s
+          ⟨{ r.fst with usedSpace := r.fst.usedSpace - 1 }, r.snd.fst + 1, r.snd.snd - 1⟩ s
           (by rw [hsub]; omega) (by rw [hsub]; omega)
         refine ⟨res, ?_⟩
         rw [hunf]
@@ -324,10 +324,10 @@ def cleanupPileExplicit (pile : UInt32) : EStateM Error (Globals × PosType) UIn
     let card ← (← globals.pos2card.getE pile).getE (depth - 1).toUInt32
     let suit := SUIT card
     let prevCard := card - 1
-    let r1 ← Loop.forIn Loop.mk ⟨card, depth, flute, game⟩ (mergeBody globals pile pilehash)
-    let ⟨card, depth, flute, game⟩ := r1
-    let r2 ← Loop.forIn Loop.mk ⟨flute, game, prevCard⟩ (freedBody globals suit)
-    let ⟨flute, game, prevCard⟩ := r2
+    let r1 ← Loop.forIn Loop.mk ⟨game, depth, flute, card⟩ (mergeBody globals pile pilehash)
+    let ⟨game, depth, flute, card⟩ := r1
+    let r2 ← Loop.forIn Loop.mk ⟨game, flute, prevCard⟩ (freedBody globals suit)
+    let ⟨game, flute, prevCard⟩ := r2
     let acesS ← game.aces.getE suit.toUInt32
     -- lone-king branch, shared by both `busyAces` outcomes (the inner join point)
     let kingCheck : PosType → EStateM Error (Globals × PosType) UInt16 :=
@@ -356,7 +356,7 @@ theorem cleanupPile_eq_explicit : Solver.cleanupPile = cleanupPileExplicit := rf
 
 /-- One iteration of the freed-predecessor loop on the accumulator. -/
 def freedStep (r : FreedAcc) : FreedAcc :=
-  ⟨r.fst + 1, { r.snd.fst with usedSpace := r.snd.fst.usedSpace - 1 }, r.snd.snd - 1⟩
+  ⟨{ r.fst with usedSpace := r.fst.usedSpace - 1 }, r.snd.fst + 1, r.snd.snd - 1⟩
 
 /-- `f` iterations of the freed loop (front-recursion). -/
 def freedIter : Nat → FreedAcc → FreedAcc
@@ -366,19 +366,19 @@ def freedIter : Nat → FreedAcc → FreedAcc
 /-- The freed-loop guard as a `Prop` (index bounds quantified). -/
 def freedGuard (g : Globals) (suit : UInt8) (r : FreedAcc) : Prop :=
   (∀ (h4 : suit.toUInt32.toNat < 4),
-    r.snd.fst.aces[suit.toUInt32.toNat]'h4 < r.snd.snd) ∧
+    r.fst.aces[suit.toUInt32.toNat]'h4 < r.snd.snd) ∧
   ∀ (h64 : r.snd.snd.toUInt32.toNat < 64)
     (h10 : (g.card2pile[r.snd.snd.toUInt32.toNat]'h64).toUInt32.toNat < 10),
     (g.card2depth[r.snd.snd.toUInt32.toNat]'h64).toNat ≥
-    (r.snd.fst.pileDepth[(g.card2pile[r.snd.snd.toUInt32.toNat]'h64).toUInt32.toNat]'h10
+    (r.fst.pileDepth[(g.card2pile[r.snd.snd.toUInt32.toNat]'h64).toUInt32.toNat]'h10
       ).toNat
 
 /-- Closed form of `freedIter`: after `f` freed steps, `flute` grew by `f`,
     `usedSpace` shrank by `f`, and `prevCard` walked down by `f`. -/
 theorem freedIter_eq (f : Nat) (r : FreedAcc) :
     freedIter f r =
-      ⟨r.fst + UInt8.ofNat f,
-       { r.snd.fst with usedSpace := r.snd.fst.usedSpace - (UInt8.ofNat f) },
+      ⟨{ r.fst with usedSpace := r.fst.usedSpace - (UInt8.ofNat f) },
+       r.snd.fst + UInt8.ofNat f,
        r.snd.snd - UInt8.ofNat f⟩ := by
   induction f generalizing r with
   | zero =>
@@ -388,10 +388,10 @@ theorem freedIter_eq (f : Nat) (r : FreedAcc) :
     show freedIter f (freedStep r) = _
     rw [ih]
     simp only [freedStep, UInt8.ofNat_add, show UInt8.ofNat 1 = 1 from rfl,
-      UInt8.ofNat_add, MProd.mk.injEq]
+      UInt8.ofNat_add, Prod.mk.injEq]
     refine ⟨?_, ?_, ?_⟩
-    · rw [UInt8.add_assoc, UInt8.add_comm 1]
     · rw [UInt8.sub_sub, UInt8.add_comm 1]
+    · rw [UInt8.add_assoc, UInt8.add_comm 1]
     · rw [UInt8.sub_sub, UInt8.add_comm 1]
 
 /-- The `(forcedKings, game)` result of a non-empty `cleanupPile` run, given
@@ -513,11 +513,11 @@ theorem freedLoop_run (g : Globals) (suit : UInt8) (hsuit : suit.toUInt32.toNat 
     have hunf := Loop.forIn_eq_of_monadTail (m := EStateM Error (Globals × PosType))
       (l := Loop.mk) (b := r) (f := freedBody g suit)
     have hc64 : r.snd.snd.toUInt32.toNat < 64 := by rw [UInt8.toNat_toUInt32]; exact h64
-    by_cases hg1 : r.snd.fst.aces[suit.toUInt32.toNat]'hsuit < r.snd.snd
+    by_cases hg1 : r.fst.aces[suit.toUInt32.toNat]'hsuit < r.snd.snd
     · have hp10 : (g.card2pile[r.snd.snd.toUInt32.toNat]'hc64).toUInt32.toNat < 10 := by
         rw [UInt8.toNat_toUInt32]; exact hpiles _ hc64
       by_cases hg2 : (g.card2depth[r.snd.snd.toUInt32.toNat]'hc64).toNat ≥
-          (r.snd.fst.pileDepth[(g.card2pile[r.snd.snd.toUInt32.toNat]'hc64).toUInt32.toNat]'hp10
+          (r.fst.pileDepth[(g.card2pile[r.snd.snd.toUInt32.toNat]'hc64).toUInt32.toNat]'hp10
             ).toNat
       · -- guard true: one `freedStep`, then the IH characterizes the rest.
         have hposN : 0 < r.snd.snd.toNat := by
@@ -575,25 +575,25 @@ theorem cleanupPile_nonempty_eq (pile : UInt32) (g : Globals) (p : PosType)
     (hpiles : ∀ (i : Nat) (h : i < 64), (g.card2pile[i]'h).toNat < 10) :
     ∃ m f : Nat,
       (∀ i, i < m → mergeGuard g pile
-        (mergeIter ph i ⟨B, p.pileDepth[pile.toNat]'hpile, 1, p⟩)) ∧
+        (mergeIter ph i ⟨p, p.pileDepth[pile.toNat]'hpile, 1, B⟩)) ∧
       ¬ mergeGuard g pile
-        (mergeIter ph m ⟨B, p.pileDepth[pile.toNat]'hpile, 1, p⟩) ∧
+        (mergeIter ph m ⟨p, p.pileDepth[pile.toNat]'hpile, 1, B⟩) ∧
       (∀ i, i < f → freedGuard g (SUIT B) (freedIter i
-        ⟨1 + UInt8.ofNat m, { p with hash := p.hash - UInt32.ofNat m * ph }, B - 1⟩)) ∧
+        ⟨{ p with hash := p.hash - UInt32.ofNat m * ph }, 1 + UInt8.ofNat m, B - 1⟩)) ∧
       ¬ freedGuard g (SUIT B) (freedIter f
-        ⟨1 + UInt8.ofNat m, { p with hash := p.hash - UInt32.ofNat m * ph }, B - 1⟩) ∧
+        ⟨{ p with hash := p.hash - UInt32.ofNat m * ph }, 1 + UInt8.ofNat m, B - 1⟩) ∧
       EStateM.run (Solver.cleanupPile pile) (g, p) =
         .ok (cleanupRunResult pile hpile B ph hs4
               (p.pileDepth[pile.toNat]'hpile) m f p).1
           (g, (cleanupRunResult pile hpile B ph hs4
               (p.pileDepth[pile.toNat]'hpile) m f p).2) := by
   obtain ⟨m, hmeq, hmg, hmx⟩ := mergeLoop_run g pile ph hpile 6
-    ⟨B, p.pileDepth[pile.toNat]'hpile, 1, p⟩ (g, p)
+    ⟨p, p.pileDepth[pile.toNat]'hpile, 1, B⟩ (g, p)
     (by show (p.pileDepth[pile.toNat]'hpile).toNat < 6; omega)
     (by show (p.pileDepth[pile.toNat]'hpile).toNat ≤ 5; omega)
   rw [mergeIter_eq] at hmeq
   obtain ⟨f, hfeq, hfg, hfx⟩ := freedLoop_run g (SUIT B) hs4 hpiles 64
-    ⟨1 + UInt8.ofNat m, { p with hash := p.hash - UInt32.ofNat m * ph }, B - 1⟩ (g, p)
+    ⟨{ p with hash := p.hash - UInt32.ofNat m * ph }, 1 + UInt8.ofNat m, B - 1⟩ (g, p)
     (by show (B - 1).toNat < 64; exact hprev64)
     (by show (B - 1).toNat < 64; exact hprev64)
   rw [freedIter_eq] at hfeq
@@ -658,36 +658,36 @@ syntactic `Loop.forIn`/`moveAcesBody` handle.
 -/
 
 /-- Accumulator of the `moveAces` foundation walk:
-    `(card, forcedKings, found, game, globals)`. -/
-abbrev MoveAcesAcc := MProd UInt8 (MProd UInt16 (MProd UInt8 (MProd PosType Globals)))
+    `(forcedKings, globals, game, card, found)`. -/
+abbrev MoveAcesAcc := UInt16 × Globals × PosType × UInt8 × UInt8
 
 /-- Body of the `moveAces` `while` loop. -/
 def moveAcesBody (suitU32 : UInt32) :
     Unit → MoveAcesAcc → EStateM Error (Globals × PosType) (ForInStep MoveAcesAcc) :=
   fun _ r => do
-    let card := r.fst
-    let forcedKings := r.snd.fst
-    let found := r.snd.snd.fst
-    let game := r.snd.snd.snd.fst
-    let globals := r.snd.snd.snd.snd
+    let forcedKings := r.fst
+    let globals := r.snd.fst
+    let game := r.snd.snd.fst
+    let card := r.snd.snd.snd.fst
+    let found := r.snd.snd.snd.snd
     if VALUE card ≤ 13 then
       let pile ← globals.card2pile.getE card.toUInt32
       let cd1 ← globals.card2depth.getE card.toUInt32
       let cd2 ← game.pileDepth.getE pile.toUInt32
       let cardDepth : Int32 := cd1.toInt32 + 1 - cd2.toInt32
       if cardDepth > 0 then
-        return .yield ⟨card + 1, forcedKings, found + 1, game, globals⟩
+        return .yield ⟨forcedKings, globals, game, card + 1, found + 1⟩
       else if cardDepth == 0 then
         let newAces ← game.aces.setE suitU32 card
         let game := { game with aces := newAces }
         set (⟨globals, game⟩ : Globals × PosType)
         let fk ← removeFlute pile.toUInt32
         let s ← get
-        return .yield ⟨card + 1, forcedKings &&& fk, 0, s.snd, s.fst⟩
+        return .yield ⟨forcedKings &&& fk, s.fst, s.snd, card + 1, 0⟩
       else
-        return .done ⟨card, forcedKings, found, game, globals⟩
+        return .done ⟨forcedKings, globals, game, card, found⟩
     else
-      return .done ⟨card, forcedKings, found, game, globals⟩
+      return .done ⟨forcedKings, globals, game, card, found⟩
 
 def moveAcesExplicit : EStateM Error (Globals × PosType) UInt16 := do
   let forcedKings : UInt16 := 0xffff
@@ -696,8 +696,8 @@ def moveAcesExplicit : EStateM Error (Globals × PosType) UInt16 := do
   let suitU32 := UInt32.ofNat suit
   let card : UInt8 := (← game.aces.getE suitU32) + 1
   let found : UInt8 := 0
-  let r ← Loop.forIn Loop.mk ⟨card, forcedKings, found, game, globals⟩ (moveAcesBody suitU32)
-  let ⟨card, forcedKings, found, game, globals⟩ := r
+  let r ← Loop.forIn Loop.mk ⟨forcedKings, globals, game, card, found⟩ (moveAcesBody suitU32)
+  let ⟨forcedKings, globals, game, card, found⟩ := r
   let card := card - 1
   let game := { game with usedSpace := game.usedSpace - found }
   let newAces ← game.aces.setE suitU32 card
@@ -729,24 +729,26 @@ is shared with `convertFromPilesKings`'s final drain.
 /-- Body of the `while busyAces ≠ 0 do moveAces` drain loop. -/
 def drainBody : Unit → UInt16 → EStateM Error (Globals × PosType) (ForInStep UInt16) :=
   fun _ r => do
+    let forcedKings := r
     let s ← get
-    if s.snd.busyAces != 0 then
+    if (s.snd.busyAces != 0) = true then do
       let fk ← moveAces
-      return .yield (r &&& fk)
-    else
-      return .done r
+      let forcedKings : UInt16 := forcedKings &&& fk
+      pure (ForInStep.yield forcedKings)
+    else pure (ForInStep.done forcedKings)
 
 def moveExplicit (pile : UInt32) (toPile : UInt8) :
     EStateM Error (Globals × PosType) UInt16 := do
   let ⟨globals, game⟩ ← get
   let fluteLen ← game.pileFlute.getE pile
-  -- set + RemoveFlute + drain, shared by all branches (the outer join point)
+  -- set + RemoveFlute + drain, shared by all branches (the outer join point).
   let finish : PosType → EStateM Error (Globals × PosType) UInt16 :=
     fun game => do
       set (⟨globals, game⟩ : Globals × PosType)
       let forcedKings ← removeFlute pile
       let r ← Loop.forIn Loop.mk forcedKings drainBody
-      pure r
+      let forcedKings : UInt16 := r
+      pure forcedKings
   if toPile < 10 then
     let old ← game.pileFlute.getE toPile.toUInt32
     let newFlute ← game.pileFlute.setE toPile.toUInt32 (old + fluteLen)

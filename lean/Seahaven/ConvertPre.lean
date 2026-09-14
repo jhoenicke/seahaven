@@ -42,7 +42,6 @@ def cvDepthBody (pilesking : Vector UInt8 11) (i : Nat) (r : PosType) :
     have game : PosType := { game with usedSpace := game.usedSpace - d }
     let __do_lift ← pileHashes.getE iU32
     have game : PosType := { game with hash := game.hash + __do_lift * d.toUInt32 }
-    pure PUnit.unit
     pure (ForInStep.yield game)
 
 /-- Body of the foundation walk (loop 2, first `while`). -/
@@ -58,9 +57,7 @@ def cvAceBody (globals : Globals) (game : PosType) (card : UInt8) :
         pure (decide (__do_lift.toNat ≥ __do_lift_2.toNat)))
       if __do_lift = true then
         have ace := ace + 1
-        do
-          pure PUnit.unit
-          pure (ForInStep.yield ace)
+        pure (ForInStep.yield ace)
       else pure (ForInStep.done ace)
 
 /-- Body of the king-frontier walk (loop 2, second `while`). -/
@@ -74,9 +71,7 @@ def cvKingBody (globals : Globals) (game : PosType) :
       let __do_lift_2 ← game.pileDepth.getE __do_lift_1.toUInt32
       if __do_lift.toNat ≥ __do_lift_2.toNat then
         have card := card - 1
-        do
-          pure PUnit.unit
-          pure (ForInStep.yield card)
+        pure (ForInStep.yield card)
       else pure (ForInStep.done card)
 
 /-- Body of the per-suit loop (loop 2). -/
@@ -93,21 +88,17 @@ def cvSuitBody (globals : Globals) (suit : Nat) (r : PosType) :
     let __do_lift ← game.aces.setE suitU32 ace
     have game : PosType := { game with aces := __do_lift }
     have game : PosType := { game with usedSpace := game.usedSpace - VALUE ace }
-    have __do_jp : UInt8 → PosType → PUnit →
+    have __do_jp : Unit → UInt8 →
         EStateM Error (Globals × PosType) (ForInStep PosType) :=
-      fun card game _y => do
+      fun _ card => do
         let __do_lift ← game.kings.setE suitU32 card
         have game : PosType := { game with kings := __do_lift }
-        pure PUnit.unit
         pure (ForInStep.yield game)
     if ace < card then do
         let r ← Loop.forIn Loop.mk card (cvKingBody globals game)
         have card : UInt8 := r
-        let y ← pure PUnit.unit
-        __do_jp card game y
-      else do
-        let y ← pure PUnit.unit
-        __do_jp card game y
+        __do_jp () card
+      else __do_jp () card
 
 /-- Body of the cleanup loop (loop 3). -/
 def cvCleanupBody (i : Nat) (r : UInt16) :
@@ -116,7 +107,6 @@ def cvCleanupBody (i : Nat) (r : UInt16) :
   do
     let __do_lift ← Solver.cleanupPile (UInt32.ofNat i)
     have forcedKings : UInt16 := forcedKings &&& __do_lift
-    pure PUnit.unit
     pure (ForInStep.yield forcedKings)
 
 /-- The `rfl`-twin: `convertFromPilesKings` with all four loops presented
@@ -136,8 +126,8 @@ theorem convert_eq_explicit (pk : Vector UInt8 11) :
       let r ← forIn (List.range 10) (0xffff : UInt16) cvCleanupBody
       have forcedKings : UInt16 := r
       let r ← Loop.forIn Loop.mk forcedKings drainBody
-      pure r) :=
-  rfl
+      have forcedKings : UInt16 := r
+      pure forcedKings) := by rfl
 
 /-! ## Loop 1: installing the pile depths -/
 

@@ -87,9 +87,7 @@ theorem recBodyRuns (H : Globals → Prop) : RecBodyRuns H := by
   · -- the pile is empty: nothing happens
     rw [if_pos hdz]
     exact ⟨_, _, rfl⟩
-  · rw [if_neg hdz,
-      bind_ok (show (pure PUnit.unit : EStateM Error Globals PUnit) g₁ = .ok PUnit.unit g₁ from rfl)]
-    dsimp only
+  · rw [if_neg hdz]
     rw [bind_ok (vector_getE_apply p.pileFlute (UInt32.ofNat pile) g₁ hidx)]
     -- the pile is non-empty, so the destination walk and the move both make sense
     have hd : 0 < (p.pileDepth.get ⟨(UInt32.ofNat pile).toNat, hidx⟩).toNat := by

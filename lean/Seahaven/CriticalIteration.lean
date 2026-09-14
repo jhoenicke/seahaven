@@ -86,10 +86,7 @@ theorem critical_iteration_bitSet {H : Globals → Prop}
       rw [show p.pileDepth.get ⟨(UInt32.ofNat pile).toNat, hidx⟩ = 0 from by simpa using hc]
       rfl
     omega
-  rw [if_neg hdz,
-    bind_ok (show (pure PUnit.unit : EStateM Error Globals PUnit) g = .ok PUnit.unit g from rfl)]
-    at hrun
-  dsimp only at hrun
+  rw [if_neg hdz] at hrun
   rw [bind_ok (vector_getE_apply p.pileFlute (UInt32.ofNat pile) g hidx)] at hrun
   obtain ⟨toPile, hgd⟩ : ∃ tp : UInt8,
       getDestination p (UInt32.ofNat pile) g = .ok tp g := by
@@ -241,10 +238,7 @@ theorem recBody_complete_step {H : Globals → Prop}
     replace hrun : EStateM.Result.ok (ForInStep.yield v) g = .ok r g' := hrun
     obtain ⟨rfl, rfl⟩ := EStateM.Result.ok.inj hrun
     exact ⟨Or.inl rfl, fun c hc => by simp at hc, hhm, g.hashmap, rfl⟩
-  · rw [if_neg hdz,
-      bind_ok (show (pure PUnit.unit : EStateM Error Globals PUnit) g = .ok PUnit.unit g from rfl)]
-      at hrun
-    dsimp only at hrun
+  · rw [if_neg hdz] at hrun
     rw [bind_ok (vector_getE_apply p.pileFlute (UInt32.ofNat pile) g hidx)] at hrun
     have hd : 0 < (p.pileDepth.get ⟨(UInt32.ofNat pile).toNat, hidx⟩).toNat := by
       rcases Nat.eq_zero_or_pos (p.pileDepth.get ⟨(UInt32.ofNat pile).toNat, hidx⟩).toNat with h | h

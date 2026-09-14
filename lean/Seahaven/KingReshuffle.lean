@@ -142,6 +142,7 @@ theorem maskSub_setCfgBit {d : Fin 16} {su : Suit} (hsu : ¬ CfgBitSet d su) :
   · intro h
     have heq : piledSet (setCfgBit d su) = piledSet d := by
       simp only [piledSet, CfgBitSet, h]
+      rfl
     rw [piledSet_setCfgBit] at heq
     have hmem : su ∈ (piledSet d).erase su := by rw [heq]; exact mem_piledSet.2 hsu
     exact (Finset.notMem_erase su (piledSet d)) hmem

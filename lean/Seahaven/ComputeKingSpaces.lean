@@ -26,6 +26,23 @@ what iteration `i` writes is invisible to bit `i' ≠ i`.  That is what gives th
 
 open Lean Lean.Order
 
+/-- The tail `x >>= fun r => pure r` a mirrored `for`/`while` loop leaves behind
+is not syntactically `x` (`EStateM.Result` has no big eta) — and the real
+function's own `return`-of-the-loop-result sometimes keeps this shape where a
+hand-written mirror's elaboration collapses it away, so the `rfl` twins below
+need this as an explicit bridge. -/
+private theorem estatem_result_eta {ε σ α : Type} (r : EStateM.Result ε σ α) :
+    (match r with
+      | .ok a s => EStateM.Result.ok a s
+      | .error e s => EStateM.Result.error e s) = r := by
+  cases r <;> rfl
+
+private theorem estatem_bind_pure {ε σ α : Type} (x : EStateM ε σ α) :
+    (x >>= fun r => pure r) = x := by
+  funext s
+  simp only [bind, EStateM.bind]
+  exact estatem_result_eta (x s)
+
 /-! ## The loop bodies -/
 
 /-- Body of the refund fold: subtract suit `suit`'s freed king stack when the
@@ -40,18 +57,23 @@ def spaceBody (game : PosType) (kb : UInt8) :
       return .yield u
 
 /-- Accumulator of the bit-setting `while` loop: `(kingInfo, usedSpace)`. -/
-abbrev BitAcc := MProd KingInfo Int32
+abbrev BitAcc := KingInfo × Int32
 
 /-- Body of the bit-setting `while` loop. -/
 def bitBody (bit : UInt8) : Unit → BitAcc → EStateM Error Globals (ForInStep BitAcc) :=
-  fun _ r => do
-    if r.snd ≤ 4 then
-      let idx := ((4 : Int32) - r.snd).toUInt32
-      let old ← r.fst.possibleKings.getE idx
-      let newPK ← r.fst.possibleKings.setE idx (old ||| bit)
-      return .yield ⟨{ r.fst with possibleKings := newPK }, r.snd + 1⟩
-    else
-      return .done r
+  fun _ r =>
+    have kingInfo := r.fst
+    have usedSpace := r.snd
+    do
+      if usedSpace ≤ 4 then
+        let idx := ((4 : Int32) - usedSpace).toUInt32
+        let old ← kingInfo.possibleKings.getE idx
+        let newPK ← kingInfo.possibleKings.setE idx (old ||| bit)
+        have kingInfo : KingInfo := { possibleKings := newPK }
+        have usedSpace : Int32 := usedSpace + 1
+        return .yield (kingInfo, usedSpace)
+      else
+        return .done (kingInfo, usedSpace)
 
 /-- Body of the outer per-configuration loop. -/
 def blockBody (shiftValue : UInt8) (game : PosType) :
@@ -71,7 +93,11 @@ def kingSpacesExplicit (shiftValue numBits : UInt8) (game : PosType) :
   return ki
 
 /-- The explicit-loop twin is definitionally the real function. -/
-theorem kingSpaces_eq_explicit : computeKingSpaces = kingSpacesExplicit := rfl
+theorem kingSpaces_eq_explicit : computeKingSpaces = kingSpacesExplicit := by
+  unfold computeKingSpaces
+  simp only [estatem_bind_pure]
+  funext shiftValue numBits game
+  rfl
 
 /-! ## The refund fold
 
@@ -610,7 +636,7 @@ theorem kingSpaces_spec : KingSpacesSpec := by
         = .ok res t := by
     intro res t h
     rw [kingSpaces_eq_explicit]
-    simp only [kingSpacesExplicit, EStateM.run, bind, EStateM.bind, pure, EStateM.pure, h]
+    simp only [kingSpacesExplicit, EStateM.run, h]
   have herr : ∀ (e : Error) (t : Globals),
       forIn (List.range (closureInfoOf p).numBits.toNat)
           ({ possibleKings := mkVector 6 0 } : KingInfo)
@@ -619,7 +645,7 @@ theorem kingSpaces_spec : KingSpacesSpec := by
         = .error e t := by
     intro e t h
     rw [kingSpaces_eq_explicit]
-    simp only [kingSpacesExplicit, EStateM.run, bind, EStateM.bind, pure, h]
+    simp only [kingSpacesExplicit, EStateM.run, h]
   -- the run succeeded, so no configuration overflows `possibleKings`
   have hu : ∀ i ∈ List.range (closureInfoOf p).numBits.toNat,
       -1 ≤ (blockSpace (closureInfoOf p).shiftValue p i).toInt := by

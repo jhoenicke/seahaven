@@ -1737,7 +1737,7 @@ theorem moveDest_run_eq (pile : UInt32) (toPile : UInt8) (g : Globals) (p : PosT
     (Solver.removeFlute pile >>= fun forcedKings =>
         Loop.forIn Loop.mk forcedKings drainBody >>= fun r => pure r)
       (g, moveDestPre pile toPile hpile p)
-  unfold moveExplicit moveDestPre
+  unfold moveExplicit moveDestPre drainBody
   simp only [bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get,
     set, Vector.getE, getElem?_pos, hpile, pure, EStateM.pure,
     UInt8.toNat_toUInt32]

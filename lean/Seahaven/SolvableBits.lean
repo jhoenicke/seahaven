@@ -264,7 +264,7 @@ theorem RealizesKingConfig.card_clear_le_empty {s : State} {p : PosType} {k : Fi
     obtain ⟨i, hi⟩ := Option.isSome_iff_exists.1 ((hiff su).2 (Finset.mem_filter.1 hsu).2)
     have hd := (hown su i hi).1
     simp only [hi, Option.getD_some, Finset.coe_filter, Finset.mem_univ, true_and,
-      Set.mem_setOf_eq]
+      Set.mem_ofPred_eq]
     exact UInt8.toNat_inj.mp
       (show (p.pileDepth.get i).toNat = (0 : UInt8).toNat from by simpa using hd)
   · intro su hsu su' hsu' heq

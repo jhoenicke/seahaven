@@ -631,7 +631,7 @@ theorem cvPrologueSim : CvPrologueSim := by
       simp at hd
   refine ⟨v4, ?_, ?_⟩
   · -- the whole phase is normalizing
-    refine (hr1.mono (fun _ _ x => Or.inl x)).trans ?_
+    refine (Relation.ReflTransGen.mono (fun _ _ x => Or.inl x) _ _ hr1).trans ?_
     exact (hcpA.toNormReach.trans hcpB.toNormReach).trans
       (hcpC.toNormReach.trans hcpD.toNormReach)
   · -- and the result matches `convertPre` at its own flutes

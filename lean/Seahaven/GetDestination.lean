@@ -46,11 +46,11 @@ needed to make `getDest_eq_explicit` go through:
 
 open Lean
 
-/-- Accumulator of the `getDestination` walk: `⟨card, posFromTop, toPile⟩`.
+/-- Accumulator of the `getDestination` walk: `⟨card, toPile, posFromTop⟩`.
 
 Now that the in-loop king test is gone (see below) the loop has no early
 `return`, so the accumulator is just the mutables — no leading `Option`. -/
-abbrev DestAcc := MProd CardType (MProd Int32 UInt8)
+abbrev DestAcc := CardType × UInt8 × Int32
 
 /-- Body of the `getDestination` `repeat` loop. -/
 def destBody (game : PosType) (globals : Globals) :
@@ -63,8 +63,8 @@ def destBody (game : PosType) (globals : Globals) :
       let pd ← game.pileDepth.getE toPile.toUInt32
       let cd ← globals.card2depth.getE card.toUInt32
       have posFromTop : Int32 := pd.toInt32 - cd.toInt32
-      if posFromTop > 0 then pure (.done ⟨card, posFromTop, toPile⟩)
-      else pure (.yield ⟨card, posFromTop, toPile⟩)
+      if posFromTop > 0 then pure (.done ⟨card, toPile, posFromTop⟩)
+      else pure (.yield ⟨card, toPile, posFromTop⟩)
 
 def getDestExplicit (game : PosType) (pile : UInt32) : EStateM Error Globals UInt8 := do
   let globals ← get
@@ -75,7 +75,7 @@ def getDestExplicit (game : PosType) (pile : UInt32) : EStateM Error Globals UIn
   if (card == k) = true then pure (10 + suit)
   else do
     let r ← Loop.forIn Loop.mk (⟨card, 0, 0⟩ : DestAcc) (destBody game globals)
-    pure (if (r.snd.fst == 1) = true then r.snd.snd else 14)
+    pure (if (r.snd.snd == 1) = true then r.snd.fst else 14)
 
 /-- The explicit-loop twin is definitionally the real function. -/
 theorem getDest_eq_explicit : getDestination = getDestExplicit := rfl
@@ -246,7 +246,7 @@ theorem destBody_run (g : Globals) (game : PosType) (acc : DestAcc) (c : UInt8)
     destBody game g () acc g =
       .ok (let pft := (game.pileDepth.get ⟨(cardPile g c).toNat, hp10⟩).toInt32
                         - (cardDepth g c).toUInt32.toInt32
-           if pft > 0 then .done ⟨c, pft, cardPile g c⟩ else .yield ⟨c, pft, cardPile g c⟩) g := by
+           if pft > 0 then .done ⟨c, cardPile g c, pft⟩ else .yield ⟨c, cardPile g c, pft⟩) g := by
   subst hc
   have h64' : (acc.fst + 1).toUInt32.toNat < 64 := by rw [UInt8.toNat_toUInt32]; exact h64
   have hpEq : g.card2pile[(acc.fst + 1).toUInt32.toNat]'h64' = cardPile g (acc.fst + 1) := by
@@ -288,8 +288,8 @@ theorem pftVal_pos_iff (g : Globals) (game : PosType) (c : UInt8)
 theorem destBody_run' (g : Globals) (game : PosType) (acc : DestAcc) (c : UInt8)
     (hc : c = acc.fst + 1) (h64 : c.toNat < 64) (hp10 : (cardPile g c).toNat < 10) :
     destBody game g () acc g =
-      .ok (if pftVal g game c > 0 then .done ⟨c, pftVal g game c, cardPile g c⟩
-           else .yield ⟨c, pftVal g game c, cardPile g c⟩) g := by
+      .ok (if pftVal g game c > 0 then .done ⟨c, cardPile g c, pftVal g game c⟩
+           else .yield ⟨c, cardPile g c, pftVal g game c⟩) g := by
   rw [pftVal_eq g game c hp10]; exact destBody_run g game acc c hc h64 hp10
 
 theorem cardPile_lt10 (g : Globals) (hwf : WellFormedLayout g) (c : UInt8) (h64 : c.toNat < 64) :
@@ -305,9 +305,9 @@ theorem destFuel_walk (g : Globals) (game : PosType) (hwf : WellFormedLayout g) 
       (∀ j, 1 ≤ j → j ≤ m + 1 → (B + UInt8.ofNat j).toNat < 64) →
       (∀ j, 1 ≤ j → j ≤ m → isFreeCard g game (B + UInt8.ofNat j)) →
       ¬ isFreeCard g game (B + UInt8.ofNat (m + 1)) →
-      EStateM.run (destFuel game g k ⟨B, pft0, tp0⟩) g
-        = .ok (some ⟨B + UInt8.ofNat (m + 1), pftVal g game (B + UInt8.ofNat (m + 1)),
-                     cardPile g (B + UInt8.ofNat (m + 1))⟩) g := by
+      EStateM.run (destFuel game g k ⟨B, tp0, pft0⟩) g
+        = .ok (some ⟨B + UInt8.ofNat (m + 1), cardPile g (B + UInt8.ofNat (m + 1)),
+                     pftVal g game (B + UInt8.ofNat (m + 1))⟩) g := by
   intro m
   induction m with
   | zero =>
@@ -320,7 +320,7 @@ theorem destFuel_walk (g : Globals) (game : PosType) (hwf : WellFormedLayout g) 
     have hpos : 0 < pftVal g game (B + 1) := (pftVal_pos_iff g game (B+1) hp10).2 hnf
     rw [destFuel]
     simp only [EStateM.run, bind, EStateM.bind,
-      destBody_run' g game ⟨B, pft0, tp0⟩ (B+1) rfl h1 hp10, if_pos hpos, pure, EStateM.pure]
+      destBody_run' g game ⟨B, tp0, pft0⟩ (B+1) rfl h1 hp10, if_pos hpos, pure, EStateM.pure]
   | succ m ih =>
     intro B k pft0 tp0 hk hb hfree hnf
     obtain ⟨k', rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by omega⟩
@@ -338,7 +338,7 @@ theorem destFuel_walk (g : Globals) (game : PosType) (hwf : WellFormedLayout g) 
     rw [uint8_shift] at hIH
     rw [destFuel]
     simp only [EStateM.run, bind, EStateM.bind,
-      destBody_run' g game ⟨B, pft0, tp0⟩ (B+1) rfl h1 hp10, if_neg hnpos]
+      destBody_run' g game ⟨B, tp0, pft0⟩ (B+1) rfl h1 hp10, if_neg hnpos]
     exact hIH
 
 /-! ### Suit arithmetic along the walk, and where it stops -/
@@ -407,8 +407,8 @@ theorem destLoop_result (g : Globals) (game : PosType) (hwf : WellFormedLayout g
     (hfree : ∀ j, 1 ≤ j → j < n → isFreeCard g game (B + UInt8.ofNat j))
     (hnf : ¬ isFreeCard g game (B + UInt8.ofNat n)) :
     (Loop.forIn Loop.mk (⟨B, 0, 0⟩ : DestAcc) (destBody game g)) g
-      = .ok ⟨B + UInt8.ofNat n, pftVal g game (B + UInt8.ofNat n),
-             cardPile g (B + UInt8.ofNat n)⟩ g := by
+      = .ok ⟨B + UInt8.ofNat n, cardPile g (B + UInt8.ofNat n),
+             pftVal g game (B + UInt8.ofNat n)⟩ g := by
   obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
   refine destLoop_eq_of_fuel game g (m + 1) ⟨B, 0, 0⟩ _ g g ?_
   exact destFuel_walk g game hwf m B (m + 1) 0 0 (by omega) hbound
@@ -432,7 +432,7 @@ theorem getDest_apply (game : PosType) (pile : UInt32) (g g' : Globals) (B : UIn
     getDestination game pile g =
       (if (B == game.kings[(SUIT B).toUInt32.toNat]'hs32) = true then
          .ok (10 + SUIT B) g
-       else .ok (if (res.snd.fst == 1) = true then res.snd.snd else 14) g') := by
+       else .ok (if (res.snd.snd == 1) = true then res.snd.fst else 14) g') := by
   rw [getDest_eq_explicit]
   simp only [getDestExplicit, bind, EStateM.bind, get, getThe, MonadStateOf.get, EStateM.get,
     Vector.getE, getElem?_pos, hp, hidx, hcard, hs32, apply_ite (fun f : EStateM Error Globals UInt8 => f g),
